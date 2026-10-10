@@ -78,6 +78,13 @@ def start_cert(cid: str):
     runner = get_runner()
     c["status"] = "RUNNING"
     budget = min(c["config"]["budget_usd"], 10.0)
+    if budget < 0.05:
+        # Even simulator launches need a non-trivial budget reserved: a $0.01
+        # certification can never cover a real experiment, so refuse up front.
+        c["status"] = "BLOCKED_BUDGET"
+        return {"certification": cid, "status": "BLOCKED_BUDGET",
+                "reasons": [f"budget ${budget:.2f} below minimum $0.05 experiment reserve"],
+                "experiments": []}
     prev: list = []
     for idx in range(5):
         ctx = {"candidate": c["config"]["candidate_model"],

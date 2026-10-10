@@ -1,0 +1,10 @@
+:root { color-scheme: light; }
+body { background: #EFEBE4; }
+.frame { min-height: 100vh; border: 1px solid #1F1F1F; margin: 10px; background: #EFEBE4; }
+.grid-cells { background-image: radial-gradient(#1f1f1f14 1px, transparent 1px); background-size: 88px 88px; }
+.cell { border: 1px solid #1f1f1f14; border-radius: 10px; }
+.panel { border: 1px solid #1F1F1F; background: #F5F1E9; }
+.btn-dark { background: #1F1F1F; color: #EFEBE4; border: 1px solid #1F1F1F; }
+.btn-dark:hover { background: #000; }
+.chip { border: 1px solid #1F1F1F; border-radius: 999px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #1F1F1F; outline-offset: 2px; }

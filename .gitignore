@@ -52,3 +52,5 @@ Thumbs.db
 runs/
 benchmarks_cache/
 artifacts/
+*.db
+npm*.log

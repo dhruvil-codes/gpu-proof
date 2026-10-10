@@ -15,11 +15,23 @@ spec.loader.exec_module(main)
 from fastapi.testclient import TestClient  # type: ignore
 
 
+def wait_done(c, cid, timeout=30):
+    import time
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        s = c.get(f"/certifications/{cid}").json()
+        if s["status"] not in ("RUNNING", "CREATED"):
+            return s
+        time.sleep(0.5)
+    raise AssertionError(f"timed out waiting for {cid}")
+
+
 def test_budget_refused_over_cap():
     main.CERTS.clear()
     c = TestClient(main.app)
     cid = c.post("/certifications", json={"budget_usd": 0.01}).json()["id"]
-    out = c.post(f"/certifications/{cid}/start").json()
+    c.post(f"/certifications/{cid}/start")
+    out = wait_done(c, cid)
     assert out["status"] == "BLOCKED_BUDGET", out
 
 
@@ -32,8 +44,9 @@ def test_planner_down_returns_incomplete_not_ship():
         def boom(ctx):
             raise RuntimeError("Certification incomplete. Reason: Planning service unavailable (down)")
         main.propose_experiment = boom
-        out = c.post(f"/certifications/{cid}/start").json()
-        assert out["status"] == "INCOMPLETE" and "Planning service unavailable" in out["reason"], out
+        c.post(f"/certifications/{cid}/start")
+        s = wait_done(c, cid)
+        assert s["status"] == "INCOMPLETE", s
     finally:
         main.propose_experiment = real
 

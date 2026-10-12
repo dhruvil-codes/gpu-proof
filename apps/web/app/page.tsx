@@ -23,9 +23,21 @@ function PresetPicker() {
 
   function go(e?: React.FormEvent) {
     e?.preventDefault();
-    const v = (value.trim() || chosen.value).trim();
-    if (!v && active === "custom") return;
-    r.push(`/new?candidate_model=${encodeURIComponent(v || chosen.value)}`);
+    const raw = (value.trim() || chosen.value).trim();
+    if (!raw && active === "custom") return;
+    // Extract clean HF repo id if URL was entered
+    const clean = raw
+      .replace(/^(?:https?:\/\/)?(?:www\.)?(?:huggingface\.co|hf\.co)\//i, "")
+      .replace(/[?#].*$/, "")
+      .replace(/\/+$/, "");
+    const parts = clean.split("/").filter(Boolean);
+    const resolved =
+      parts.length >= 2
+        ? parts[0] === "models" && parts.length >= 3
+          ? `${parts[1]}/${parts[2]}`
+          : `${parts[0]}/${parts[1]}`
+        : clean;
+    r.push(`/new?candidate_model=${encodeURIComponent(resolved || chosen.value)}`);
   }
 
   return (
@@ -60,7 +72,7 @@ function PresetPicker() {
         })}
       </div>
       <label htmlFor="candidate" className="mt-4 block text-[11px] text-canvas/70">
-        {active === "custom" ? "Type any Hugging Face model slug" : "Model Identifier (read-only for presets, edit via Custom)"}
+        {active === "custom" ? "Bring ANY model: Paste Hugging Face URL or repo slug" : "Model Identifier (read-only for presets, edit via Custom)"}
       </label>
       <div className="mt-1.5 flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
@@ -69,7 +81,7 @@ function PresetPicker() {
           value={active === "custom" ? custom : chosen.value}
           onChange={(e) => { if (active === "custom") setCustom(e.target.value); }}
           readOnly={active !== "custom"}
-          placeholder={active === "custom" ? "e.g. google/gemma-2-27b-it" : undefined}
+          placeholder={active === "custom" ? "e.g. https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct" : undefined}
           className="min-h-[44px] w-full rounded border border-canvas/30 bg-transparent px-3 text-sm outline-none placeholder:text-canvas/40 focus:border-canvas font-mono"
         />
         <button

@@ -250,6 +250,18 @@ def advisor(
     return det
 
 
+@app.get("/models/inspect")
+def inspect_model(query: str = ""):
+    """Dynamic hardware sizing & compatibility inspection for ANY Hugging Face model or URL."""
+    return advisor_svc.inspect_model_fit(query)
+
+
+@app.post("/models/inspect")
+def inspect_model_post(payload: dict):
+    q = payload.get("query") or payload.get("model") or payload.get("candidate_model") or ""
+    return advisor_svc.inspect_model_fit(str(q))
+
+
 @app.get("/certifications")
 def list_all():
     mem = [{"id": cid, "status": c["status"], "spend": c["spend"],
@@ -288,6 +300,9 @@ def create_cert(
     # NEVER persist secrets: strip BYOK fields before writing to SQLite.
     safe_config = {k: v for k, v in full_config.items()
                    if k not in ("nebius_api_key", "nebius_project_id", "nebius_subnet_id")}
+    # Clean URLs to clean Hugging Face repo IDs
+    safe_config["candidate_model"] = advisor_svc.extract_hf_repo_id(c.candidate_model) or c.candidate_model
+    safe_config["current_model"] = advisor_svc.extract_hf_repo_id(c.current_model) or c.current_model
     safe_config["mode"] = mode
     CERTS[cid] = {"id": cid, "status": "CREATED", "config": safe_config,
                   "twin": twin, "experiments": [], "spend": 0.0,

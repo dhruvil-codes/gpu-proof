@@ -31,6 +31,9 @@ wheels/
 *.egg
 
 # Node / Web
+# Exception: GPUProof frontend browser modules live in apps/web/lib/
+!apps/web/lib/
+!apps/web/lib/**
 node_modules/
 npm-debug.log*
 yarn-debug.log*

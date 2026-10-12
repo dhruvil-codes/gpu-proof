@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SiteFooter, StatusPill, TopNav } from "@/components/ui";
 import { ModelAdvisorFab } from "@/components/ModelAdvisorDrawer";
+import HardwareProfiler from "@/components/HardwareProfiler";
 
 const PRESETS = [
   { id: "qwen27b", glyph: "⚡", label: "Qwen 3.6 27B", sub: "Most downloaded open-weight; runs on single 24GB GPU", value: "Qwen/Qwen3.6-27B-Instruct" },
@@ -47,6 +48,7 @@ function PresetPicker() {
         <p className="text-[11px] uppercase tracking-widest text-canvas/70 font-bold">Pick a candidate model — 1 click to audit</p>
         <span className="text-[11px] text-canvas/50">Auto-fills setup</span>
       </div>
+      <HardwareProfiler compact />
       <div role="radiogroup" aria-label="Model preset" className="mt-4 grid gap-3 sm:grid-cols-3">
         {PRESETS.map((p) => {
           const selected = active === p.id;

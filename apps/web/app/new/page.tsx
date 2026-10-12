@@ -5,6 +5,7 @@ import { ByokBadge, ExecutionModeToggle, TopNav, useByokStatus } from "@/compone
 import ByokModal from "@/components/ByokModal";
 import { buildByokHeaders } from "@/components/byok";
 import { buildExecutionHeaders, getExecutionMode } from "@/components/executionMode";
+import HardwareProfiler from "@/components/HardwareProfiler";
 
 const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 
@@ -284,6 +285,10 @@ function NewForm() {
             Bring ANY open-source model (Hugging Face ID or full URL). Compare local open-source setups vs production Nebius cloud GPUs.
           </p>
         </div>
+      </div>
+
+      <div className="mt-4" aria-label="Local hardware auto-detection">
+        <HardwareProfiler modelFit={modelFit} inspecting={inspecting} />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="Execution mode">

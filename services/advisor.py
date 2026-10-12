@@ -29,6 +29,10 @@ GPU_CATALOG: dict[str, dict] = {
         "vram_gb": 24, "usd_hr": 0.00, "label": "Apple Mac Mini 24GB Unified Memory",
         "category": "local_mac", "bandwidth_gbs": 120, "type": "Budget Desktop (Ollama/MLX)"
     },
+    "PC_24GB": {
+        "vram_gb": 24, "usd_hr": 0.00, "label": "PC Workstation 24GB System RAM",
+        "category": "local_gpu", "bandwidth_gbs": 120, "type": "Local CPU/RAM Offload (24GB)"
+    },
     "RTX4080": {
         "vram_gb": 16, "usd_hr": 0.70, "label": "NVIDIA RTX 4080 / 4070Ti Super 16GB",
         "category": "local_gpu", "bandwidth_gbs": 717, "type": "Mid-tier Consumer"
@@ -253,6 +257,7 @@ _GPU_ALIASES: dict[str, str] = {
     "mac studio": "MAC_STUDIO_128GB", "mac studio 128": "MAC_STUDIO_128GB", "mac studio 192": "MAC_STUDIO_192GB",
     "macbook": "MACBOOK_MAX_64GB", "macbook pro": "MACBOOK_MAX_64GB",
     "4080": "RTX4080", "rtx 4080": "RTX4080", "6000 ada": "RTX6000_ADA",
+    "pc 24gb": "PC_24GB", "24gb ram": "PC_24GB", "pc 24": "PC_24GB", "24gb": "PC_24GB",
 }
 
 

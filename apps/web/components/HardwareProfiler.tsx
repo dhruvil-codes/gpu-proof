@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   HARDWARE_TARGETS,
+  applyRamSelection,
   detectHardware,
   evaluateFit,
+  fetchNativeHardwareProfile,
   getTargetKey,
   importCliProfile,
   loadDetected,
@@ -50,6 +52,19 @@ export function useHardwareProfiler() {
     } catch {
       /* detection must never break the page */
     }
+
+    // Follow up immediately with background probe to local FastAPI /api/system/hardware
+    // which reports exact native physical RAM (e.g. 24GB on this machine) without
+    // browser quantization caps.
+    fetchNativeHardwareProfile()
+      .then((native) => {
+        if (native) {
+          setDetected(native);
+        }
+      })
+      .catch(() => {
+        /* ignore */
+      });
   }, []);
 
   const changeTarget = useCallback((key: string) => {
@@ -61,11 +76,15 @@ export function useHardwareProfiler() {
     }
   }, []);
 
-  return { detected, setDetected, targetKey, changeTarget, detectMs };
+  const selectRam = useCallback((gb: number) => {
+    setDetected((curr) => applyRamSelection(gb, curr));
+  }, []);
+
+  return { detected, setDetected, targetKey, changeTarget, detectMs, selectRam };
 }
 
 export default function HardwareProfiler({ modelFit, inspecting, compact, onTargetChange }: Props) {
-  const { detected, setDetected, targetKey, changeTarget, detectMs } = useHardwareProfiler();
+  const { detected, setDetected, targetKey, changeTarget, detectMs, selectRam } = useHardwareProfiler();
   const [detecting, setDetecting] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [cliOpen, setCliOpen] = useState(false);
@@ -98,21 +117,26 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
     };
   }, [dropdownOpen]);
 
-  function redetect() {
+  async function redetect() {
     setDetecting(true);
-    // Keep the pill responsive — detection is sync, yield one frame first.
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        try {
-          const d = detectHardware();
-          setDetected(d);
-        } catch {
-          /* never break the page */
-        } finally {
-          setDetecting(false);
-        }
-      }, 30);
-    });
+    try {
+      const native = await fetchNativeHardwareProfile();
+      if (native) {
+        setDetected(native);
+        setDetecting(false);
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      const d = detectHardware();
+      setDetected(d);
+    } catch {
+      /* never break the page */
+    } finally {
+      setDetecting(false);
+    }
   }
 
   function applyCli() {
@@ -134,12 +158,35 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
     return (
       <div className="mx-auto mt-4 flex max-w-2xl flex-wrap items-center justify-center gap-2" aria-label="Local hardware auto-detection">
         {detected ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-canvas/30 bg-ink/60 px-3 py-1.5 font-mono text-[11px] text-canvas">
-            <span aria-hidden="true">💻</span>
-            <span>
-              Current Machine: <strong>{detected.label}</strong>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-canvas/30 bg-ink/60 px-3 py-1.5 font-mono text-[11px] text-canvas">
+              <span aria-hidden="true">💻</span>
+              <span>
+                Current Machine: <strong>{detected.label}</strong>
+              </span>
             </span>
-          </span>
+            <div className="inline-flex items-center gap-1" role="group" aria-label="Quick RAM toggle">
+              {[16, 24, 32, 64].map((gb) => {
+                const active = detected.usableGB === gb;
+                return (
+                  <button
+                    key={gb}
+                    type="button"
+                    onClick={() => selectRam(gb)}
+                    aria-pressed={active}
+                    className={`cursor-pointer rounded px-2 py-0.5 font-mono text-[10px] font-bold transition-all ${
+                      active
+                        ? "border border-canvas bg-canvas text-ink"
+                        : "border border-canvas/30 text-canvas/80 hover:border-canvas hover:text-canvas"
+                    }`}
+                    title={`Lock RAM to ${gb}GB`}
+                  >
+                    {gb}G{active ? "✓" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           <button
             type="button"
@@ -182,6 +229,35 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
           </span>
         )}
       </div>
+
+      {/* RAM selector chips */}
+      {detected && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-2" role="group" aria-label="System RAM selector">
+          <span className="font-mono text-[11px] font-bold text-muted">System RAM:</span>
+          {[16, 24, 32, 64].map((gb) => {
+            const active = detected.usableGB === gb;
+            return (
+              <button
+                key={gb}
+                type="button"
+                onClick={() => selectRam(gb)}
+                aria-pressed={active}
+                className={`cursor-pointer rounded px-2.5 py-1 font-mono text-[11px] font-bold transition-all ${
+                  active
+                    ? "border border-ink bg-ink text-canvas shadow-[2px_2px_0_rgba(31,31,31,0.25)]"
+                    : "border border-ink/25 bg-canvas/70 text-ink hover:border-ink hover:bg-canvas"
+                }`}
+                title={`Lock system RAM to ${gb}GB for local model fit calculations`}
+              >
+                {gb} GB {active ? "✓" : ""}
+              </button>
+            );
+          })}
+          <span className="font-mono text-[10px] text-muted">
+            ({detected.usableGB}GB active for local fit)
+          </span>
+        </div>
+      )}
 
       {/* Toggle row */}
       {detected && (

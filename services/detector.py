@@ -225,9 +225,10 @@ def map_profile(native: dict, gpus: list[dict]) -> dict:
     # Windows/Linux without NVIDIA — report system RAM honestly.
     if ram_gb:
         ram = float(ram_gb)
-        label = f"PC / Server ({ram:g}GB system RAM, no discrete NVIDIA GPU detected)"
-        key = "MACBOOK_MAX_64GB" if ram >= 48 else ("RTX4090" if ram >= 20 else "MAC_MINI_16GB")
-        return {"profileKey": key, "label": label, "usableGB": int(round(ram))}
+        rounded_ram = int(round(ram))
+        label = f"PC Workstation ({rounded_ram}GB system RAM, CPU/RAM offload capable)"
+        key = "MACBOOK_MAX_64GB" if ram >= 48 else ("PC_24GB" if ram >= 20 else "MAC_MINI_16GB")
+        return {"profileKey": key, "label": label, "usableGB": rounded_ram}
     return {"profileKey": "MAC_MINI_16GB",
             "label": "Unknown Machine (~16GB estimated — install pynvml / psutil for exact specs)",
             "usableGB": 16}

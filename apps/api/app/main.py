@@ -250,6 +250,13 @@ def advisor(
     return det
 
 
+@app.get("/system/hardware")
+def system_hardware():
+    """Native OS hardware probe for the machine running GPUProof."""
+    from services.detector import gather_profile
+    return gather_profile()
+
+
 @app.get("/models/inspect")
 def inspect_model(query: str = ""):
     """Dynamic hardware sizing & compatibility inspection for ANY Hugging Face model or URL."""

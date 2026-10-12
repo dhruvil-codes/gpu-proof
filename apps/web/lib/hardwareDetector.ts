@@ -69,6 +69,20 @@ export const HARDWARE_TARGETS: HardwareTarget[] = [
     kind: "local",
   },
   {
+    key: "PC_24GB",
+    label: "PC Workstation 24GB RAM",
+    sub: "System RAM · CPU/RAM offload · 24GB",
+    usableGB: 24,
+    kind: "local",
+  },
+  {
+    key: "PC_32GB",
+    label: "PC Workstation 32GB RAM",
+    sub: "System RAM · CPU/RAM offload · 32GB",
+    usableGB: 32,
+    kind: "local",
+  },
+  {
     key: "RTX4090",
     label: "NVIDIA RTX 4090 24GB",
     sub: "Single consumer flagship · local dev",
@@ -115,6 +129,37 @@ export const HARDWARE_TARGETS: HardwareTarget[] = [
 export const DETECTED_KEY = "gpuproof-hw-detected";
 export const TARGET_KEY = "gpuproof-hw-target";
 export const CLI_BRIDGE_KEY = "gpuproof-cli-profile";
+export const RAM_OVERRIDE_KEY = "gpuproof-ram-override";
+
+export function loadRamOverride(): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const val = localStorage.getItem(RAM_OVERRIDE_KEY);
+    if (!val) return null;
+    const n = Number(val);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveRamOverride(gb: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(RAM_OVERRIDE_KEY, String(gb));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearRamOverride(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(RAM_OVERRIDE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Raw fingerprint helpers
@@ -335,14 +380,16 @@ export function profileMachine(input: {
         confidence: "medium",
       };
     }
+    const rounded = Math.round(mem);
+    const key = rounded >= 20 ? "PC_24GB" : "MAC_MINI_16GB";
     return {
-      profileKey: mem >= 20 ? "RTX4090" : "MAC_MINI_16GB",
+      profileKey: key,
       label:
-        mem >= 20
-          ? `PC Workstation (${gpu?.chip ?? "Discrete/Integrated GPU"}, ~${mem}GB system RAM)`
-          : `PC / Laptop (${gpu?.chip ?? "Integrated GPU"}, ~${mem}GB system RAM)`,
-      badge: `${gpu?.chip ?? "PC GPU"} · ~${mem}GB`,
-      usableGB: mem,
+        rounded >= 20
+          ? `PC Workstation (${gpu?.chip ?? "CPU/RAM Offload"}, ~${rounded}GB system RAM)`
+          : `PC / Laptop (${gpu?.chip ?? "Integrated GPU"}, ~${rounded}GB system RAM)`,
+      badge: `${gpu?.chip ?? "PC"} · ~${rounded}GB RAM`,
+      usableGB: rounded,
       confidence: "medium",
     };
   }
@@ -389,7 +436,9 @@ export function detectHardware(): DetectedHardware {
   const platform = typeof navigator !== "undefined" ? (navigator as Navigator & { platform?: string }).platform || "" : "";
   const os = detectOS(ua, platform);
   const arch = detectArch(ua, platform);
-  const deviceMemoryGB = getDeviceMemoryGB();
+  const rawDeviceMemoryGB = getDeviceMemoryGB();
+  const ramOverride = loadRamOverride();
+  const deviceMemoryGB = ramOverride ?? rawDeviceMemoryGB;
   const cpuThreads = getCpuThreads();
 
   const profiled = profileMachine({ os, arch, renderer, deviceMemoryGB });
@@ -407,7 +456,7 @@ export function detectHardware(): DetectedHardware {
     badge: profiled.badge,
     usableGB: profiled.usableGB,
     confidence: profiled.confidence,
-    method: "webgl+ua",
+    method: ramOverride ? "cli-bridge" : "webgl+ua",
     detectedAt: Date.now(),
     durationMs: Math.round((t1 - t0) * 10) / 10,
   };
@@ -462,17 +511,21 @@ export interface CliBridgeProfile {
 export function importCliProfile(json: string | CliBridgeProfile): DetectedHardware {
   const obj: CliBridgeProfile = typeof json === "string" ? (JSON.parse(json) as CliBridgeProfile) : json;
   if (!obj || !obj.profileKey) throw new Error("Invalid hardware profile JSON — expected {profileKey, label, usableGB}.");
+  const ramOverride = loadRamOverride();
+  const effectiveGB = ramOverride ?? Number(obj.usableGB) ?? 16;
   const detected: DetectedHardware = {
     os: obj.os ?? "Unknown",
     arch: "unknown",
     gpuRenderer: obj.gpu_name ?? obj.chip ?? "",
     gpuVendor: "",
-    deviceMemoryGB: obj.system_ram_gb,
+    deviceMemoryGB: obj.system_ram_gb ?? effectiveGB,
     cpuThreads: obj.cpu_threads,
-    profileKey: obj.profileKey,
-    label: obj.label || obj.profileKey,
-    badge: obj.gpu_name || obj.chip || obj.label || obj.profileKey,
-    usableGB: Number(obj.usableGB) || 16,
+    profileKey: effectiveGB === 24 ? "PC_24GB" : obj.profileKey,
+    label: ramOverride
+      ? `PC Workstation (${effectiveGB}GB system RAM, CPU/RAM offload capable)`
+      : (obj.label || obj.profileKey),
+    badge: obj.gpu_name || obj.chip || `${effectiveGB}GB RAM`,
+    usableGB: effectiveGB,
     confidence: "high",
     method: "cli-bridge",
     detectedAt: Date.now(),
@@ -498,17 +551,21 @@ function loadCliBridgeProfile(): DetectedHardware | null {
     if (!obj || !obj.profileKey) return null;
     // 24h TTL — stale native probes should not shadow fresh browser state.
     if (obj.emitted_at && Date.now() - obj.emitted_at > 24 * 3600 * 1000) return null;
+    const ramOverride = loadRamOverride();
+    const effectiveGB = ramOverride ?? Number(obj.usableGB) ?? 16;
     return {
       os: obj.os ?? "Unknown",
       arch: "unknown",
       gpuRenderer: obj.gpu_name ?? obj.chip ?? "",
       gpuVendor: "",
-      deviceMemoryGB: obj.system_ram_gb,
+      deviceMemoryGB: obj.system_ram_gb ?? effectiveGB,
       cpuThreads: obj.cpu_threads,
-      profileKey: obj.profileKey,
-      label: obj.label || obj.profileKey,
-      badge: obj.gpu_name || obj.chip || obj.label || obj.profileKey,
-      usableGB: Number(obj.usableGB) || 16,
+      profileKey: effectiveGB === 24 ? "PC_24GB" : obj.profileKey,
+      label: ramOverride
+        ? `PC Workstation (${effectiveGB}GB system RAM, CPU/RAM offload capable)`
+        : (obj.label || obj.profileKey),
+      badge: obj.gpu_name || obj.chip || `${effectiveGB}GB RAM`,
+      usableGB: effectiveGB,
       confidence: "high",
       method: "cli-bridge",
       detectedAt: obj.emitted_at ?? Date.now(),
@@ -517,6 +574,53 @@ function loadCliBridgeProfile(): DetectedHardware | null {
   } catch {
     return null;
   }
+}
+
+/** Asynchronously probe local FastAPI server for exact physical RAM & GPU specs. */
+export async function fetchNativeHardwareProfile(): Promise<DetectedHardware | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const res = await fetch("/api/system/hardware", { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !data.profileKey || typeof data.usableGB !== "number") return null;
+    return importCliProfile(data);
+  } catch {
+    return null;
+  }
+}
+
+/** Lock in a specific RAM size (e.g. 24GB) and update the local machine profile. */
+export function applyRamSelection(gb: number, current: DetectedHardware | null): DetectedHardware {
+  saveRamOverride(gb);
+  const base: DetectedHardware = current || {
+    os: "Windows",
+    arch: "x86_64",
+    gpuRenderer: "CPU/RAM Offload",
+    gpuVendor: "",
+    deviceMemoryGB: gb,
+    cpuThreads: 8,
+    profileKey: gb === 24 ? "PC_24GB" : gb <= 16 ? "MAC_MINI_16GB" : "MACBOOK_MAX_64GB",
+    label: `PC Workstation (${gb}GB system RAM, CPU/RAM offload capable)`,
+    badge: `PC · ${gb}GB RAM`,
+    usableGB: gb,
+    confidence: "high",
+    method: "cli-bridge",
+    detectedAt: Date.now(),
+    durationMs: 0,
+  };
+  const updated: DetectedHardware = {
+    ...base,
+    deviceMemoryGB: gb,
+    usableGB: gb,
+    profileKey: gb === 24 ? "PC_24GB" : gb <= 16 ? "MAC_MINI_16GB" : "MACBOOK_MAX_64GB",
+    label: `PC Workstation (${gb}GB system RAM, CPU/RAM offload capable)`,
+    badge: `PC · ${gb}GB RAM`,
+    confidence: "high",
+    method: "cli-bridge",
+  };
+  persistDetected(updated);
+  return updated;
 }
 
 export function getTargetKey(): string {

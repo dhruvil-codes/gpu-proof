@@ -110,15 +110,6 @@ export function TopNav() {
       <span className="hidden xl:inline-block"><ByokBadge connected={connected} /></span>
       <button
         type="button"
-        onClick={() => setAdvisorOpen(true)}
-        aria-label="Ask the NVIDIA Nemotron Model Migration Advisor"
-        aria-haspopup="dialog"
-        className="cursor-pointer rounded border border-ink bg-ink px-3 py-2 font-bold text-canvas transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]"
-      >
-        🤖 Ask Model Advisor
-      </button>
-      <button
-        type="button"
         onClick={() => setByokOpen(true)}
         aria-label={connected ? "Manage your Nebius API key (connected)" : "Add your Nebius API key"}
         className="cursor-pointer rounded border border-ink px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]"

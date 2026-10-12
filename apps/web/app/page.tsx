@@ -248,58 +248,229 @@ function FaqSection() {
   );
 }
 
+function DatacenterEngraving() {
+  return (
+    <svg
+      viewBox="0 0 600 380"
+      role="img"
+      aria-label="Pen-and-ink engraving of a Nebius GPU datacenter cluster"
+      className="w-full h-auto text-ink"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {/* thin plate frame */}
+      <rect x="8" y="8" width="584" height="364" strokeWidth="1.25" opacity="0.9" />
+      <rect x="14" y="14" width="572" height="352" strokeWidth="0.75" opacity="0.35" />
+      {/* corner ticks */}
+      <path d="M8 28 V8 H28 M572 8 H592 V28 M592 352 V372 H572 M28 372 H8 V352" strokeWidth="1.75" />
+      {/* sun / compass */}
+      <g opacity="0.9">
+        <circle cx="508" cy="66" r="22" strokeWidth="1.25" />
+        <circle cx="508" cy="66" r="15.5" strokeWidth="0.75" opacity="0.6" />
+        <circle cx="508" cy="66" r="2.2" fill="currentColor" stroke="none" />
+        {Array.from({ length: 12 }).map((_, i) => {
+          const a = (i * Math.PI) / 6;
+          const x1 = 508 + Math.cos(a) * 26;
+          const y1 = 66 + Math.sin(a) * 26;
+          const x2 = 508 + Math.cos(a) * 32;
+          const y2 = 66 + Math.sin(a) * 32;
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth="1" />;
+        })}
+      </g>
+      {/* etched clouds */}
+      <g opacity="0.7" strokeWidth="1">
+        <path d="M52 84 c8-14 28-16 36-6 c6-8 22-8 26 2 c10-4 24 2 22 12 c-2 8-12 10-22 10 H70 c-12 0-22-8-18-18 Z" />
+        <path d="M64 96 h62 M76 104 h40" strokeWidth="0.75" opacity="0.6" />
+        <path d="M400 52 c6-10 22-12 28-4 c5-6 18-6 21 2 c8-3 19 1 17 9 c-1 6-9 8-17 8 h-35 c-9 0-17-7-14-15 Z" strokeWidth="0.9" />
+      </g>
+      {/* birds */}
+      <g strokeWidth="1.25" opacity="0.85">
+        <path d="M140 62 q6-6 12 0 q6-6 12 0" />
+        <path d="M172 48 q5-5 10 0 q5-5 10 0" />
+        <path d="M208 70 q5-5 10 0 q5-5 10 0" />
+        <path d="M250 52 q4-4 8 0 q4-4 8 0" />
+        <path d="M330 74 q5-5 10 0 q5-5 10 0" />
+      </g>
+      {/* distant city / pines */}
+      <g opacity="0.45" strokeWidth="1">
+        <path d="M40 218 h28 v-14 h10 v14 h12 v-22 h10 v22 h14 v-10 h10 v10 h16" />
+        <path d="M460 218 h14 v-12 h8 v12 h12 v-20 h8 v20 h12 v-10 h8 v10 h18" />
+        <path d="M52 218 l10-18 l10 18 M62 200 v18 M478 218 l8-14 l8 14" strokeWidth="0.9" />
+      </g>
+      {/* main datacenter hall */}
+      <g strokeWidth="1.25">
+        {/* stepped platform */}
+        <rect x="110" y="288" width="380" height="10" />
+        <rect x="124" y="278" width="352" height="10" />
+        <rect x="138" y="268" width="324" height="10" />
+        {/* hall body */}
+        <rect x="150" y="148" width="300" height="120" />
+        {/* pediment roof */}
+        <path d="M138 148 L300 96 L462 148 Z" />
+        <path d="M168 148 L300 112 L432 148" strokeWidth="0.9" opacity="0.7" />
+        {/* pediment label */}
+        <text x="300" y="136" textAnchor="middle" fontSize="11" fontWeight="800" letterSpacing="1.5" stroke="none" fill="currentColor" fontFamily="monospace">
+          NEBIUS · GPU CLUSTER
+        </text>
+        <text x="300" y="146" textAnchor="middle" fontSize="7.5" letterSpacing="2" stroke="none" fill="currentColor" opacity="0.65" fontFamily="monospace">
+          EU-NORTH1 · DETERMINISTIC
+        </text>
+        {/* columns / 6 rack bays */}
+        {[0, 1, 2, 3, 4, 5].map((i) => {
+          const x = 162 + i * 48;
+          return (
+            <g key={i}>
+              <rect x={x} y={160} width={36} height={96} strokeWidth="1" />
+              {[0, 1, 2, 3, 4].map((r) => (
+                <g key={r}>
+                  <rect x={x + 4} y={166 + r * 17} width={28} height={11} strokeWidth="0.8" opacity="0.9" />
+                  <line x1={x + 7} y1={171.5 + r * 17} x2={x + 22} y2={171.5 + r * 17} strokeWidth="0.7" opacity="0.6" />
+                  <circle cx={x + 28} cy={171.5 + r * 17} r={1.4} fill="currentColor" stroke="none" opacity={r === 2 && i === 2 ? 0.95 : 0.45} />
+                </g>
+              ))}
+            </g>
+          );
+        })}
+        {/* lightning / power emblem on roof */}
+        <path d="M300 78 v14 M294 88 l6 8 l-6 8 h10 l-4 10 l12-16 h-9 l5-10 Z" strokeWidth="1" />
+      </g>
+      {/* side annex blocks */}
+      <g strokeWidth="1" opacity="0.9">
+        <rect x="64" y="208" width="72" height="60" />
+        <path d="M64 208 L100 188 L136 208" />
+        {[0, 1, 2].map((r) => (
+          <line key={r} x1={70} y1={222 + r * 12} x2={130} y2={222 + r * 12} strokeWidth="0.75" opacity="0.6" />
+        ))}
+        <rect x="464" y="208" width="72" height="60" />
+        <path d="M464 208 L500 188 L536 208" />
+        {[0, 1, 2].map((r) => (
+          <line key={r} x1={470} y1={222 + r * 12} x2={530} y2={222 + r * 12} strokeWidth="0.75" opacity="0.6" />
+        ))}
+      </g>
+      {/* network fan lines */}
+      <g strokeWidth="0.8" opacity="0.55">
+        <path d="M100 268 C 160 250, 200 230, 240 210" strokeDasharray="4 3" />
+        <path d="M500 268 C 440 250, 400 230, 360 210" strokeDasharray="4 3" />
+        <circle cx="240" cy="210" r="2.5" fill="currentColor" stroke="none" opacity="0.7" />
+        <circle cx="360" cy="210" r="2.5" fill="currentColor" stroke="none" opacity="0.7" />
+      </g>
+      {/* annotation callouts */}
+      <g fontFamily="monospace" stroke="none" fill="currentColor">
+        <text x="40" y="252" fontSize="9" fontWeight="700">L40S 48GB · ADA</text>
+        <text x="40" y="262" fontSize="7.5" opacity="0.65">$1.20/HR · ENTRY</text>
+        <text x="470" y="252" fontSize="9" fontWeight="700" textAnchor="start">H100 80GB SXM5</text>
+        <text x="470" y="262" fontSize="7.5" opacity="0.65">3.35 TB/S · ESCALATION</text>
+        <text x="300" y="326" fontSize="8.5" textAnchor="middle" letterSpacing="1.5" opacity="0.75">P95 890MS · TOOL ACC 94.2% · ERR 0.0%</text>
+      </g>
+      {/* leader lines for callouts */}
+      <g strokeWidth="0.9" opacity="0.7">
+        <path d="M92 246 V236 H150 V208" />
+        <path d="M512 246 V236 H450 V208" />
+        <circle cx="92" cy="248" r="1.8" fill="currentColor" stroke="none" />
+        <circle cx="512" cy="248" r="1.8" fill="currentColor" stroke="none" />
+      </g>
+      {/* dimension line */}
+      <g strokeWidth="0.9" opacity="0.8">
+        <line x1="150" y1="342" x2="450" y2="342" />
+        <path d="M150 337 l0 10 M450 337 l0 10 M150 342 l10-3 v6 Z M450 342 l-10-3 v6 Z" fill="currentColor" stroke="none" />
+        <text x="300" y="356" textAnchor="middle" fontSize="8" letterSpacing="2" stroke="none" fill="currentColor" fontFamily="monospace" opacity="0.7">
+          48GB → 80GB · AUTONOMOUS ESCALATION
+        </text>
+      </g>
+      {/* ground hatching */}
+      <g strokeWidth="0.75" opacity="0.4">
+        <line x1="30" y1="302" x2="120" y2="302" />
+        <line x1="40" y1="308" x2="110" y2="308" />
+        <line x1="480" y1="302" x2="570" y2="302" />
+        <line x1="490" y1="308" x2="560" y2="308" />
+        <line x1="30" y1="314" x2="100" y2="314" />
+        <line x1="500" y1="314" x2="570" y2="314" />
+      </g>
+    </svg>
+  );
+}
+
 export default function Home() {
   return (
     <main>
       <TopNav />
 
-      {/* Hero Section */}
-      <section className="grid-cells relative px-6 pb-12 pt-16 text-center">
-        <div className="chip inline-flex items-center gap-2 px-3.5 py-1 text-[11px] font-bold shadow-[2px_2px_0_#1F1F1F]">
-          <span className="inline-block h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-          <span>🏆 Nebius x NVIDIA Global AI Hackathon · Best Apps &amp; Agents Track</span>
-        </div>
-
-        <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-extrabold leading-[1.08] tracking-tight md:text-6xl">
-          Stop Guessing If A Model Fits.
-          <br />
-          Make It Prove It On Real Hardware.
-        </h1>
-
-        <p className="mx-auto mt-5 max-w-2xl font-mono text-[13px] leading-relaxed text-muted">
-          Autonomous stress-testing on Nebius cloud GPUs. Benchmark real VRAM capacity, latency, and tool-call schema integrity before touching production.
-        </p>
-
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-          <Link
-            href="/new"
-            className="btn-dark min-h-[48px] cursor-pointer rounded-lg px-7 py-3 text-sm font-bold shadow-[4px_4px_0_#1F1F1F] transition-all hover:-translate-y-px hover:shadow-[6px_6px_0_#1F1F1F] active:translate-y-0"
-          >
-            Start Hardware Audit →
+      {/* Hero — Editorial Split 2-Column (Titan reference) */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 border-b border-ink/20 min-h-[580px]">
+        {/* Left Column */}
+        <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-ink/20 text-left">
+          <Link href="/#how-it-works" className="inline-flex items-center gap-2 group w-fit">
+            <span className="rounded-full bg-amber-500/15 border border-amber-600/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+              NEW
+            </span>
+            <span className="text-[12px] text-ink/80 group-hover:underline">
+              Nebius x NVIDIA Global AI Hackathon · Best Apps &amp; Agents Track ▸
+            </span>
           </Link>
-          <a
-            href="#live-preview"
-            className="panel min-h-[48px] cursor-pointer rounded-lg border border-ink px-6 py-3 text-sm font-bold transition-all hover:bg-canvas hover:-translate-y-px shadow-[4px_4px_0_#1F1F1F]"
-          >
-            Watch Live Benchmark ↓
-          </a>
-        </div>
-      </section>
 
-      {/* Key Metric Banner */}
-      <section aria-label="Key metrics" className="border-y border-ink bg-ink px-6 py-8 text-canvas">
-        <div className="mx-auto grid max-w-4xl gap-6 text-center sm:grid-cols-3">
-          <div>
-            <p className="text-3xl font-extrabold tracking-tight md:text-4xl">38%</p>
-            <p className="mt-1 text-[11px] uppercase tracking-widest text-canvas/70">Average GPU Cost Reduction</p>
+          <div className="my-8">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] text-ink">
+              Make your model<br />
+              prove it on<br />
+              real hardware.
+            </h1>
+            <div className="mt-8 flex flex-wrap items-center gap-6">
+              <Link
+                href="/new"
+                className="rounded-full bg-ink px-8 py-3.5 text-xs font-bold uppercase tracking-widest text-canvas shadow-[3px_3px_0_rgba(31,31,31,0.25)] transition-all hover:bg-black hover:-translate-y-px active:translate-y-0"
+              >
+                Start Hardware Audit →
+              </Link>
+              <a
+                href="#how-it-works"
+                className="text-xs font-bold uppercase tracking-wider text-ink transition-colors hover:text-muted inline-flex items-center gap-1.5"
+              >
+                <span>See how it works</span>
+                <span aria-hidden="true">▸</span>
+              </a>
+            </div>
           </div>
-          <div>
-            <p className="text-3xl font-extrabold tracking-tight md:text-4xl">0%</p>
-            <p className="mt-1 text-[11px] uppercase tracking-widest text-canvas/70">Out-Of-Memory Surprises in Prod</p>
+
+          <div className="pt-6 border-t border-ink/10 flex items-end justify-between gap-4">
+            <p className="max-w-md text-[13px] leading-relaxed text-muted font-mono">
+              The deterministic CI/CD pipeline for AI models. Built for the era of open-source model acceleration.
+            </p>
+            <a
+              href="#live-preview"
+              aria-label="Scroll to live preview"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-ink/30 text-ink/70 hover:border-ink hover:text-ink transition-colors"
+            >
+              ↓
+            </a>
           </div>
-          <div>
-            <p className="text-3xl font-extrabold tracking-tight md:text-4xl">100%</p>
-            <p className="mt-1 text-[11px] uppercase tracking-widest text-canvas/70">Deterministic Evidence, Never Vibes</p>
+        </div>
+
+        {/* Right Column */}
+        <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-between text-left bg-canvas gap-10">
+          <div className="flex-1 flex items-center">
+            <DatacenterEngraving />
+          </div>
+          <div className="pt-8 border-t border-ink/20">
+            <div className="grid grid-cols-3 gap-6">
+              <div>
+                <p className="text-[11px] text-muted uppercase tracking-wider">Average GPU Cost Cut</p>
+                <p className="mt-1 text-3xl sm:text-4xl font-extrabold tracking-tight text-ink">38%</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted uppercase tracking-wider">Out-Of-Memory Surprises</p>
+                <p className="mt-1 text-3xl sm:text-4xl font-extrabold tracking-tight text-ink">0%</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted uppercase tracking-wider">Deterministic Evidence</p>
+                <p className="mt-1 text-3xl sm:text-4xl font-extrabold tracking-tight text-ink">100%</p>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center gap-1.5 text-[11px] text-muted">
+              <span>ⓘ</span>
+              <Link href="/docs" className="underline hover:text-ink">See SLA Policy &amp; Gate Disclosures</Link>
+            </div>
           </div>
         </div>
       </section>

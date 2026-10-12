@@ -39,7 +39,7 @@ except Exception:
 from fastapi import FastAPI, Header, HTTPException  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.responses import StreamingResponse  # type: ignore
-from pydantic import BaseModel  # type: ignore
+from pydantic import BaseModel, Field  # type: ignore
 
 from services import cost_engine as ce
 from services import advisor as advisor_svc
@@ -158,8 +158,8 @@ if os.environ.get("USE_SIMULATOR", "true").lower() != "true":
 
 
 class NewCert(BaseModel):
-    candidate_model: str = "Nemotron-3-Nano-30B"
-    current_model: str = "Qwen3-8B"
+    candidate_model: str = Field(default="Nemotron-3-Nano-30B", max_length=250)
+    current_model: str = Field(default="Qwen3-8B", max_length=250)
     gpu_type: str = "H100"
     precision: str = "FP8"
     workload_tasks: list[str] = ["tool_calling", "structured_output"]
@@ -168,8 +168,11 @@ class NewCert(BaseModel):
         {"metric": "quality_score", "op": ">=", "threshold": 0.85},
         {"metric": "error_rate", "op": "<=", "threshold": 0.05},
     ]
-    budget_usd: float = 10.0
-    requests: int = 200
+    budget_usd: float = Field(default=10.0, gt=0, le=100.0)
+    requests: int = Field(default=200, gt=0, le=10000)
+    # Legacy aliases
+    budget_limit_usd: float | None = None
+    sample_size: int | None = None
     # Explicit execution mode chosen in the web UI toggle ("real" | "sim").
     # Stored on the cert config for audit clarity; the runner still resolves
     # per-request via USE_SIMULATOR/BYOK so old clients keep working.
@@ -264,6 +267,14 @@ def create_cert(
     x_gpuproof_mode: str | None = Header(default=None, alias="X-GPUProof-Mode"),
     x_execution_mode: str | None = Header(default=None, alias="X-Execution-Mode"),
 ):
+    if c.budget_limit_usd is not None:
+        if c.budget_limit_usd <= 0 or c.budget_limit_usd > 100.0:
+            raise HTTPException(status_code=422, detail="budget_limit_usd must be > 0 and <= 100")
+        c.budget_usd = c.budget_limit_usd
+    if c.sample_size is not None:
+        if c.sample_size <= 0 or c.sample_size > 10000:
+            raise HTTPException(status_code=422, detail="sample_size must be > 0 and <= 10000")
+        c.requests = c.sample_size
     # Headers take precedence over payload fields (client localStorage -> headers).
     byok = _sanitize_byok(
         x_nebius_api_key if x_nebius_api_key is not None else c.nebius_api_key,

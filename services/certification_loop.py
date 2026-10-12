@@ -26,6 +26,26 @@ def _is_sim_mode() -> bool:
     return os.environ.get("USE_SIMULATOR", "true").lower() == "true"
 
 
+def _byok_of(cert: dict) -> dict:
+    """Return the in-memory BYOK dict for one run (never persisted)."""
+    byok = cert.get("byok") or {}
+    if not isinstance(byok, dict):
+        return {}
+    return byok
+
+
+def _byok_key(cert: dict) -> str | None:
+    key = (_byok_of(cert).get("api_key") or "").strip()
+    return key or None
+
+
+def _policy_scope(cert: dict, total_spend: float, total_cap: float) -> tuple[float, float]:
+    """BYOK runs bypass the shared host budget cap; per-cert caps still apply."""
+    if _byok_key(cert):
+        return 0.0, float("inf")
+    return total_spend, total_cap
+
+
 def synth_simulated_metrics(logs: str, plan: dict) -> tuple[dict, str | None]:
     if "out of memory" in logs.lower():
         return ({"quality_score": 0.0, "error_rate": 1.0, "latency_p95_ms": 0,
@@ -40,7 +60,8 @@ def synth_simulated_metrics(logs: str, plan: dict) -> tuple[dict, str | None]:
     return metrics, None
 
 
-def measured_or_simulated(cert: dict, plan: dict, logs: str, simulated: bool) -> tuple[dict, str | None, str]:
+def measured_or_simulated(cert: dict, plan: dict, logs: str, simulated: bool,
+                          api_key: str | None = None) -> tuple[dict, str | None, str]:
     if simulated:
         m, failure = synth_simulated_metrics(logs, plan)
         return m, failure, logs
@@ -48,8 +69,8 @@ def measured_or_simulated(cert: dict, plan: dict, logs: str, simulated: bool) ->
     endpoint = os.environ.get("BENCH_ENDPOINT", "")
     if not endpoint:
         raise RuntimeError("real job returned but BENCH_ENDPOINT unset; refusing to fabricate")
-    rep = replay_mod.replay(cert["twin"], endpoint, cert["config"]["candidate_model"],
-                            os.environ.get("NEBIUS_API_KEY", ""))
+    key = (api_key or "").strip() or _byok_key(cert) or os.environ.get("NEBIUS_API_KEY", "")
+    rep = replay_mod.replay(cert["twin"], endpoint, cert["config"]["candidate_model"], key)
     return rep["metrics"], None, logs + f"\nmeasured {len(rep['requests'])} requests"
 
 
@@ -87,11 +108,13 @@ class LoopHooks:
 
     def one(self, cid: str, idx: int, plan: dict, prev: list, runner) -> bool:
         c = self.certs[cid]
+        byok_key = _byok_key(c)
         proposal = ExperimentProposal(plan["gpu_type"], 1, plan["precision"],
                                       plan["engine"], plan["batch_config"], plan["reason"])
         est = ce.estimate_cost(proposal.gpu_type)
+        eff_total_spend, eff_total_cap = _policy_scope(c, self.total["spend"], self.cap)
         check = pol.validate_proposal(proposal, experiment_index=idx, cert_spend=c["spend"],
-                                      total_spend=self.total["spend"], total_cap=self.cap,
+                                      total_spend=eff_total_spend, total_cap=eff_total_cap,
                                       estimated_cost=est)
         self.emit(cid, {"type": "policy", "index": idx, "allowed": check.allowed,
                         "reasons": check.reasons, "estimated_cost": est})
@@ -122,7 +145,7 @@ class LoopHooks:
                            f"\U0001f680 Ingesting Workload Twin batch: {batch_cfg} concurrent requests (JSON tool calls)...")
             logs = runner.logs(handle)
             simulated = handle.simulated
-            metrics, failure, logs = measured_or_simulated(c, plan, logs, simulated)
+            metrics, failure, logs = measured_or_simulated(c, plan, logs, simulated, api_key=byok_key)
             # --- VRAM telemetry derived from the outcome ---
             if failure == "MEMORY" or "out of memory" in logs.lower():
                 over_gb = round(total_gb + random.uniform(2.0, 6.0), 1) if _is_sim_mode() else total_gb
@@ -142,7 +165,9 @@ class LoopHooks:
                                f"\U0001f4ca VRAM allocation: {used_gb}GB / {total_gb}GB (KV-cache utilization: {kv_pct}%)...")
             cost = 0.0 if simulated else ce.experiment_cost(proposal.gpu_type, 60.0)
             c["spend"] = round(c["spend"] + cost, 4)
-            self.total["spend"] = round(self.total["spend"] + cost, 4)
+            # BYOK runs bill the caller's key — never the shared host pool.
+            if not byok_key:
+                self.total["spend"] = round(self.total["spend"] + cost, 4)
             gates = [sla.Gate(**g) for g in c["config"]["gates"]]
             verdict = sla.decision(sla.evaluate_gates(gates, metrics))
             # --- planner diagnosis streams before the card finalizes ---
@@ -158,7 +183,10 @@ class LoopHooks:
                    "metrics": metrics, "log": logs[-2000:], "failure": failure, "verdict": verdict,
                    "reason": plan["reason"], "state": "EVALUATING"}
             if failure:
-                cls = fast_classify(logs)
+                try:
+                    cls = fast_classify(logs, api_key=byok_key)
+                except TypeError:
+                    cls = fast_classify(logs)
                 exp["classifier"] = cls
                 exp["status"] = "OOM"
                 prev.append({"index": idx, "failure": cls["failure"], "metrics": "failed"})
@@ -209,7 +237,11 @@ class LoopHooks:
                        "budget_left": round(budget - c["spend"], 2),
                        "previous": prev, "hardware": ["L40S", "H100"]}
                 try:
-                    plan = propose_experiment(ctx)
+                    try:
+                        plan = propose_experiment(ctx, api_key=_byok_key(c))
+                    except TypeError:
+                        # backwards-compat with single-arg monkeypatches/tests
+                        plan = propose_experiment(ctx)
                 except RuntimeError as e:
                     self.finish(cid, "INCOMPLETE", {"reason": str(e)})
                     return

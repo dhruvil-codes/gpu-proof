@@ -36,7 +36,7 @@ try:
 except Exception:
     pass
 
-from fastapi import FastAPI, HTTPException  # type: ignore
+from fastapi import FastAPI, Header, HTTPException  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.responses import StreamingResponse  # type: ignore
 from pydantic import BaseModel  # type: ignore
@@ -48,7 +48,7 @@ from services import store
 from services import workload_twin as wt
 from services.certificate_engine import build_certificate
 from services.certification_loop import LoopHooks
-from services.nebius_runner import get_runner
+from services.nebius_runner import get_runner, get_runner_for_byok
 
 app = FastAPI(title="GPUProof API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -72,19 +72,50 @@ def emit(cid: str, event: dict) -> None:
 HOOKS = LoopHooks(CERTS, emit, BENCH_IMAGE, TOTAL, TOTAL_CAP)
 
 
-def _get_runner():
-    """Shared simulator instance (unique job IDs); fresh real runner each call."""
+def _sanitize_byok(api_key: str | None, project_id: str | None,
+                   subnet_id: str | None) -> dict:
+    """Normalize BYOK credentials; empty key means Demo Mode (no BYOK).
+
+    Keys live in memory only for the certification run — they are never
+    written to the server database (see create_cert: config persisted
+    without secrets).
+    """
+    key = (api_key or "").strip()
+    proj = (project_id or "").strip()
+    sub = (subnet_id or "").strip()
+    return {"api_key": key, "project_id": proj, "subnet_id": sub,
+            "byok_used": bool(key)}
+
+
+def _get_runner(byok: dict | None = None):
+    """Shared simulator instance (unique job IDs); fresh real runner each call.
+
+    BYOK dict (if any) supplies per-run credentials; simulator mode ignores
+    the key for execution but still bypasses the shared budget cap in the
+    loop. Real mode builds a runner bound to the caller's key.
+    """
     global _SIM_RUNNER
     if os.environ.get("USE_SIMULATOR", "true").lower() == "true":
         if _SIM_RUNNER is None:
             _SIM_RUNNER = get_runner()
         return _SIM_RUNNER
-    return get_runner()
+    return get_runner_for_byok(byok)
+
+
+def _runner_factory_for(cid: str):
+    """Per-certification runner factory capturing that cert's BYOK creds."""
+    def _factory():
+        cert = CERTS.get(cid, {})
+        return _get_runner(cert.get("byok"))
+    return _factory
 
 
 def _load(cid: str) -> dict:
     """Return the in-memory cert, rehydrating from SQLite after a restart."""
     if cid in CERTS:
+        # Older in-memory entries predating BYOK may lack the key — default it.
+        CERTS[cid].setdefault("byok", {"api_key": "", "project_id": "",
+                                       "subnet_id": "", "byok_used": False})
         return CERTS[cid]
     row = store.get_cert_row(cid)
     if row is None:
@@ -92,10 +123,18 @@ def _load(cid: str) -> dict:
     CERTS[cid] = {"id": cid, "status": row["status"], "config": row["config"],
                   "twin": row["twin"], "experiments": store.list_experiments(cid),
                   "spend": row["spend"], "created_at": time.time(),
-                  "simulated": row["simulated"], "telemetry": []}
+                  "simulated": row["simulated"], "telemetry": [],
+                  # BYOK keys are never persisted — rehydrated runs fall back
+                  # to server .env / simulator until the client resends them.
+                  "byok": {"api_key": "", "project_id": "",
+                           "subnet_id": "", "byok_used": False}}
     if cid not in BUS:
         BUS[cid] = queue.Queue()
     return CERTS[cid]
+
+
+def _byok_flag(cert: dict) -> bool:
+    return bool((cert.get("byok") or {}).get("byok_used"))
 
 
 def _hydrate_spend() -> None:
@@ -130,6 +169,10 @@ class NewCert(BaseModel):
     ]
     budget_usd: float = 10.0
     requests: int = 200
+    # Optional BYOK payload fallback (headers take precedence). Never persisted.
+    nebius_api_key: str | None = None
+    nebius_project_id: str | None = None
+    nebius_subnet_id: str | None = None
 
 
 @app.get("/health")
@@ -146,20 +189,39 @@ def ready():
 
 @app.get("/certifications")
 def list_all():
-    mem = [{"id": cid, "status": c["status"], "spend": c["spend"], "simulated": c["simulated"]} for cid, c in CERTS.items()]
+    mem = [{"id": cid, "status": c["status"], "spend": c["spend"],
+            "simulated": c["simulated"], "byok_used": _byok_flag(c)}
+           for cid, c in CERTS.items()]
     return {"memory": mem, "stored": store.list_certs(), "total_spend": TOTAL["spend"], "cap": TOTAL_CAP}
 
 
 @app.post("/certifications")
-def create_cert(c: NewCert):
+def create_cert(
+    c: NewCert,
+    x_nebius_api_key: str | None = Header(default=None, alias="X-Nebius-Api-Key"),
+    x_nebius_project_id: str | None = Header(default=None, alias="X-Nebius-Project-Id"),
+    x_nebius_subnet_id: str | None = Header(default=None, alias="X-Nebius-Subnet-Id"),
+):
+    # Headers take precedence over payload fields (client localStorage -> headers).
+    byok = _sanitize_byok(
+        x_nebius_api_key if x_nebius_api_key is not None else c.nebius_api_key,
+        x_nebius_project_id if x_nebius_project_id is not None else c.nebius_project_id,
+        x_nebius_subnet_id if x_nebius_subnet_id is not None else c.nebius_subnet_id,
+    )
     cid = f"cert-{uuid.uuid4().hex[:8]}"
     twin = wt.build_twin(42, c.requests, tuple(c.workload_tasks))
-    CERTS[cid] = {"id": cid, "status": "CREATED", "config": c.model_dump(),
+    full_config = c.model_dump()
+    # NEVER persist secrets: strip BYOK fields before writing to SQLite.
+    safe_config = {k: v for k, v in full_config.items()
+                   if k not in ("nebius_api_key", "nebius_project_id", "nebius_subnet_id")}
+    CERTS[cid] = {"id": cid, "status": "CREATED", "config": safe_config,
                   "twin": twin, "experiments": [], "spend": 0.0,
-                  "created_at": time.time(), "simulated": None, "telemetry": []}
-    store.store_cert(cid, "CREATED", c.model_dump(), twin, 0.0, None)
+                  "created_at": time.time(), "simulated": None, "telemetry": [],
+                  "byok": byok}
+    store.store_cert(cid, "CREATED", safe_config, twin, 0.0, None)
     BUS[cid] = queue.Queue()
-    return {"id": cid, "twin_digest": twin["digest"], "count": twin["count"]}
+    return {"id": cid, "twin_digest": twin["digest"], "count": twin["count"],
+            "byok_used": byok["byok_used"]}
 
 
 @app.get("/certifications/{cid}/events")
@@ -185,7 +247,8 @@ def events(cid: str):
 def get_cert(cid: str):
     c = _load(cid)
     return {"id": cid, "status": c["status"], "spend": c["spend"],
-            "experiments": len(c["experiments"]), "simulated": c["simulated"]}
+            "experiments": len(c["experiments"]), "simulated": c["simulated"],
+            "byok_used": _byok_flag(c)}
 
 
 @app.get("/certifications/{cid}/experiments")
@@ -214,16 +277,32 @@ def cancel_cert(cid: str):
 
 
 @app.post("/certifications/{cid}/start")
-def start_cert(cid: str):
+def start_cert(
+    cid: str,
+    x_nebius_api_key: str | None = Header(default=None, alias="X-Nebius-Api-Key"),
+    x_nebius_project_id: str | None = Header(default=None, alias="X-Nebius-Project-Id"),
+    x_nebius_subnet_id: str | None = Header(default=None, alias="X-Nebius-Subnet-Id"),
+):
     c = _load(cid)
+    # Allow the client to (re)send BYOK headers on start; header values win.
+    # Still in-memory only — update_cert never receives secrets.
+    if x_nebius_api_key is not None or x_nebius_project_id is not None or x_nebius_subnet_id is not None:
+        prev = c.get("byok") or {}
+        c["byok"] = _sanitize_byok(
+            x_nebius_api_key if x_nebius_api_key is not None else prev.get("api_key"),
+            x_nebius_project_id if x_nebius_project_id is not None else prev.get("project_id"),
+            x_nebius_subnet_id if x_nebius_subnet_id is not None else prev.get("subnet_id"),
+        )
     if c["status"] == "RUNNING":
-        return {"certification": cid, "status": "RUNNING", "detail": "already running"}
+        return {"certification": cid, "status": "RUNNING", "detail": "already running",
+                "byok_used": _byok_flag(c)}
     c["status"] = "RUNNING"
     store.update_cert(cid, "RUNNING", c["spend"], c["simulated"])
-    t = threading.Thread(target=HOOKS.run, args=(cid, _get_runner), daemon=True)
+    t = threading.Thread(target=HOOKS.run, args=(cid, _runner_factory_for(cid)), daemon=True)
     t.start()
     return {"certification": cid, "status": "RUNNING",
-            "detail": "background loop started; stream /events"}
+            "detail": "background loop started; stream /events",
+            "byok_used": _byok_flag(c)}
 
 
 @app.get("/certifications/{cid}/certificate")

@@ -1,7 +1,9 @@
 "use client";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { TopNav } from "@/components/ui";
+import { ByokBadge, TopNav, useByokStatus } from "@/components/ui";
+import ByokModal from "@/components/ByokModal";
+import { buildByokHeaders } from "@/components/byok";
 
 const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 
@@ -65,6 +67,8 @@ function NewForm() {
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [byokOpen, setByokOpen] = useState(false);
+  const byokConnected = useByokStatus();
 
   function applyTemplate(id: string) {
     const t = TEMPLATES.find((x) => x.id === id);
@@ -84,10 +88,12 @@ function NewForm() {
     if (Object.keys(errs).length) return;
     setMsg("Creating twin...");
     try {
-      const res = await fetch(`${API}/certifications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      // Client-side BYOK: keys live in localStorage, sent per-request as headers.
+      const byokHeaders = buildByokHeaders();
+      const res = await fetch(`${API}/certifications`, { method: "POST", headers: { "Content-Type": "application/json", ...byokHeaders }, body: JSON.stringify(form) });
       if (!res.ok) throw new Error(`create failed: ${res.status}`);
-      const j = await res.json(); setMsg(`twin ${j.twin_digest} · launching...`);
-      const s = await fetch(`${API}/certifications/${j.id}/start`, { method: "POST" });
+      const j = await res.json(); setMsg(`twin ${j.twin_digest} · launching...${j.byok_used ? " (BYOK: your Nebius key)" : ""}`);
+      const s = await fetch(`${API}/certifications/${j.id}/start`, { method: "POST", headers: { ...byokHeaders } });
       if (!s.ok) throw new Error(`start failed: ${s.status}`);
       try {
         const items = JSON.parse(localStorage.getItem("gpuproof-certs") || "[]");
@@ -110,6 +116,23 @@ function NewForm() {
     <div className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="text-2xl tracking-tight">New Certification</h1>
       <p className="mt-1 text-xs leading-relaxed text-muted">Pick a scenario below — or fill in the form manually. No guessing required: every test runs under a strict safety policy.</p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="Execution mode">
+        <ByokBadge connected={byokConnected} />
+        <button
+          type="button"
+          onClick={() => setByokOpen(true)}
+          className="min-h-[44px] cursor-pointer rounded border border-ink px-3 py-2 text-xs font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]"
+        >
+          🔑 BYOK / API Key
+        </button>
+        <span className="text-[11px] text-muted">
+          {byokConnected
+            ? "Live GPU runs will bill your Nebius key (host cap bypassed)."
+            : "No key? Runs use Demo Mode (Simulated / Host Pool)."}
+        </span>
+      </div>
+      <ByokModal open={byokOpen} onClose={() => setByokOpen(false)} />
 
       <div className="mt-6" role="group" aria-label="Scenario templates">
         <p className="text-[11px] uppercase tracking-widest text-muted">Start from a 1-click scenario</p>

@@ -1,10 +1,60 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import ByokModal from "@/components/ByokModal";
+import { BYOK_EVENT, isByokConnected } from "@/components/byok";
 
 const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 
+export function useByokStatus() {
+  const [connected, setConnected] = useState(false);
+  useEffect(() => {
+    const refresh = () => {
+      try {
+        setConnected(isByokConnected());
+      } catch {
+        setConnected(false);
+      }
+    };
+    refresh();
+    window.addEventListener("storage", refresh);
+    window.addEventListener(BYOK_EVENT, refresh);
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener(BYOK_EVENT, refresh);
+    };
+  }, []);
+  return connected;
+}
+
+export function ByokBadge({ connected }: { connected: boolean }) {
+  if (connected) {
+    return (
+      <span
+        aria-label="BYOK connected — audits bill your Nebius key"
+        title="BYOK connected — audits bill your Nebius key"
+        className="chip inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold"
+      >
+        <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-green-600" />
+        🔑 BYOK: Connected (Nebius)
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-label="Demo mode — simulated runs on the host pool"
+      title="Demo mode — simulated runs on the host pool"
+      className="chip inline-flex items-center gap-1.5 px-3 py-1 text-[11px]"
+    >
+      <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-neutral-400" />
+      ⚡ Demo Mode (Simulated / Host Pool)
+    </span>
+  );
+}
+
 export function TopNav() {
+  const [byokOpen, setByokOpen] = useState(false);
+  const connected = useByokStatus();
   return (<nav className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b border-ink bg-canvas px-4 py-3 sm:px-6 sm:py-4" aria-label="Main">
     <div className="flex min-w-0 items-center gap-3">
       <Link href="/" className="shrink-0 cursor-pointer text-sm font-bold tracking-tight">◉ GPUProof</Link>
@@ -18,9 +68,19 @@ export function TopNav() {
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/docs">Docs</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/dashboard">Audit Portfolio</Link>
     </div>
-    <div className="flex shrink-0 items-center gap-4 text-xs">
+    <div className="flex shrink-0 items-center gap-2 text-xs">
+      <span className="hidden xl:inline-block"><ByokBadge connected={connected} /></span>
+      <button
+        type="button"
+        onClick={() => setByokOpen(true)}
+        aria-label={connected ? "Manage your Nebius API key (connected)" : "Add your Nebius API key"}
+        className="cursor-pointer rounded border border-ink px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]"
+      >
+        🔑 BYOK / API Key
+      </button>
       <Link href="/new" className="btn-dark cursor-pointer rounded px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]">New Hardware Audit →</Link>
     </div>
+    <ByokModal open={byokOpen} onClose={() => setByokOpen(false)} />
   </nav>);
 }
 

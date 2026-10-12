@@ -71,10 +71,15 @@ class SimulatedRunner(NebiusRunner):
 
 
 class RealNebiusRunner(NebiusRunner):
-    def __init__(self) -> None:
-        self.key = os.environ.get("NEBIUS_API_KEY", "")
-        self.project = os.environ.get("NEBIUS_PROJECT_ID", "")
-        self.subnet = os.environ.get("NEBIUS_SUBNET_ID", "")
+    def __init__(self, api_key: str | None = None,
+                 project_id: str | None = None,
+                 subnet_id: str | None = None) -> None:
+        # BYOK overrides take precedence; fall back to server .env.
+        # Keys are held in memory only for this run — never persisted.
+        self.key = (api_key or "").strip() or os.environ.get("NEBIUS_API_KEY", "")
+        self.project = (project_id or "").strip() or os.environ.get("NEBIUS_PROJECT_ID", "")
+        self.subnet = (subnet_id or "").strip() or os.environ.get("NEBIUS_SUBNET_ID", "")
+        self.byok = bool((api_key or "").strip())
         if not (self.key and self.project and self.subnet):
             raise RuntimeError("missing NEBIUS_API_KEY/PROJECT_ID/SUBNET_ID; use simulator")
 
@@ -113,7 +118,25 @@ class RealNebiusRunner(NebiusRunner):
             pass
 
 
-def get_runner() -> NebiusRunner:
+def get_runner(api_key: str | None = None,
+               project_id: str | None = None,
+               subnet_id: str | None = None) -> NebiusRunner:
     if os.environ.get("USE_SIMULATOR", "true").lower() == "true":
         return SimulatedRunner()
-    return RealNebiusRunner()
+    return RealNebiusRunner(api_key=api_key, project_id=project_id, subnet_id=subnet_id)
+
+
+def get_runner_for_byok(byok: dict | None) -> NebiusRunner:
+    """Build a runner for one certification run.
+
+    BYOK dict keys: api_key, project_id, subnet_id (all optional strings).
+    Simulator mode still returns the deterministic simulator (BYOK only
+    bypasses the shared budget cap there); real mode builds a
+    RealNebiusRunner with the caller's key taking precedence over .env.
+    """
+    byok = byok or {}
+    return get_runner(
+        api_key=(byok.get("api_key") or None),
+        project_id=(byok.get("project_id") or None),
+        subnet_id=(byok.get("subnet_id") or None),
+    )

@@ -15,8 +15,16 @@ CLASSIFIER_MODEL = os.environ.get("CLASSIFIER_MODEL", "nvidia/NVIDIA-Nemotron-3-
 PLAN_SCHEMA_KEYS = {"gpu_type", "gpu_count", "precision", "engine", "batch_config", "reason"}
 
 
-def _call(model: str, messages: list[dict], *, json_mode: bool = True, timeout: int = 60) -> str:
-    key = os.environ.get("NEBIUS_API_KEY", "")
+def _resolve_key(explicit: str | None = None) -> str:
+    """BYOK key (per-request, in-memory) takes precedence over server .env."""
+    if explicit and explicit.strip():
+        return explicit.strip()
+    return os.environ.get("NEBIUS_API_KEY", "")
+
+
+def _call(model: str, messages: list[dict], *, json_mode: bool = True, timeout: int = 60,
+          api_key: str | None = None) -> str:
+    key = _resolve_key(api_key)
     if not key:
         raise RuntimeError("NEBIUS_API_KEY missing")
     body: dict = {"model": model, "messages": messages, "temperature": 0.2}
@@ -32,12 +40,12 @@ def _call(model: str, messages: list[dict], *, json_mode: bool = True, timeout: 
     return data["choices"][0]["message"]["content"]
 
 
-def verify_models() -> dict:
+def verify_models(api_key: str | None = None) -> dict:
     """Startup check that both Nemotron models exist; returns availability map."""
     out = {}
     for name, model in (("planner", PLANNER_MODEL), ("classifier", CLASSIFIER_MODEL)):
         try:
-            _call(model, [{"role": "user", "content": '{"ping": true}'}])
+            _call(model, [{"role": "user", "content": '{"ping": true}'}], api_key=api_key)
             out[name] = {"model": model, "ok": True}
         except Exception as e:  # noqa: BLE001 — availability probe, message surfaced
             out[name] = {"model": model, "ok": False, "error": str(e)[:300]}
@@ -61,9 +69,10 @@ def _simulated_plan(context: dict) -> dict:
             "reason": "SIMULATED planner: cheapest config first (L40S FP8)"}
 
 
-def propose_experiment(context: dict) -> dict:
+def propose_experiment(context: dict, api_key: str | None = None) -> dict:
     # Simulator mode uses the deterministic stand-in so local dev costs $0.
     # Real mode always calls Nemotron Ultra; planner down -> Certification incomplete.
+    # api_key is the per-run BYOK override (in-memory only); falls back to .env.
     if os.environ.get("USE_SIMULATOR", "true").lower() == "true":
         return _simulated_plan(context)
     sys = ("You are GPUProof planner. Return ONLY JSON with keys gpu_type (L40S|H100), "
@@ -71,7 +80,8 @@ def propose_experiment(context: dict) -> dict:
            "Prefer cheapest config likely to fit. After MEMORY failure, move up GPU/precision.")
     try:
         raw = _call(PLANNER_MODEL, [{"role": "system", "content": sys},
-                                    {"role": "user", "content": json.dumps(context)}])
+                                    {"role": "user", "content": json.dumps(context)}],
+                    api_key=api_key)
         plan = json.loads(raw)
     except Exception as e:  # noqa: BLE001 — planner down is a stop condition per PRD 7.13
         raise RuntimeError(f"Certification incomplete. Reason: Planning service unavailable ({e})") from e
@@ -86,12 +96,13 @@ def propose_experiment(context: dict) -> dict:
     return plan
 
 
-def fast_classify(summary: str) -> dict:
+def fast_classify(summary: str, api_key: str | None = None) -> dict:
     sys = ('Return ONLY JSON {"failure": "MEMORY|LATENCY|QUALITY|RELIABILITY|INFRASTRUCTURE|UNKNOWN", '
            '"action": "CONTINUE|STOP_SUCCESS|STOP_BUDGET|ESCALATE", "reason": "..."}')
     try:
         raw = _call(CLASSIFIER_MODEL, [{"role": "system", "content": sys},
-                                       {"role": "user", "content": summary}])
+                                       {"role": "user", "content": summary}],
+                    api_key=api_key)
         out = json.loads(raw)
         if "failure" in out and "action" in out:
             return out

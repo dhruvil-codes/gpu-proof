@@ -29,6 +29,13 @@ def _repo_root() -> Path:
 
 sys.path.insert(0, str(_repo_root()))
 
+try:
+    from dotenv import load_dotenv  # type: ignore
+
+    load_dotenv(_repo_root() / ".env")
+except Exception:
+    pass
+
 from fastapi import FastAPI, HTTPException  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.responses import StreamingResponse  # type: ignore

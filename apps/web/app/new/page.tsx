@@ -1,9 +1,10 @@
 "use client";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ByokBadge, TopNav, useByokStatus } from "@/components/ui";
+import { ByokBadge, ExecutionModeToggle, TopNav, useByokStatus } from "@/components/ui";
 import ByokModal from "@/components/ByokModal";
 import { buildByokHeaders } from "@/components/byok";
+import { buildExecutionHeaders, getExecutionMode } from "@/components/executionMode";
 
 const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 
@@ -58,12 +59,22 @@ export default function New() {
 function NewForm() {
   const r = useRouter();
   const q = useSearchParams();
+  const prefill = q.get("candidate_model") || "Nemotron-3-Nano-30B";
   const [form, setForm] = useState<FormState>({
-    candidate_model: q.get("candidate_model") || "Nemotron-3-Nano-30B",
+    candidate_model: prefill,
     current_model: "Qwen3-8B",
     requests: 200,
     budget_usd: 10,
   });
+  // Advisor CTA navigates to /new?candidate_model=<slug> — sync it into the form
+  // even when the user is already on /new (client-side navigation).
+  useEffect(() => {
+    const v = q.get("candidate_model");
+    if (v && v !== form.candidate_model) {
+      setForm((f) => ({ ...f, candidate_model: v }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -89,11 +100,14 @@ function NewForm() {
     setMsg("Creating twin...");
     try {
       // Client-side BYOK: keys live in localStorage, sent per-request as headers.
+      // Execution mode toggle (localStorage) is sent as both body + headers.
+      const mode = getExecutionMode();
       const byokHeaders = buildByokHeaders();
-      const res = await fetch(`${API}/certifications`, { method: "POST", headers: { "Content-Type": "application/json", ...byokHeaders }, body: JSON.stringify(form) });
+      const execHeaders = buildExecutionHeaders(mode);
+      const res = await fetch(`${API}/certifications`, { method: "POST", headers: { "Content-Type": "application/json", ...byokHeaders, ...execHeaders }, body: JSON.stringify({ ...form, mode }) });
       if (!res.ok) throw new Error(`create failed: ${res.status}`);
-      const j = await res.json(); setMsg(`twin ${j.twin_digest} · launching...${j.byok_used ? " (BYOK: your Nebius key)" : ""}`);
-      const s = await fetch(`${API}/certifications/${j.id}/start`, { method: "POST", headers: { ...byokHeaders } });
+      const j = await res.json(); setMsg(`twin ${j.twin_digest} · launching...${j.byok_used ? " (BYOK: your Nebius key)" : ""}${j.mode ? ` [${j.mode === "real" ? "⚡ Live GPU" : "🧪 Simulator"}]` : ""}`);
+      const s = await fetch(`${API}/certifications/${j.id}/start`, { method: "POST", headers: { ...byokHeaders, ...execHeaders } });
       if (!s.ok) throw new Error(`start failed: ${s.status}`);
       try {
         const items = JSON.parse(localStorage.getItem("gpuproof-certs") || "[]");
@@ -131,6 +145,14 @@ function NewForm() {
             ? "Live GPU runs will bill your Nebius key (host cap bypassed)."
             : "No key? Runs use Demo Mode (Simulated / Host Pool)."}
         </span>
+      </div>
+
+      <div className="mt-4" aria-label="Execution mode toggle">
+        <p className="text-[11px] uppercase tracking-widest text-muted">Execution Mode (saved to this browser)</p>
+        <div className="mt-2 max-w-xl">
+          <ExecutionModeToggle />
+        </div>
+        <p className="mt-1 text-[11px] text-muted">⚡ Live runs on Nebius Cloud GPUs · 🧪 Simulator is instant, free, and never certifies.</p>
       </div>
       <ByokModal open={byokOpen} onClose={() => setByokOpen(false)} />
 

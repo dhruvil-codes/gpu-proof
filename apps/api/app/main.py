@@ -42,6 +42,7 @@ from fastapi.responses import StreamingResponse  # type: ignore
 from pydantic import BaseModel  # type: ignore
 
 from services import cost_engine as ce
+from services import advisor as advisor_svc
 from services import experiment_policy as pol
 from services import sla_evaluator as sla
 from services import store
@@ -169,10 +170,30 @@ class NewCert(BaseModel):
     ]
     budget_usd: float = 10.0
     requests: int = 200
+    # Explicit execution mode chosen in the web UI toggle ("real" | "sim").
+    # Stored on the cert config for audit clarity; the runner still resolves
+    # per-request via USE_SIMULATOR/BYOK so old clients keep working.
+    mode: str | None = None
     # Optional BYOK payload fallback (headers take precedence). Never persisted.
     nebius_api_key: str | None = None
     nebius_project_id: str | None = None
     nebius_subnet_id: str | None = None
+
+
+class AdvisorRequest(BaseModel):
+    query: str = ""
+    current_gpu: str | None = None
+
+
+def _normalize_mode(*values: str | None) -> str:
+    """Normalize the execution-mode toggle to 'real' | 'sim' (default sim)."""
+    for v in values:
+        s = (v or "").strip().lower()
+        if s in ("real", "live", "nebius", "cloud"):
+            return "real"
+        if s in ("sim", "simulator", "demo", "deterministic"):
+            return "sim"
+    return "sim"
 
 
 @app.get("/health")
@@ -185,6 +206,45 @@ def health():
 def ready():
     """Startup checks: spend hydration + Nemotron model verification (real mode only)."""
     return {"ok": True, "spend": TOTAL["spend"], "cap": TOTAL_CAP, **STARTUP_CHECKS}
+
+
+@app.post("/advisor")
+def advisor(
+    req: AdvisorRequest,
+    x_nebius_api_key: str | None = Header(default=None, alias="X-Nebius-Api-Key"),
+):
+    """Model Migration Advisor: deterministic VRAM math + optional Nemotron prose.
+
+    Always returns concrete numbers (never an error when the LLM is down):
+    `source` is 'nemotron-ultra' when Token Factory enriched the answer,
+    otherwise 'deterministic'.
+    """
+    det = advisor_svc.advise(req.query, req.current_gpu)
+    byok_key = (x_nebius_api_key or "").strip() or None
+    try:
+        from services.decision_engine import PLANNER_MODEL, _call
+        sys_prompt = (
+            "You are the GPUProof Model Migration Advisor, an expert GPU inference "
+            "engineer. Answer concisely with concrete VRAM math: parameter memory "
+            "(params x bytes), KV-cache formula 2 x layers x hidden x seq_len x batch "
+            "x bytes / 1e9, plus a recommended single-GPU tier (RTX4090 24GB, L40S 48GB, "
+            "A100/H100 80GB, H200 141GB) and a structured-JSON/tool-call risk note. "
+            "End with the candidate Hugging Face slug on its own line as "
+            "'CANDIDATE: <slug>'. Keep it under 220 words."
+        )
+        user = (f"Question: {(req.query or '').strip() or 'Can I run this model on my GPU?'}"
+                f"\nCurrent GPU: {req.current_gpu or 'unknown'}"
+                f"\nDeterministic sizing (ground truth, do not contradict): {det['answer']}")
+        llm_text = _call(PLANNER_MODEL,
+                         [{"role": "system", "content": sys_prompt},
+                          {"role": "user", "content": user}],
+                         json_mode=False, timeout=30, api_key=byok_key).strip()
+        if llm_text:
+            return {**det, "answer": f"{llm_text}\n\n---\n**Deterministic sizing (ground truth):**\n{det['answer']}",
+                    "source": "nemotron-ultra"}
+    except Exception:
+        pass
+    return det
 
 
 @app.get("/certifications")
@@ -201,6 +261,8 @@ def create_cert(
     x_nebius_api_key: str | None = Header(default=None, alias="X-Nebius-Api-Key"),
     x_nebius_project_id: str | None = Header(default=None, alias="X-Nebius-Project-Id"),
     x_nebius_subnet_id: str | None = Header(default=None, alias="X-Nebius-Subnet-Id"),
+    x_gpuproof_mode: str | None = Header(default=None, alias="X-GPUProof-Mode"),
+    x_execution_mode: str | None = Header(default=None, alias="X-Execution-Mode"),
 ):
     # Headers take precedence over payload fields (client localStorage -> headers).
     byok = _sanitize_byok(
@@ -208,12 +270,14 @@ def create_cert(
         x_nebius_project_id if x_nebius_project_id is not None else c.nebius_project_id,
         x_nebius_subnet_id if x_nebius_subnet_id is not None else c.nebius_subnet_id,
     )
+    mode = _normalize_mode(c.mode, x_gpuproof_mode, x_execution_mode)
     cid = f"cert-{uuid.uuid4().hex[:8]}"
     twin = wt.build_twin(42, c.requests, tuple(c.workload_tasks))
     full_config = c.model_dump()
     # NEVER persist secrets: strip BYOK fields before writing to SQLite.
     safe_config = {k: v for k, v in full_config.items()
                    if k not in ("nebius_api_key", "nebius_project_id", "nebius_subnet_id")}
+    safe_config["mode"] = mode
     CERTS[cid] = {"id": cid, "status": "CREATED", "config": safe_config,
                   "twin": twin, "experiments": [], "spend": 0.0,
                   "created_at": time.time(), "simulated": None, "telemetry": [],
@@ -221,7 +285,7 @@ def create_cert(
     store.store_cert(cid, "CREATED", safe_config, twin, 0.0, None)
     BUS[cid] = queue.Queue()
     return {"id": cid, "twin_digest": twin["digest"], "count": twin["count"],
-            "byok_used": byok["byok_used"]}
+            "byok_used": byok["byok_used"], "mode": mode}
 
 
 @app.get("/certifications/{cid}/events")

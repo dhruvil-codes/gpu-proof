@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SiteFooter, StatusPill, TopNav } from "@/components/ui";
+import { ModelAdvisorFab } from "@/components/ModelAdvisorDrawer";
 
 const PRESETS = [
   { id: "nano", glyph: "⚡", label: "Nemotron Nano 30B", sub: "40% cheaper, high tool accuracy", value: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B" },
@@ -515,6 +516,7 @@ export default function Home() {
       </section>
 
       <SiteFooter />
+      <ModelAdvisorFab />
     </main>
   );
 }

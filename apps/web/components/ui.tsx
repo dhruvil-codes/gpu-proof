@@ -3,6 +3,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import ByokModal from "@/components/ByokModal";
 import { BYOK_EVENT, isByokConnected } from "@/components/byok";
+import { useExecutionMode, type ExecutionMode } from "@/components/executionMode";
+import ModelAdvisorDrawer from "@/components/ModelAdvisorDrawer";
 
 const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 
@@ -52,8 +54,44 @@ export function ByokBadge({ connected }: { connected: boolean }) {
   );
 }
 
+export function ExecutionModeToggle({ compact = false }: { compact?: boolean }) {
+  const [mode, setMode] = useExecutionMode();
+  const opt = (id: ExecutionMode, glyph: string, label: string, hint: string) => {
+    const active = mode === id;
+    return (
+      <button
+        key={id}
+        type="button"
+        role="radio"
+        aria-checked={active}
+        title={hint}
+        onClick={() => setMode(id)}
+        className={`min-h-[44px] flex-1 cursor-pointer rounded px-3 py-2 text-xs font-bold transition-all ${
+          active
+            ? "bg-ink text-canvas shadow-[2px_2px_0_rgba(31,31,31,0.35)]"
+            : "text-muted hover:text-ink"
+        }`}
+      >
+        {glyph} {compact ? "" : label}
+        <span className="sr-only">{label}</span>
+      </button>
+    );
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Execution mode: live Nebius cloud GPU or deterministic simulator"
+      title="Choose live cloud GPUs or instant simulation"
+      className="flex items-center gap-1 rounded-lg border border-ink bg-[#F5F1E9] p-1"
+    >
+      {opt("real", "⚡", "Live Nebius Cloud GPU", "Run audits on live Nebius Cloud GPUs (bills BYOK key or host pool)")}
+      {opt("sim", "🧪", "Deterministic Simulator", "Instant $0 simulation — no GPU spend, dev-only, never certifies")}
+    </div>
+  );
+}
 export function TopNav() {
   const [byokOpen, setByokOpen] = useState(false);
+  const [advisorOpen, setAdvisorOpen] = useState(false);
   const connected = useByokStatus();
   return (<nav className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b border-ink bg-canvas px-4 py-3 sm:px-6 sm:py-4" aria-label="Main">
     <div className="flex min-w-0 items-center gap-3">
@@ -72,6 +110,15 @@ export function TopNav() {
       <span className="hidden xl:inline-block"><ByokBadge connected={connected} /></span>
       <button
         type="button"
+        onClick={() => setAdvisorOpen(true)}
+        aria-label="Ask the NVIDIA Nemotron Model Migration Advisor"
+        aria-haspopup="dialog"
+        className="cursor-pointer rounded border border-ink bg-ink px-3 py-2 font-bold text-canvas transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]"
+      >
+        🤖 Ask Model Advisor
+      </button>
+      <button
+        type="button"
         onClick={() => setByokOpen(true)}
         aria-label={connected ? "Manage your Nebius API key (connected)" : "Add your Nebius API key"}
         className="cursor-pointer rounded border border-ink px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]"
@@ -81,6 +128,7 @@ export function TopNav() {
       <Link href="/new" className="btn-dark cursor-pointer rounded px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]">New Hardware Audit →</Link>
     </div>
     <ByokModal open={byokOpen} onClose={() => setByokOpen(false)} />
+    <ModelAdvisorDrawer open={advisorOpen} onClose={() => setAdvisorOpen(false)} />
   </nav>);
 }
 

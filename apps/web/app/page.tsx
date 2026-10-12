@@ -251,7 +251,7 @@ function FaqSection() {
 function DatacenterEngraving() {
   return (
     <svg
-      viewBox="0 0 600 380"
+      viewBox="0 0 600 392"
       role="img"
       aria-label="Pen-and-ink engraving of a Nebius GPU datacenter cluster"
       className="w-full h-auto text-ink"
@@ -260,133 +260,145 @@ function DatacenterEngraving() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {/* thin plate frame */}
-      <rect x="8" y="8" width="584" height="364" strokeWidth="1.25" opacity="0.9" />
-      <rect x="14" y="14" width="572" height="352" strokeWidth="0.75" opacity="0.35" />
-      {/* corner ticks */}
-      <path d="M8 28 V8 H28 M572 8 H592 V28 M592 352 V372 H572 M28 372 H8 V352" strokeWidth="1.75" />
-      {/* sun / compass */}
-      <g opacity="0.9">
-        <circle cx="508" cy="66" r="22" strokeWidth="1.25" />
-        <circle cx="508" cy="66" r="15.5" strokeWidth="0.75" opacity="0.6" />
-        <circle cx="508" cy="66" r="2.2" fill="currentColor" stroke="none" />
+      {/* plate frame */}
+      <rect x="8" y="8" width="584" height="376" strokeWidth="1.5" />
+      <rect x="15" y="15" width="570" height="362" strokeWidth="0.75" opacity="0.4" />
+      <path d="M8 30 V8 H30 M570 8 H592 V30 M592 362 V384 H570 M30 384 H8 V362" strokeWidth="2" />
+      {/* sun */}
+      <g>
+        <circle cx="508" cy="66" r="22" strokeWidth="1.5" />
+        <circle cx="508" cy="66" r="15.5" strokeWidth="1" opacity="0.7" />
+        <circle cx="508" cy="66" r="2.4" fill="currentColor" stroke="none" />
         {Array.from({ length: 12 }).map((_, i) => {
           const a = (i * Math.PI) / 6;
           const x1 = 508 + Math.cos(a) * 26;
           const y1 = 66 + Math.sin(a) * 26;
-          const x2 = 508 + Math.cos(a) * 32;
-          const y2 = 66 + Math.sin(a) * 32;
-          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth="1" />;
+          const x2 = 508 + Math.cos(a) * 33;
+          const y2 = 66 + Math.sin(a) * 33;
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth="1.1" />;
         })}
       </g>
-      {/* etched clouds */}
-      <g opacity="0.7" strokeWidth="1">
-        <path d="M52 84 c8-14 28-16 36-6 c6-8 22-8 26 2 c10-4 24 2 22 12 c-2 8-12 10-22 10 H70 c-12 0-22-8-18-18 Z" />
-        <path d="M64 96 h62 M76 104 h40" strokeWidth="0.75" opacity="0.6" />
-        <path d="M400 52 c6-10 22-12 28-4 c5-6 18-6 21 2 c8-3 19 1 17 9 c-1 6-9 8-17 8 h-35 c-9 0-17-7-14-15 Z" strokeWidth="0.9" />
+      {/* clouds */}
+      <g strokeWidth="1.25">
+        <path d="M52 100 c8-14 28-16 36-6 c6-8 22-8 26 2 c10-4 24 2 22 12 c-2 8-12 10-22 10 H70 c-12 0-22-8-18-18 Z" />
+        <path d="M404 54 c6-10 22-12 28-4 c5-6 18-6 21 2 c8-3 19 1 17 9 c-1 6-9 8-17 8 h-35 c-9 0-17-7-14-15 Z" />
       </g>
       {/* birds */}
-      <g strokeWidth="1.25" opacity="0.85">
+      <g strokeWidth="1.4">
         <path d="M140 62 q6-6 12 0 q6-6 12 0" />
         <path d="M172 48 q5-5 10 0 q5-5 10 0" />
         <path d="M208 70 q5-5 10 0 q5-5 10 0" />
-        <path d="M250 52 q4-4 8 0 q4-4 8 0" />
-        <path d="M330 74 q5-5 10 0 q5-5 10 0" />
+        <path d="M252 50 q4-4 8 0 q4-4 8 0" />
+        <path d="M332 76 q5-5 10 0 q5-5 10 0" />
       </g>
-      {/* distant city / pines */}
-      <g opacity="0.45" strokeWidth="1">
-        <path d="M40 218 h28 v-14 h10 v14 h12 v-22 h10 v22 h14 v-10 h10 v10 h16" />
-        <path d="M460 218 h14 v-12 h8 v12 h12 v-20 h8 v20 h12 v-10 h8 v10 h18" />
-        <path d="M52 218 l10-18 l10 18 M62 200 v18 M478 218 l8-14 l8 14" strokeWidth="0.9" />
-      </g>
-      {/* main datacenter hall */}
-      <g strokeWidth="1.25">
+
+      {/* main hall */}
+      <g>
         {/* stepped platform */}
-        <rect x="110" y="288" width="380" height="10" />
-        <rect x="124" y="278" width="352" height="10" />
-        <rect x="138" y="268" width="324" height="10" />
+        <rect x="110" y="290" width="380" height="10" strokeWidth="1.5" fill="currentColor" fillOpacity="0.04" />
+        <rect x="124" y="280" width="352" height="10" strokeWidth="1.5" fill="currentColor" fillOpacity="0.04" />
+        <rect x="138" y="270" width="324" height="10" strokeWidth="1.5" fill="currentColor" fillOpacity="0.06" />
         {/* hall body */}
-        <rect x="150" y="148" width="300" height="120" />
-        {/* pediment roof */}
-        <path d="M138 148 L300 96 L462 148 Z" />
-        <path d="M168 148 L300 112 L432 148" strokeWidth="0.9" opacity="0.7" />
-        {/* pediment label */}
-        <text x="300" y="136" textAnchor="middle" fontSize="11" fontWeight="800" letterSpacing="1.5" stroke="none" fill="currentColor" fontFamily="monospace">
+        <rect x="150" y="150" width="300" height="120" strokeWidth="1.75" fill="#EFEBE4" />
+        {/* roof */}
+        <path d="M136 150 L300 96 L464 150 Z" strokeWidth="1.75" fill="#EFEBE4" />
+        <path d="M170 150 L300 114 L430 150" strokeWidth="1" opacity="0.8" />
+        {/* pediment labels */}
+        <text x="300" y="138" textAnchor="middle" fontSize="11.5" fontWeight="800" letterSpacing="1.6" stroke="none" fill="currentColor" fontFamily="monospace">
           NEBIUS · GPU CLUSTER
         </text>
-        <text x="300" y="146" textAnchor="middle" fontSize="7.5" letterSpacing="2" stroke="none" fill="currentColor" opacity="0.65" fontFamily="monospace">
+        <text x="300" y="148" textAnchor="middle" fontSize="7.5" letterSpacing="2.2" stroke="none" fill="currentColor" opacity="0.7" fontFamily="monospace">
           EU-NORTH1 · DETERMINISTIC
         </text>
-        {/* columns / 6 rack bays */}
+        {/* 6 rack bays */}
         {[0, 1, 2, 3, 4, 5].map((i) => {
           const x = 162 + i * 48;
           return (
             <g key={i}>
-              <rect x={x} y={160} width={36} height={96} strokeWidth="1" />
+              <rect x={x} y={162} width={36} height={96} strokeWidth="1.2" fill="#EFEBE4" />
               {[0, 1, 2, 3, 4].map((r) => (
                 <g key={r}>
-                  <rect x={x + 4} y={166 + r * 17} width={28} height={11} strokeWidth="0.8" opacity="0.9" />
-                  <line x1={x + 7} y1={171.5 + r * 17} x2={x + 22} y2={171.5 + r * 17} strokeWidth="0.7" opacity="0.6" />
-                  <circle cx={x + 28} cy={171.5 + r * 17} r={1.4} fill="currentColor" stroke="none" opacity={r === 2 && i === 2 ? 0.95 : 0.45} />
+                  <rect x={x + 4} y={168 + r * 17} width={28} height={11} strokeWidth="0.9" />
+                  <line x1={x + 7} y1={173.5 + r * 17} x2={x + 21} y2={173.5 + r * 17} strokeWidth="0.8" opacity="0.7" />
+                  <circle cx={x + 28} cy={173.5 + r * 17} r={1.5} fill="currentColor" stroke="none" opacity={r === 2 ? 0.95 : 0.5} />
                 </g>
               ))}
             </g>
           );
         })}
-        {/* lightning / power emblem on roof */}
-        <path d="M300 78 v14 M294 88 l6 8 l-6 8 h10 l-4 10 l12-16 h-9 l5-10 Z" strokeWidth="1" />
+        {/* roof power emblem — clean mast + bolt */}
+        <g strokeWidth="1.5">
+          <line x1="300" y1="76" x2="300" y2="92" />
+          <circle cx="300" cy="74" r="1.8" fill="currentColor" stroke="none" />
+          <path d="M303 88 L293 102 H299 L296 112 L308 97 H302 L305 88 Z" fill="currentColor" fillOpacity="0.12" />
+        </g>
       </g>
-      {/* side annex blocks */}
-      <g strokeWidth="1" opacity="0.9">
-        <rect x="64" y="208" width="72" height="60" />
-        <path d="M64 208 L100 188 L136 208" />
-        {[0, 1, 2].map((r) => (
-          <line key={r} x1={70} y1={222 + r * 12} x2={130} y2={222 + r * 12} strokeWidth="0.75" opacity="0.6" />
-        ))}
-        <rect x="464" y="208" width="72" height="60" />
-        <path d="M464 208 L500 188 L536 208" />
-        {[0, 1, 2].map((r) => (
-          <line key={r} x1={470} y1={222 + r * 12} x2={530} y2={222 + r * 12} strokeWidth="0.75" opacity="0.6" />
-        ))}
+
+      {/* left annex */}
+      <g strokeWidth="1.5">
+        <rect x="52" y="212" width="80" height="58" fill="#EFEBE4" />
+        <path d="M48 212 L92 190 L136 212 Z" fill="#EFEBE4" />
+        <rect x="62" y="224" width="14" height="12" strokeWidth="1" />
+        <rect x="81" y="224" width="14" height="12" strokeWidth="1" />
+        <rect x="100" y="224" width="14" height="12" strokeWidth="1" />
+        <rect x="80" y="242" width="24" height="28" strokeWidth="1.1" />
+        <line x1="92" y1="242" x2="92" y2="270" strokeWidth="0.9" />
       </g>
-      {/* network fan lines */}
-      <g strokeWidth="0.8" opacity="0.55">
-        <path d="M100 268 C 160 250, 200 230, 240 210" strokeDasharray="4 3" />
-        <path d="M500 268 C 440 250, 400 230, 360 210" strokeDasharray="4 3" />
-        <circle cx="240" cy="210" r="2.5" fill="currentColor" stroke="none" opacity="0.7" />
-        <circle cx="360" cy="210" r="2.5" fill="currentColor" stroke="none" opacity="0.7" />
+      {/* right annex */}
+      <g strokeWidth="1.5">
+        <rect x="468" y="212" width="80" height="58" fill="#EFEBE4" />
+        <path d="M464 212 L508 190 L552 212 Z" fill="#EFEBE4" />
+        <rect x="478" y="224" width="14" height="12" strokeWidth="1" />
+        <rect x="497" y="224" width="14" height="12" strokeWidth="1" />
+        <rect x="516" y="224" width="14" height="12" strokeWidth="1" />
+        <rect x="496" y="242" width="24" height="28" strokeWidth="1.1" />
+        <line x1="508" y1="242" x2="508" y2="270" strokeWidth="0.9" />
       </g>
-      {/* annotation callouts */}
+
+      {/* short horizontal conduits — no diagonal crossing */}
+      <g strokeWidth="1.1" opacity="0.85">
+        <line x1="132" y1="258" x2="150" y2="258" />
+        <line x1="450" y1="258" x2="468" y2="258" />
+        <circle cx="141" cy="258" r="1.6" fill="currentColor" stroke="none" />
+        <circle cx="459" cy="258" r="1.6" fill="currentColor" stroke="none" />
+      </g>
+
+      {/* side labels — below annexes, clear of art */}
       <g fontFamily="monospace" stroke="none" fill="currentColor">
-        <text x="40" y="252" fontSize="9" fontWeight="700">L40S 48GB · ADA</text>
-        <text x="40" y="262" fontSize="7.5" opacity="0.65">$1.20/HR · ENTRY</text>
-        <text x="470" y="252" fontSize="9" fontWeight="700" textAnchor="start">H100 80GB SXM5</text>
-        <text x="470" y="262" fontSize="7.5" opacity="0.65">3.35 TB/S · ESCALATION</text>
-        <text x="300" y="326" fontSize="8.5" textAnchor="middle" letterSpacing="1.5" opacity="0.75">P95 890MS · TOOL ACC 94.2% · ERR 0.0%</text>
+        <rect x="30" y="276" width="124" height="26" fill="#EFEBE4" stroke="none" />
+        <rect x="446" y="276" width="138" height="26" fill="#EFEBE4" stroke="none" />
+        <text x="92" y="287" textAnchor="middle" fontSize="9.5" fontWeight="800" letterSpacing="0.3">L40S 48GB · ADA</text>
+        <text x="92" y="297" textAnchor="middle" fontSize="7.5" opacity="0.7" letterSpacing="0.8">$1.20/HR · ENTRY</text>
+        <text x="515" y="287" textAnchor="middle" fontSize="9.5" fontWeight="800" letterSpacing="0.3">H100 80GB SXM5</text>
+        <text x="515" y="297" textAnchor="middle" fontSize="7.5" opacity="0.7" letterSpacing="0.8">3.35 TB/S · ESCALATION</text>
       </g>
-      {/* leader lines for callouts */}
-      <g strokeWidth="0.9" opacity="0.7">
-        <path d="M92 246 V236 H150 V208" />
-        <path d="M512 246 V236 H450 V208" />
-        <circle cx="92" cy="248" r="1.8" fill="currentColor" stroke="none" />
-        <circle cx="512" cy="248" r="1.8" fill="currentColor" stroke="none" />
+      {/* label leader ticks */}
+      <g strokeWidth="1.1">
+        <line x1="92" y1="270" x2="92" y2="276" />
+        <line x1="508" y1="270" x2="508" y2="276" />
+        <circle cx="92" cy="272" r="1.4" fill="currentColor" stroke="none" />
+        <circle cx="508" cy="272" r="1.4" fill="currentColor" stroke="none" />
+      </g>
+
+      {/* bottom readout */}
+      <g fontFamily="monospace" stroke="none" fill="currentColor">
+        <text x="300" y="328" fontSize="9" textAnchor="middle" letterSpacing="1.6" opacity="0.85">P95 890MS · TOOL ACC 94.2% · ERR 0.0%</text>
       </g>
       {/* dimension line */}
-      <g strokeWidth="0.9" opacity="0.8">
-        <line x1="150" y1="342" x2="450" y2="342" />
-        <path d="M150 337 l0 10 M450 337 l0 10 M150 342 l10-3 v6 Z M450 342 l-10-3 v6 Z" fill="currentColor" stroke="none" />
-        <text x="300" y="356" textAnchor="middle" fontSize="8" letterSpacing="2" stroke="none" fill="currentColor" fontFamily="monospace" opacity="0.7">
+      <g strokeWidth="1">
+        <line x1="150" y1="344" x2="450" y2="344" />
+        <path d="M150 340 v8 M450 340 v8" />
+        <path d="M150 344 l12-3.5 v7 Z M450 344 l-12-3.5 v7 Z" fill="currentColor" stroke="none" />
+        <text x="300" y="360" textAnchor="middle" fontSize="8.5" letterSpacing="2.2" stroke="none" fill="currentColor" fontFamily="monospace" opacity="0.8">
           48GB → 80GB · AUTONOMOUS ESCALATION
         </text>
       </g>
-      {/* ground hatching */}
-      <g strokeWidth="0.75" opacity="0.4">
-        <line x1="30" y1="302" x2="120" y2="302" />
-        <line x1="40" y1="308" x2="110" y2="308" />
-        <line x1="480" y1="302" x2="570" y2="302" />
-        <line x1="490" y1="308" x2="560" y2="308" />
-        <line x1="30" y1="314" x2="100" y2="314" />
-        <line x1="500" y1="314" x2="570" y2="314" />
+      {/* ground hatching — symmetric, below labels */}
+      <g strokeWidth="0.9" opacity="0.55">
+        <line x1="30" y1="310" x2="110" y2="310" />
+        <line x1="40" y1="316" x2="100" y2="316" />
+        <line x1="490" y1="310" x2="570" y2="310" />
+        <line x1="500" y1="316" x2="560" y2="316" />
       </g>
     </svg>
   );

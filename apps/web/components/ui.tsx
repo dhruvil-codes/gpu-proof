@@ -6,16 +6,16 @@ const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 
 export function TopNav() {
   return (<nav className="flex items-center justify-between border-b border-ink px-6 py-4" aria-label="Main">
-    <Link href="/" className="cursor-pointer text-sm font-bold">◉ GPUProof</Link>
+    <div className="flex items-center gap-3">
+      <Link href="/" className="cursor-pointer text-sm font-bold">◉ GPUProof</Link>
+      <span className="chip hidden px-3 py-1 text-[11px] sm:inline-block">Nebius x NVIDIA AI Hackathon</span>
+    </div>
     <div className="hidden gap-6 text-xs text-muted md:flex">
-      <Link className="cursor-pointer hover:text-ink" href="/dashboard">Product</Link>
-      <Link className="cursor-pointer hover:text-ink" href="/new">How it works</Link>
-      <Link className="cursor-pointer hover:text-ink" href="/dashboard">Docs</Link>
-      <Link className="cursor-pointer hover:text-ink" href="/dashboard">Pricing</Link>
+      <Link className="cursor-pointer hover:text-ink" href="/#how-it-works">How It Works</Link>
+      <Link className="cursor-pointer hover:text-ink" href="/dashboard">Audit Portfolio</Link>
     </div>
     <div className="flex items-center gap-4 text-xs">
-      <Link href="/dashboard" className="cursor-pointer">Login</Link>
-      <Link href="/new" className="btn-dark cursor-pointer rounded px-3 py-2 transition-colors">Get Started</Link>
+      <Link href="/new" className="btn-dark cursor-pointer rounded px-3 py-2 transition-colors">New Hardware Audit →</Link>
     </div>
   </nav>);
 }

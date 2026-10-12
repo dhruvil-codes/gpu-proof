@@ -38,6 +38,7 @@ yarn-error.log*
 .pnpm-debug.log*
 .next/
 out/
+*.tsbuildinfo
 
 # OS and IDE files
 .DS_Store

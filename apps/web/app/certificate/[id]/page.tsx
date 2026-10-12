@@ -32,6 +32,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
       <p className="text-[11px] text-muted">Certificate · {params.id}</p>
       <div role="status" aria-label={`verdict ${d.verdict}`} className={`mx-auto mt-4 inline-block rounded px-10 py-6 text-4xl font-bold ${ship ? "bg-ship text-white" : sim ? "border-2 border-ink" : "bg-block text-white"}`}>{d.verdict}</div>
       {d.note && (<p className="mx-auto mt-3 max-w-md text-xs text-muted">{d.note}</p>)}
+      {d.spend_usd !== undefined && (<p className="mt-2 text-xs text-muted">Budget spent: ${Number(d.spend_usd).toFixed(2)} (cap $10/cert, $20 total)</p>)}
       {d.failing_gates?.length > 0 && (<div className="panel mx-auto mt-4 max-w-md rounded border-block p-3 text-left text-xs"><p className="font-bold text-block">Failing gates (BLOCK)</p>{d.failing_gates.map((g: any) => (<p key={g.metric}>{g.metric}: observed {g.observed} vs {g.threshold}</p>))}</div>)}
       {rows.length > 0 && (<div className="panel mt-6 overflow-auto rounded p-0 text-left text-xs">
         <table className="w-full">

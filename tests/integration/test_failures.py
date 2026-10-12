@@ -39,16 +39,17 @@ def test_planner_down_returns_incomplete_not_ship():
     main.CERTS.clear()
     c = TestClient(main.app)
     cid = c.post("/certifications", json={}).json()["id"]
-    real = main.propose_experiment
+    import services.certification_loop as loop
+    real = loop.propose_experiment
     try:
         def boom(ctx):
             raise RuntimeError("Certification incomplete. Reason: Planning service unavailable (down)")
-        main.propose_experiment = boom
+        loop.propose_experiment = boom
         c.post(f"/certifications/{cid}/start")
         s = wait_done(c, cid)
         assert s["status"] == "INCOMPLETE", s
     finally:
-        main.propose_experiment = real
+        loop.propose_experiment = real
 
 
 def test_rejects_non_vllm_and_multi_gpu_policy():

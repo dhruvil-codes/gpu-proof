@@ -12,8 +12,13 @@ export default function Dashboard() {
     try { setItems(JSON.parse(localStorage.getItem("gpuproof-certs") || "[]")); } catch {}
     fetch(`${API}/certifications`).then((r) => r.json()).then((j) => {
       if (j?.stored?.length) setItems((prev) => {
-        const ids = new Set(prev.map((x: any) => x.id));
-        return [...prev, ...j.stored.filter((x: any) => !ids.has(x.id))];
+        const byId = new Map(prev.map((x: any) => [x.id, x]));
+        for (const s of j.stored) {
+          const cur = byId.get(s.id) ?? { id: s.id, candidate: "", experiments: 0 };
+          byId.set(s.id, { ...cur, status: s.status, spend: s.spend,
+                            simulated: s.simulated ?? cur.simulated ?? null });
+        }
+        return [...byId.values()];
       });
       setCap({ spend: j.total_spend ?? 0, cap: j.cap ?? 20 });
     }).catch(() => {});

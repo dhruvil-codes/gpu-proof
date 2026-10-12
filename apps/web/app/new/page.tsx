@@ -1,11 +1,20 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TopNav } from "@/components/ui";
 
 const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 
 export default function New() {
+  return (<main>
+    <TopNav />
+    <Suspense fallback={<p className="p-8 text-sm">Loading form…</p>}>
+      <NewForm />
+    </Suspense>
+  </main>);
+}
+
+function NewForm() {
   const r = useRouter();
   const q = useSearchParams();
   const [form, setForm] = useState({ candidate_model: q.get("candidate_model") || "Nemotron-3-Nano-30B", current_model: "Qwen3-8B", requests: 200, budget_usd: 10 });
@@ -37,8 +46,7 @@ export default function New() {
   }
   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
   const field = "mt-1 min-h-[44px] w-full border border-ink bg-transparent p-2 text-sm";
-  return (<main>
-    <TopNav />
+  return (
     <div className="mx-auto max-w-2xl px-6 py-8">
       <h1 className="text-2xl">New Certification</h1>
       <p className="text-xs text-muted">Current + Candidate + Workload + Requirements + Budget. Policy validates every experiment (1 GPU, 15 min, $2/exp, L40S/H100, vLLM).</p>
@@ -60,6 +68,5 @@ export default function New() {
         <button className="btn-dark min-h-[44px] w-full cursor-pointer rounded px-4 py-3 text-sm transition-colors">Run Certification</button>
         <p aria-live="polite" className="text-[11px] text-muted">{msg}</p>
       </form>
-    </div>
-  </main>);
+    </div>);
 }

@@ -18,6 +18,7 @@ export default function Timeline({ params }: { params: { id: string } }) {
       if (dead || !m.data || m.data.startsWith(":") ) return;
       try {
         const e = JSON.parse(m.data);
+        if (e.type === "experiment_start") setLive(`Experiment ${e.index + 1} starting: planner → policy → Nebius job.`);
         if (e.type === "plan") setLive(`Experiment ${e.index + 1} planned: ${e.plan.gpu_type} ${e.plan.precision}. ${e.plan.reason}`);
         if (e.type === "policy") setLive(e.allowed ? `Policy approved experiment ${e.index + 1} (est $${e.estimated_cost}).` : `Policy refused: ${e.reasons.join("; ")}`);
         if (e.type === "experiment_done") {
@@ -33,16 +34,23 @@ export default function Timeline({ params }: { params: { id: string } }) {
       } catch {}
     };
     es.onerror = () => {
-      // SSE fallback: poll the certificate endpoint (general Next.js default; skill stack query had no match)
-      fetch(`${API}/certifications/${params.id}/certificate`).then((r) => r.json()).then((j) => {
+      // SSE fallback: poll the experiments endpoint (works in sim + real mode,
+      // before and after completion — unlike /certificate which 409s when empty)
+      fetch(`${API}/certifications/${params.id}/experiments`).then((r) => r.json()).then((j) => {
         if (j.experiments) setExps(j.experiments);
-        if (j.verdict && j.verdict !== "SIMULATED") setStatus(j.verdict);
         if (j.simulated !== undefined) setSim(j.simulated);
       }).catch(() => {});
     };
-    // initial paint
-    fetch(`${API}/certifications/${params.id}/certificate`).then((r) => r.json()).then((j) => {
-      if (!dead && j.experiments) setExps(j.experiments);
+    // initial paint (covers late joiners after the SSE "done" was consumed)
+    fetch(`${API}/certifications/${params.id}/experiments`).then((r) => r.json()).then((j) => {
+      if (!dead && j.experiments) { setExps(j.experiments); if (j.simulated !== undefined) setSim(j.simulated); }
+    }).catch(() => {});
+    fetch(`${API}/certifications/${params.id}`).then((r) => r.json()).then((j) => {
+      if (!dead && j.status && j.status !== "RUNNING" && j.status !== "CREATED") {
+        setStatus(j.status);
+        setLive(`Certification ${j.status}.`);
+      }
+      if (!dead && j.simulated !== undefined) setSim(j.simulated);
     }).catch(() => {});
     return () => { dead = true; es.close(); };
   }, [params.id]);

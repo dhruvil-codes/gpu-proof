@@ -91,7 +91,7 @@ function NewForm() {
       if (!s.ok) throw new Error(`start failed: ${s.status}`);
       try {
         const items = JSON.parse(localStorage.getItem("gpuproof-certs") || "[]");
-        items.unshift({ id: j.id, candidate: form.candidate_model, status: "RUNNING", spend: 0, experiments: 0, simulated: true });
+        items.unshift({ id: j.id, candidate: form.candidate_model, status: "RUNNING", spend: 0, experiments: 0, simulated: true, created_at: new Date().toISOString() });
         localStorage.setItem("gpuproof-certs", JSON.stringify(items.slice(0, 20)));
       } catch {}
       r.push(`/timeline/${j.id}`);

@@ -6,19 +6,20 @@ import { SiteFooter, StatusPill, TopNav } from "@/components/ui";
 import { ModelAdvisorFab } from "@/components/ModelAdvisorDrawer";
 
 const PRESETS = [
-  { id: "nano", glyph: "⚡", label: "Nemotron Nano 30B", sub: "NVIDIA agentic workhorse (~40% cost cut)", value: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B" },
-  { id: "llama70b", glyph: "🦙", label: "Llama 3.3 70B", sub: "Enterprise flagship production workhorse", value: "meta-llama/Llama-3.3-70B-Instruct" },
-  { id: "r1-32b", glyph: "🧠", label: "DeepSeek R1 32B", sub: "Open reasoning & math powerhouse", value: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B" },
-  { id: "qwen72b", glyph: "🎯", label: "Qwen 2.5 72B", sub: "Complex JSON schemas & coding", value: "Qwen/Qwen2.5-72B-Instruct" },
-  { id: "llama8b", glyph: "🛡️", label: "Llama 3.1 8B", sub: "Low-latency high-throughput baseline", value: "meta-llama/Meta-Llama-3.1-8B-Instruct" },
-  { id: "custom", glyph: "⚙️", label: "Custom HF Model", sub: "Type any Hugging Face repo ID", value: "" },
+  { id: "qwen27b", glyph: "⚡", label: "Qwen 3.6 27B", sub: "Most downloaded open-weight; runs on single 24GB GPU", value: "Qwen/Qwen3.6-27B-Instruct" },
+  { id: "deepseek-v4", glyph: "🧠", label: "DeepSeek V4 Pro", sub: "Reasoning king · MIT · 80.6% SWE-bench Verified", value: "deepseek-ai/DeepSeek-V4-Pro" },
+  { id: "llama4", glyph: "🦙", label: "Llama 4 Scout", sub: "10M context window on single high-end GPU", value: "meta-llama/Llama-4-Scout" },
+  { id: "gemma4", glyph: "💎", label: "Gemma 4 31B", sub: "Google Apache 2.0 · Best single-GPU all-rounder", value: "google/gemma-4-31b-it" },
+  { id: "gpt-oss", glyph: "🍎", label: "gpt-oss 20B", sub: "OpenAI open weights · Fast on 16GB Mac Mini", value: "openai/gpt-oss-20b" },
+  { id: "codestral", glyph: "💻", label: "Codestral 2501", sub: "Mistral Apache 2.0 · IDE autocomplete standard", value: "mistralai/Codestral-2501" },
+  { id: "custom", glyph: "⚙️", label: "Bring Any Model", sub: "Paste ANY Hugging Face URL or ID", value: "" },
 ];
 
 function PresetPicker() {
   const r = useRouter();
-  const [active, setActive] = useState("nano");
+  const [active, setActive] = useState("qwen27b");
   const [custom, setCustom] = useState("");
-  const chosen = PRESETS.find((p) => p.id === active)!;
+  const chosen = PRESETS.find((p) => p.id === active) || PRESETS[0];
   const value = active === "custom" ? custom : chosen.value;
 
   function go(e?: React.FormEvent) {

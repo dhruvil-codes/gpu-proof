@@ -18,12 +18,19 @@ type FormState = {
 const NANO = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B";
 
 const POPULAR_PROD_MODELS = [
-  { label: "Llama 3.3 70B", slug: "meta-llama/Llama-3.3-70B-Instruct" },
-  { label: "DeepSeek R1 32B", slug: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B" },
-  { label: "Qwen 2.5 72B", slug: "Qwen/Qwen2.5-72B-Instruct" },
-  { label: "Nemotron Nano 30B", slug: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B" },
-  { label: "Mistral Large 123B", slug: "mistralai/Mistral-Large-Instruct-2407" },
-  { label: "Llama 3.1 8B", slug: "meta-llama/Meta-Llama-3.1-8B-Instruct" },
+  // The Big Five
+  { label: "Qwen 3.6 27B", slug: "Qwen/Qwen3.6-27B-Instruct", tag: "Apache 2.0" },
+  { label: "DeepSeek V4 Pro", slug: "deepseek-ai/DeepSeek-V4-Pro", tag: "MIT · SWE 80.6%" },
+  { label: "Llama 4 Scout", slug: "meta-llama/Llama-4-Scout", tag: "Meta · 10M Ctx" },
+  { label: "Gemma 4 31B", slug: "google/gemma-4-31b-it", tag: "Apache 2.0" },
+  { label: "Codestral 2501", slug: "mistralai/Codestral-2501", tag: "Apache 2.0" },
+  // Mac Mini & Single 24GB
+  { label: "gpt-oss 20B", slug: "openai/gpt-oss-20b", tag: "Mac Mini 16GB" },
+  { label: "Qwen3-Coder 30B", slug: "Qwen/Qwen3-Coder-30B-A3B", tag: "RTX 4090 24GB" },
+  { label: "Phi-4 14B", slug: "microsoft/phi-4", tag: "MIT" },
+  // Frontier Contenders
+  { label: "Kimi K2.6", slug: "moonshotai/Kimi-K2.6-Instruct", tag: "SWE-bench Pro" },
+  { label: "GLM-5 32B", slug: "THUDM/glm-5-32b", tag: "MIT" },
 ];
 
 const TEMPLATES: {
@@ -62,6 +69,8 @@ type ModelFit = {
   params_b: number;
   layers: number;
   hidden: number;
+  license?: string;
+  note?: string;
   weights_fp16_gb: number;
   weights_fp8_gb: number;
   weights_int4_gb: number;
@@ -72,6 +81,11 @@ type ModelFit = {
   recommended_cloud_gpu: string;
   recommended_cloud_label: string;
   recommended_cloud_price: number;
+  deploy_stack?: {
+    local_dev?: string;
+    production_cloud?: string;
+    commercial_license?: string;
+  };
 };
 
 function extractHfRepoId(input: string): string {
@@ -397,9 +411,9 @@ function NewForm() {
             {/* Popular Production Models (1-Click Chips) */}
             <div className="mt-2.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
-                Popular Production Models (1-click fill):
+                Production &amp; Lab Standards (1-click fill):
               </span>
-              <div className="mt-1 flex flex-wrap gap-1.5">
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {POPULAR_PROD_MODELS.map((m) => {
                   const active = form.candidate_model === m.slug;
                   return (
@@ -407,13 +421,20 @@ function NewForm() {
                       key={m.slug}
                       type="button"
                       onClick={() => set("candidate_model", m.slug)}
-                      className={`cursor-pointer rounded border px-2 py-1 text-[11px] font-mono transition-all ${
+                      className={`inline-flex items-center gap-1.5 cursor-pointer rounded border px-2 py-1 text-[11px] font-mono transition-all ${
                         active
                           ? "border-ink bg-ink font-bold text-canvas shadow-[2px_2px_0_rgba(31,31,31,0.2)]"
                           : "border-ink/30 bg-canvas/70 text-ink/80 hover:border-ink hover:bg-canvas"
                       }`}
                     >
-                      {m.label}
+                      <span>{m.label}</span>
+                      <span
+                        className={`rounded px-1 py-0.2 text-[9px] uppercase font-bold tracking-tight ${
+                          active ? "bg-canvas/20 text-canvas" : "bg-ink/10 text-muted"
+                        }`}
+                      >
+                        {m.tag}
+                      </span>
                     </button>
                   );
                 })}
@@ -423,18 +444,29 @@ function NewForm() {
             {/* Dynamic Hardware Sizing & Feasibility Card */}
             {modelFit && (
               <div className="mt-3 rounded-md border border-ink/20 bg-canvas/60 p-3 text-xs leading-relaxed">
-                <div className="flex items-center justify-between border-b border-ink/15 pb-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/15 pb-2">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-ink">{modelFit.display_name}</span>
                     <span className="rounded bg-ink/10 px-1.5 py-0.5 text-[10px] font-mono font-bold">
                       {modelFit.params_b}B params
                     </span>
+                    {modelFit.license && (
+                      <span className="rounded border border-emerald-700/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-mono font-bold text-emerald-800">
+                        {modelFit.license}
+                      </span>
+                    )}
                     {inspecting && <span className="text-[10px] text-muted">inspecting…</span>}
                   </div>
                   <span className="font-mono text-[11px] text-muted">
                     {modelFit.layers}L · {modelFit.hidden}H
                   </span>
                 </div>
+
+                {modelFit.note && (
+                  <p className="mt-1.5 text-[11px] text-muted leading-tight border-b border-ink/10 pb-1.5">
+                    {modelFit.note}
+                  </p>
+                )}
 
                 <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {/* Local Hardware Viability */}
@@ -446,6 +478,9 @@ function NewForm() {
                       <span>·</span>
                       <span>FP8: ~{modelFit.weights_fp8_gb}GB</span>
                     </div>
+                    <span className="mt-1 block text-[10px] text-muted">
+                      Local toolchain: <code>ollama pull</code> / <code>MLX</code>
+                    </span>
                   </div>
 
                   {/* Production Cloud Recommendation */}
@@ -455,7 +490,7 @@ function NewForm() {
                       Recommended: <strong>{modelFit.recommended_cloud_label}</strong> (${modelFit.recommended_cloud_price.toFixed(2)}/hr)
                     </span>
                     <span className="mt-1 block text-[10px] text-muted">
-                      Certified for multi-tenant high-throughput concurrency &amp; &lt;2,000ms p95 SLA.
+                      Serving engine: <strong>vLLM / SGLang</strong> with strict &lt;2,000ms p95 SLA gates.
                     </span>
                   </div>
                 </div>

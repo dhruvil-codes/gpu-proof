@@ -1,8 +1,8 @@
 """Model Migration Advisor — deterministic VRAM / KV-cache sizing & Hardware Fit Engine.
 
 Deep module behind POST /advisor and GET /models/inspect.
-Evaluates local open-source setups (RTX 4090, 3090, Dual 3090, Apple Silicon Mac Studio)
-vs production cloud GPUs (Nebius L40S, H100, H200, A100).
+Evaluates local open-source setups (Mac Mini, RTX 4090, Dual 3090, Apple Mac Studio)
+vs production cloud GPUs (Nebius L40S, H100 SXM5, H200, A100).
 Supports ANY model via clean Hugging Face URL parsing, live Hub metadata inspection,
 and deterministic fallback mathematical heuristics.
 """
@@ -21,6 +21,18 @@ BYTES_PER_PARAM = {"FP32": 4.0, "FP16": 2.0, "BF16": 2.0, "FP8": 1.0, "INT8": 1.
 # Prices mirror services/cost_engine.py (L40S/H100); local GPUs have usd_hr=0.0.
 GPU_CATALOG: dict[str, dict] = {
     # Consumer & Homelab Local Hardware (The Open-Source Community Standard)
+    "MAC_MINI_16GB": {
+        "vram_gb": 16, "usd_hr": 0.00, "label": "Apple Mac Mini 16GB Unified Memory",
+        "category": "local_mac", "bandwidth_gbs": 100, "type": "Budget Desktop (Ollama/MLX)"
+    },
+    "MAC_MINI_24GB": {
+        "vram_gb": 24, "usd_hr": 0.00, "label": "Apple Mac Mini 24GB Unified Memory",
+        "category": "local_mac", "bandwidth_gbs": 120, "type": "Budget Desktop (Ollama/MLX)"
+    },
+    "RTX4080": {
+        "vram_gb": 16, "usd_hr": 0.70, "label": "NVIDIA RTX 4080 / 4070Ti Super 16GB",
+        "category": "local_gpu", "bandwidth_gbs": 717, "type": "Mid-tier Consumer"
+    },
     "RTX4090": {
         "vram_gb": 24, "usd_hr": 0.90, "label": "NVIDIA RTX 4090 24GB",
         "category": "local_gpu", "bandwidth_gbs": 1008, "type": "Consumer Flagship"
@@ -33,6 +45,10 @@ GPU_CATALOG: dict[str, dict] = {
         "vram_gb": 48, "usd_hr": 1.20, "label": "Dual RTX 3090 / 4090 48GB",
         "category": "local_gpu", "bandwidth_gbs": 936, "type": "Homelab Multi-GPU"
     },
+    "MACBOOK_MAX_64GB": {
+        "vram_gb": 64, "usd_hr": 0.00, "label": "Apple MacBook Pro Max 64GB Unified Memory",
+        "category": "local_mac", "bandwidth_gbs": 400, "type": "Mobile Workstation"
+    },
     "MAC_STUDIO_128GB": {
         "vram_gb": 128, "usd_hr": 0.00, "label": "Apple Mac Studio 128GB Unified Memory",
         "category": "local_mac", "bandwidth_gbs": 800, "type": "Local Heavy-Weight (Metal/MLX)"
@@ -40,14 +56,6 @@ GPU_CATALOG: dict[str, dict] = {
     "MAC_STUDIO_192GB": {
         "vram_gb": 192, "usd_hr": 0.00, "label": "Apple Mac Studio 192GB Unified Memory",
         "category": "local_mac", "bandwidth_gbs": 800, "type": "Local Flagship (Metal/MLX)"
-    },
-    "MACBOOK_MAX_64GB": {
-        "vram_gb": 64, "usd_hr": 0.00, "label": "Apple MacBook Pro Max 64GB Unified Memory",
-        "category": "local_mac", "bandwidth_gbs": 400, "type": "Mobile Workstation"
-    },
-    "RTX4080": {
-        "vram_gb": 16, "usd_hr": 0.70, "label": "NVIDIA RTX 4080 / 4070Ti Super 16GB",
-        "category": "local_gpu", "bandwidth_gbs": 717, "type": "Mid-tier Consumer"
     },
     "RTX6000_ADA": {
         "vram_gb": 48, "usd_hr": 1.80, "label": "NVIDIA RTX 6000 Ada 48GB",
@@ -72,34 +80,127 @@ GPU_CATALOG: dict[str, dict] = {
     },
 }
 
-# Known curated baseline models (used as quick presets & exact parameter counts)
+# Real-world production & lab model catalog
 MODEL_CATALOG: dict[str, dict] = {
-    "gemma-2-27b": {"params_b": 27.2, "layers": 46, "hidden": 4608,
-                    "slug": "google/gemma-2-27b-it", "display": "Gemma 2 27B"},
-    "qwen2.5-14b": {"params_b": 14.7, "layers": 48, "hidden": 5120,
-                    "slug": "Qwen/Qwen2.5-14B-Instruct", "display": "Qwen 2.5 14B"},
-    "qwen2.5-72b": {"params_b": 72.7, "layers": 80, "hidden": 8192,
-                    "slug": "Qwen/Qwen2.5-72B-Instruct", "display": "Qwen 2.5 72B"},
-    "nemotron-nano-30b": {"params_b": 30.0, "layers": 48, "hidden": 5120,
-                          "slug": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
-                          "display": "Nemotron Nano 30B"},
-    "deepseek-r1-32b": {"params_b": 32.8, "layers": 64, "hidden": 5120,
-                        "slug": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
-                        "display": "DeepSeek R1 Distill 32B"},
-    "deepseek-v3": {"params_b": 671.0, "layers": 61, "hidden": 7168, "moe": True,
-                    "slug": "deepseek-ai/DeepSeek-V3", "display": "DeepSeek-V3 671B MoE"},
-    "llama-3.3-70b": {"params_b": 70.6, "layers": 80, "hidden": 8192,
-                      "slug": "meta-llama/Llama-3.3-70B-Instruct", "display": "Llama 3.3 70B"},
-    "llama-3.1-70b": {"params_b": 70.6, "layers": 80, "hidden": 8192,
-                      "slug": "meta-llama/Llama-3.1-70B-Instruct", "display": "Llama 3.1 70B"},
-    "llama-3.1-8b": {"params_b": 8.0, "layers": 32, "hidden": 4096,
-                     "slug": "meta-llama/Meta-Llama-3.1-8B-Instruct", "display": "Llama 3.1 8B"},
-    "mistral-large": {"params_b": 123.0, "layers": 88, "hidden": 12288,
-                      "slug": "mistralai/Mistral-Large-Instruct-2407", "display": "Mistral Large 123B"},
-    "mistral-7b": {"params_b": 7.3, "layers": 32, "hidden": 4096,
-                   "slug": "mistralai/Mistral-7B-Instruct-v0.3", "display": "Mistral 7B"},
-    "qwen3-8b": {"params_b": 8.2, "layers": 36, "hidden": 4096,
-                 "slug": "Qwen/Qwen3-8B", "display": "Qwen3 8B"},
+    # The Big Five
+    "qwen3.6-27b": {
+        "params_b": 27.0, "layers": 48, "hidden": 5120, "license": "Apache 2.0",
+        "slug": "Qwen/Qwen3.6-27B-Instruct", "display": "Qwen 3.6 27B",
+        "note": "Most downloaded family in the world; runs on single 24GB GPU, beats larger models on coding."
+    },
+    "deepseek-v4-pro": {
+        "params_b": 685.0, "layers": 64, "hidden": 7168, "moe": True, "license": "MIT",
+        "slug": "deepseek-ai/DeepSeek-V4-Pro", "display": "DeepSeek V4 Pro (Frontier MoE)",
+        "note": "Reasoning king among open weights (80.6% SWE-bench Verified, 1M context); MIT license."
+    },
+    "deepseek-v4-flash": {
+        "params_b": 38.0, "layers": 64, "hidden": 5120, "license": "MIT",
+        "slug": "deepseek-ai/DeepSeek-V4-Flash", "display": "DeepSeek V4 Flash",
+        "note": "High-speed reasoning model with native tool-calling; MIT license."
+    },
+    "llama-4-scout": {
+        "params_b": 70.6, "layers": 80, "hidden": 8192, "license": "Meta Community",
+        "slug": "meta-llama/Llama-4-Scout", "display": "Llama 4 Scout",
+        "note": "10M-token context window on single high-end GPU; most deployed open-weight family."
+    },
+    "llama-4-maverick": {
+        "params_b": 400.0, "layers": 120, "hidden": 12288, "moe": True, "license": "Meta Community",
+        "slug": "meta-llama/Llama-4-Maverick", "display": "Llama 4 Maverick (400B MoE)",
+        "note": "Flagship open weights for high-throughput enterprise reasoning."
+    },
+    "gemma-4-31b": {
+        "params_b": 31.4, "layers": 48, "hidden": 5120, "license": "Apache 2.0",
+        "slug": "google/gemma-4-31b-it", "display": "Gemma 4 31B",
+        "note": "Best all-round pick for single-GPU, edge, and on-device work; Apache 2.0."
+    },
+    "gemma-4-12b": {
+        "params_b": 12.2, "layers": 36, "hidden": 4096, "license": "Apache 2.0",
+        "slug": "google/gemma-4-12b-it", "display": "Gemma 4 12B Multimodal",
+        "note": "Multimodal input on-device efficiency; Apache 2.0."
+    },
+    "codestral-2501": {
+        "params_b": 22.2, "layers": 40, "hidden": 4096, "license": "Apache 2.0",
+        "slug": "mistralai/Codestral-2501", "display": "Codestral 2501",
+        "note": "Owns IDE autocomplete and coding completions across European & US enterprises."
+    },
+    "mistral-medium-3.5": {
+        "params_b": 54.0, "layers": 64, "hidden": 6144, "license": "Apache 2.0",
+        "slug": "mistralai/Mistral-Medium-3.5", "display": "Mistral Medium 3.5",
+        "note": "Strong EU business adoption with Apache 2.0 commercial terms."
+    },
+    # Chinese Frontier Contenders
+    "kimi-k2.6": {
+        "params_b": 36.0, "layers": 48, "hidden": 5120, "license": "Apache 2.0",
+        "slug": "moonshotai/Kimi-K2.6-Instruct", "display": "Kimi K2.6 Agentic",
+        "note": "Built for agentic workflows, tops SWE-bench Pro among open models."
+    },
+    "glm-5-32b": {
+        "params_b": 32.0, "layers": 64, "hidden": 5120, "license": "MIT",
+        "slug": "THUDM/glm-5-32b", "display": "GLM-5 32B",
+        "note": "MIT license, strong coding and ultra long-context, widespread adoption in Asia."
+    },
+    # Small GPU / Mac Mini Champions
+    "gpt-oss-20b": {
+        "params_b": 20.4, "layers": 40, "hidden": 4096, "license": "Apache 2.0",
+        "slug": "openai/gpt-oss-20b", "display": "gpt-oss 20b",
+        "note": "OpenAI open weights; genuinely fast and capable on 16GB Mac Mini or single small GPU."
+    },
+    "gpt-oss-120b": {
+        "params_b": 120.0, "layers": 88, "hidden": 8192, "license": "Apache 2.0",
+        "slug": "openai/gpt-oss-120b", "display": "gpt-oss 120b Reasoning",
+        "note": "High-context reasoning sibling; runnable on single high-VRAM node."
+    },
+    "qwen3-coder-30b": {
+        "params_b": 30.7, "layers": 48, "hidden": 5120, "license": "Apache 2.0",
+        "slug": "Qwen/Qwen3-Coder-30B-A3B", "display": "Qwen3 Coder 30B A3B",
+        "note": "The #1 self-hosted coding agent model on one 24GB consumer GPU (RTX 4090 / 3090)."
+    },
+    "phi-4-14b": {
+        "params_b": 14.7, "layers": 40, "hidden": 5120, "license": "MIT",
+        "slug": "microsoft/phi-4", "display": "Phi-4 14B",
+        "note": "MIT license, built for compact offline/edge deployment."
+    },
+    "falcon-3-10b": {
+        "params_b": 10.0, "layers": 32, "hidden": 4096, "license": "Apache 2.0",
+        "slug": "tiiuae/Falcon3-10B-Instruct", "display": "Falcon 3 10B",
+        "note": "Compact edge-friendly open weights."
+    },
+    # Legacy & established production presets
+    "nemotron-nano-30b": {
+        "params_b": 30.0, "layers": 48, "hidden": 5120, "license": "NVIDIA Open Model",
+        "slug": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B", "display": "Nemotron Nano 30B",
+        "note": "High-throughput, low-latency MoE-assisted production serving."
+    },
+    "deepseek-r1-32b": {
+        "params_b": 32.8, "layers": 64, "hidden": 5120, "license": "MIT",
+        "slug": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B", "display": "DeepSeek R1 Distill 32B",
+        "note": "Open reasoning & math powerhouse; MIT license."
+    },
+    "llama-3.3-70b": {
+        "params_b": 70.6, "layers": 80, "hidden": 8192, "license": "Meta Community",
+        "slug": "meta-llama/Llama-3.3-70B-Instruct", "display": "Llama 3.3 70B",
+        "note": "Enterprise flagship production workhorse."
+    },
+    "llama-3.1-8b": {
+        "params_b": 8.0, "layers": 32, "hidden": 4096, "license": "Meta Community",
+        "slug": "meta-llama/Meta-Llama-3.1-8B-Instruct", "display": "Llama 3.1 8B",
+        "note": "Low-latency high-throughput baseline."
+    },
+    "gemma-2-27b": {
+        "params_b": 27.2, "layers": 46, "hidden": 4608, "license": "Apache 2.0",
+        "slug": "google/gemma-2-27b-it", "display": "Gemma 2 27B",
+        "note": "Compact high-performance reasoning."
+    },
+    "qwen2.5-14b": {
+        "params_b": 14.7, "layers": 48, "hidden": 5120, "license": "Apache 2.0",
+        "slug": "Qwen/Qwen2.5-14B-Instruct", "display": "Qwen 2.5 14B",
+        "note": "Proven coding and tool-calling model."
+    },
+    "qwen2.5-72b": {
+        "params_b": 72.7, "layers": 80, "hidden": 8192, "license": "Apache 2.0",
+        "slug": "Qwen/Qwen2.5-72B-Instruct", "display": "Qwen 2.5 72B",
+        "note": "High-context multilingual workhorse."
+    },
 }
 
 # In-memory cache for live Hugging Face lookups
@@ -107,19 +208,40 @@ _HF_CACHE: dict[str, dict] = {}
 
 # Alias -> catalog key (lowercase, punctuation-insensitive matching).
 _ALIASES: dict[str, str] = {
-    "gemma 2 27b": "gemma-2-27b", "gemma2 27b": "gemma-2-27b", "gemma-2-27b": "gemma-2-27b",
-    "gemma 27b": "gemma-2-27b",
+    # Gemma 2
+    "gemma 2 27b": "gemma-2-27b", "gemma2 27b": "gemma-2-27b", "gemma 2": "gemma-2-27b",
+    # Qwen 2.5
     "qwen 2.5 14b": "qwen2.5-14b", "qwen2.5 14b": "qwen2.5-14b", "qwen 14b": "qwen2.5-14b",
     "qwen 2.5 72b": "qwen2.5-72b", "qwen2.5 72b": "qwen2.5-72b", "qwen 72b": "qwen2.5-72b",
+    # Qwen 3.x family
+    "qwen 3.6 27b": "qwen3.6-27b", "qwen3.6 27b": "qwen3.6-27b", "qwen3.6": "qwen3.6-27b",
+    "qwen 3.6": "qwen3.6-27b", "qwen3 27b": "qwen3.6-27b", "qwen 27b": "qwen3.6-27b",
+    "qwen3 coder 30b": "qwen3-coder-30b", "qwen3-coder-30b": "qwen3-coder-30b", "qwen3 coder": "qwen3-coder-30b",
+    "qwen coder 30b": "qwen3-coder-30b", "qwen 30b": "qwen3-coder-30b",
+    # DeepSeek family
+    "deepseek v4 pro": "deepseek-v4-pro", "deepseek-v4-pro": "deepseek-v4-pro", "deepseek v4": "deepseek-v4-pro",
+    "deepseek v4 flash": "deepseek-v4-flash", "deepseek-v4-flash": "deepseek-v4-flash", "v4 flash": "deepseek-v4-flash",
+    "deepseek r1 32b": "deepseek-r1-32b", "deepseek r1": "deepseek-r1-32b",
+    # Llama 4 family
+    "llama 4 scout": "llama-4-scout", "llama-4-scout": "llama-4-scout", "llama 4": "llama-4-scout",
+    "llama 4 maverick": "llama-4-maverick", "llama-4-maverick": "llama-4-maverick",
+    "llama 3.3 70b": "llama-3.3-70b", "llama 70b": "llama-3.3-70b", "llama 3.1 8b": "llama-3.1-8b", "llama 8b": "llama-3.1-8b",
+    # Gemma 4 family
+    "gemma 4 31b": "gemma-4-31b", "gemma-4-31b": "gemma-4-31b", "gemma 4": "gemma-4-31b", "gemma 31b": "gemma-4-31b",
+    "gemma 4 12b": "gemma-4-12b", "gemma-4-12b": "gemma-4-12b", "gemma 12b": "gemma-4-12b",
+    # Mistral family
+    "codestral": "codestral-2501", "codestral 2501": "codestral-2501", "codestral-2501": "codestral-2501",
+    "mistral medium": "mistral-medium-3.5", "mistral medium 3.5": "mistral-medium-3.5",
+    # Frontier contenders
+    "kimi k2.6": "kimi-k2.6", "kimi-k2.6": "kimi-k2.6", "kimi k3": "kimi-k2.6", "kimi": "kimi-k2.6",
+    "glm 5 32b": "glm-5-32b", "glm-5-32b": "glm-5-32b", "glm 5": "glm-5-32b", "glm5": "glm-5-32b",
+    # OpenAI open weights
+    "gpt oss 20b": "gpt-oss-20b", "gpt-oss-20b": "gpt-oss-20b", "gpt oss": "gpt-oss-20b", "gpt-oss": "gpt-oss-20b",
+    "gpt oss 120b": "gpt-oss-120b", "gpt-oss-120b": "gpt-oss-120b",
+    # Small & edge
+    "phi 4": "phi-4-14b", "phi-4": "phi-4-14b", "phi 4 14b": "phi-4-14b", "phi": "phi-4-14b",
+    "falcon 3": "falcon-3-10b", "falcon-3": "falcon-3-10b", "falcon 3 10b": "falcon-3-10b",
     "nemotron nano 30b": "nemotron-nano-30b", "nemotron 30b": "nemotron-nano-30b",
-    "nano 30b": "nemotron-nano-30b", "nemotron-3-nano-30b": "nemotron-nano-30b",
-    "deepseek r1 32b": "deepseek-r1-32b", "deepseek r1": "deepseek-r1-32b", "r1 32b": "deepseek-r1-32b",
-    "deepseek v3": "deepseek-v3", "deepseek-v3": "deepseek-v3", "deepseek 671b": "deepseek-v3",
-    "llama 3.3 70b": "llama-3.3-70b", "llama 3.3": "llama-3.3-70b", "llama3.3 70b": "llama-3.3-70b",
-    "llama 70b": "llama-3.3-70b", "llama 3.1 70b": "llama-3.1-70b",
-    "llama 8b": "llama-3.1-8b", "llama 3.1 8b": "llama-3.1-8b", "llama3.1 8b": "llama-3.1-8b",
-    "mistral large": "mistral-large", "mistral 123b": "mistral-large",
-    "mistral 7b": "mistral-7b", "qwen3 8b": "qwen3-8b", "qwen 8b": "qwen3-8b",
 }
 
 _GPU_ALIASES: dict[str, str] = {
@@ -127,6 +249,7 @@ _GPU_ALIASES: dict[str, str] = {
     "4090": "RTX4090", "rtx4090": "RTX4090", "rtx 4090": "RTX4090",
     "3090": "RTX3090", "rtx3090": "RTX3090", "rtx 3090": "RTX3090",
     "dual 3090": "DUAL_RTX3090", "dual rtx 3090": "DUAL_RTX3090", "dual 4090": "DUAL_RTX3090",
+    "mac mini": "MAC_MINI_16GB", "mac mini 16": "MAC_MINI_16GB", "mac mini 24": "MAC_MINI_24GB",
     "mac studio": "MAC_STUDIO_128GB", "mac studio 128": "MAC_STUDIO_128GB", "mac studio 192": "MAC_STUDIO_192GB",
     "macbook": "MACBOOK_MAX_64GB", "macbook pro": "MACBOOK_MAX_64GB",
     "4080": "RTX4080", "rtx 4080": "RTX4080", "6000 ada": "RTX6000_ADA",
@@ -134,15 +257,7 @@ _GPU_ALIASES: dict[str, str] = {
 
 
 def extract_hf_repo_id(input_str: str) -> str:
-    """Extract clean Hugging Face repo ID ('org/model-name') from ANY URL or input.
-
-    Handles:
-    - https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct
-    - https://hf.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B/tree/main
-    - huggingface.co/Qwen/Qwen2.5-72B-Instruct?tab=files
-    - https://huggingface.co/models/google/gemma-2-27b-it
-    - meta-llama/Llama-3.3-70B-Instruct (already clean)
-    """
+    """Extract clean Hugging Face repo ID ('org/model-name') from ANY URL or input."""
     s = (input_str or "").strip()
     if not s:
         return ""
@@ -179,7 +294,7 @@ def detect_model(query: str) -> str:
     m = re.search(r"(\d+(?:\.\d+)?)\s*b\b", q)
     if m:
         return f"generic-{m.group(1)}b"
-    return "nemotron-nano-30b"
+    return "qwen3.6-27b"
 
 
 def detect_gpu(text: str | None) -> str | None:
@@ -242,7 +357,7 @@ def fetch_hf_metadata(repo_id: str) -> dict | None:
     except Exception:
         pass
 
-    # 2. Probe API model endpoint for downloads, safetensors, tags
+    # 2. Probe API model endpoint
     try:
         req2 = urllib.request.Request(f"https://huggingface.co/api/models/{repo_id}", headers=headers)
         with urllib.request.urlopen(req2, timeout=3.0) as resp2:
@@ -251,7 +366,6 @@ def fetch_hf_metadata(repo_id: str) -> dict | None:
             data["likes"] = info.get("likes", 0)
             data["tags"] = info.get("tags", [])
             data["pipeline_tag"] = info.get("pipeline_tag", "text-generation")
-            # If safetensors param count is available
             safetensors = info.get("safetensors", {})
             if isinstance(safetensors, dict) and safetensors.get("total"):
                 data["params_b"] = round(safetensors["total"] / 1e9, 2)
@@ -273,12 +387,10 @@ def get_model_info(key: str) -> dict:
     # 2. Extract clean repo ID if it's a slug or URL
     slug = extract_hf_repo_id(key)
     if "/" in slug:
-        # Check known catalog by slug
         for k, v in MODEL_CATALOG.items():
             if v["slug"].lower() == slug.lower():
                 return {"key": k, **v}
 
-        # Try live Hugging Face Hub probe
         hf = fetch_hf_metadata(slug)
         if hf and hf.get("params_b"):
             params = float(hf["params_b"])
@@ -292,13 +404,14 @@ def get_model_info(key: str) -> dict:
                 "slug": slug,
                 "display": hf.get("display") or slug.split("/")[-1],
                 "context_window": hf.get("max_position_embeddings") or 8192,
+                "license": "Custom/Open Weights",
                 "downloads": hf.get("downloads", 0),
                 "is_live_hf": True,
             }
 
-    # 3. Dynamic parameter heuristic from string (e.g. '70b', '32b', '8b', '123b')
+    # 3. Dynamic parameter heuristic from string
     m = re.search(r"(\d+(?:\.\d+)?)\s*b\b", key.lower())
-    params = float(m.group(1)) if m else 30.0
+    params = float(m.group(1)) if m else 27.0
     layers = 80 if params >= 65 else 64 if params >= 30 else 48 if params >= 14 else 32
     hidden = 8192 if params >= 65 else 5120 if params >= 14 else 4096
     display_name = slug.split("/")[-1] if "/" in slug else f"Custom {params:g}B model"
@@ -311,18 +424,19 @@ def get_model_info(key: str) -> dict:
         "slug": slug if "/" in slug else key,
         "display": display_name,
         "context_window": 8192,
+        "license": "Open Weights",
         "is_live_hf": False,
     }
 
 
 def cheapest_gpu_for(total_gb: float, cloud_only: bool = True) -> str | None:
-    """Find the most cost-effective GPU tier capable of holding total_gb."""
-    items = [(k, v) for k, v in GPU_CATALOG.items() if v["vram_gb"] >= total_gb]
     if cloud_only:
-        items = [x for x in items if x[1]["category"] == "cloud_gpu"]
-    if not items:
-        # Fall back to any fitting GPU
-        items = [(k, v) for k, v in GPU_CATALOG.items() if v["vram_gb"] >= total_gb]
+        items = [(k, v) for k, v in GPU_CATALOG.items() if v["category"] == "cloud_gpu" and v["vram_gb"] >= total_gb]
+        if not items:
+            return "H200"  # Cloud flagship tier for massive memory workloads
+        items.sort(key=lambda kv: kv[1]["usd_hr"])
+        return items[0][0]
+    items = [(k, v) for k, v in GPU_CATALOG.items() if v["vram_gb"] >= total_gb]
     if not items:
         return None
     items.sort(key=lambda kv: kv[1]["usd_hr"])
@@ -330,37 +444,28 @@ def cheapest_gpu_for(total_gb: float, cloud_only: bool = True) -> str | None:
 
 
 def inspect_model_fit(model_query: str, seq_len: int = 4096) -> dict:
-    """Full hardware compatibility evaluation for ANY Hugging Face model or URL.
-
-    Answers the crucial questions for both local users and enterprise deployments:
-    1. Can it run locally on consumer hardware (RTX 4090, 3090, Dual 3090, Mac Studio)?
-    2. At what quantization level (FP16, FP8, INT4 / Q4_K_M)?
-    3. What is the production cloud deployment recommendation on Nebius Cloud?
-    """
+    """Full hardware compatibility evaluation for ANY model, mapping to real lab/business deployments."""
     clean_id = extract_hf_repo_id(model_query) or model_query
     info = get_model_info(clean_id)
     params_b = float(info["params_b"])
     layers = int(info["layers"])
     hidden = int(info["hidden"])
+    license_type = info.get("license", "Open Weights")
 
-    # Weight memory calculations
     w_fp16 = weights_gb(params_b, "FP16")
     w_fp8 = weights_gb(params_b, "FP8")
     w_int4 = weights_gb(params_b, "INT4")
 
-    # KV Cache calculations (PagedAttention)
     kv_4k_b1 = kv_cache_gb(layers, hidden, 4096, 1, "FP16")
     kv_8k_b1 = kv_cache_gb(layers, hidden, 8192, 1, "FP16")
     kv_32k_b1 = kv_cache_gb(layers, hidden, 32768, 1, "FP16")
     kv_4k_b16 = kv_cache_gb(layers, hidden, 4096, 16, "FP16")
 
-    # Total single-request memory needed at INT4 (standard local Ollama/llama.cpp)
     overhead = 2.0
     total_local_int4 = round(w_int4 + kv_4k_b1 + overhead, 1)
     total_prod_fp8 = round(w_fp8 + kv_4k_b16 + overhead, 1)
     total_prod_fp16 = round(w_fp16 + kv_4k_b16 + overhead, 1)
 
-    # Assess hardware fit for key hardware profiles
     hardware_matrix = []
     for gkey, ginfo in GPU_CATALOG.items():
         vram = ginfo["vram_gb"]
@@ -391,30 +496,40 @@ def inspect_model_fit(model_query: str, seq_len: int = 4096) -> dict:
             "fit_label": label,
         })
 
-    # Local verdict
+    # Evaluate local setups: Mac Mini, RTX 4090, Dual 3090, Mac Studio
+    mac_mini_16 = next((h for h in hardware_matrix if h["gpu_key"] == "MAC_MINI_16GB"), None)
     rtx4090_fit = next((h for h in hardware_matrix if h["gpu_key"] == "RTX4090"), None)
     mac128_fit = next((h for h in hardware_matrix if h["gpu_key"] == "MAC_STUDIO_128GB"), None)
     dual3090_fit = next((h for h in hardware_matrix if h["gpu_key"] == "DUAL_RTX3090"), None)
 
-    if rtx4090_fit and rtx4090_fit["fit_status"] in ("NATIVE_FP16", "QUANTIZED_FP8"):
-        local_verdict = f"Fully supported on single RTX 4090 / 3090 (needs ~{total_local_int4}GB - {round(w_fp16 + kv_4k_b1 + overhead, 1)}GB VRAM)."
+    if mac_mini_16 and mac_mini_16["fit_status"] in ("NATIVE_FP16", "QUANTIZED_FP8", "QUANTIZED_INT4"):
+        local_verdict = f"Runs smoothly on Apple Mac Mini (16GB/24GB) via Ollama/MLX at 4-bit (needs ~{total_local_int4}GB VRAM)."
+        local_status = "LOCAL_MAC_MINI_VIABLE"
+    elif rtx4090_fit and rtx4090_fit["fit_status"] in ("NATIVE_FP16", "QUANTIZED_FP8"):
+        local_verdict = f"Fully supported on single RTX 4090 / 3090 24GB at native precision (~{total_local_int4}GB - {round(w_fp16 + kv_4k_b1 + overhead, 1)}GB VRAM)."
         local_status = "LOCAL_EXCELLENT"
     elif rtx4090_fit and rtx4090_fit["fit_status"] == "QUANTIZED_INT4":
-        local_verdict = f"Fits on single RTX 4090 24GB using 4-bit quantization (AWQ/GPTQ/GGUF Q4_K_M, ~{total_local_int4}GB VRAM)."
+        local_verdict = f"Runs on a single 24GB GPU (RTX 4090 / Mac Mini 24GB) at 4-bit quantization (~{total_local_int4}GB VRAM)."
         local_status = "LOCAL_QUANTIZED"
     elif dual3090_fit and dual3090_fit["fit_status"] in ("NATIVE_FP16", "QUANTIZED_FP8", "QUANTIZED_INT4"):
         local_verdict = f"Requires Dual RTX 3090/4090 (48GB) or Apple Mac Studio 128GB. A single 24GB card will OOM."
         local_status = "LOCAL_MULTI_GPU_OR_MAC"
     elif mac128_fit and mac128_fit["fit_status"] in ("NATIVE_FP16", "QUANTIZED_FP8", "QUANTIZED_INT4"):
-        local_verdict = f"Too large for consumer NVIDIA cards. Runs locally on Apple Mac Studio 128GB+ unified memory."
+        local_verdict = f"Too large for consumer GPUs. Runs locally on Apple Mac Studio (128GB/192GB unified memory)."
         local_status = "LOCAL_MAC_STUDIO_ONLY"
     else:
-        local_verdict = f"Exceeds local consumer memory limits ({params_b:g}B params). Cloud GPU cluster mandatory."
+        local_verdict = f"Frontier weight scale ({params_b:g}B params). Cloud GPU cluster (vLLM / SGLang on Nebius) mandatory."
         local_status = "CLOUD_ONLY"
 
-    # Cloud recommendation
     cloud_rec_key = cheapest_gpu_for(total_prod_fp8, cloud_only=True) or "H100"
     cloud_rec = GPU_CATALOG[cloud_rec_key]
+
+    # Deployment stack recommendations
+    deploy_stack = {
+        "local_dev": "ollama pull" if params_b <= 75 else "mlx-lm (Apple Silicon)",
+        "production_cloud": "vLLM / SGLang on Nebius Cloud GPUs",
+        "commercial_license": license_type,
+    }
 
     return {
         "model_slug": info["slug"],
@@ -422,6 +537,8 @@ def inspect_model_fit(model_query: str, seq_len: int = 4096) -> dict:
         "params_b": params_b,
         "layers": layers,
         "hidden": hidden,
+        "license": license_type,
+        "note": info.get("note", ""),
         "weights_fp16_gb": w_fp16,
         "weights_fp8_gb": w_fp8,
         "weights_int4_gb": w_int4,
@@ -436,12 +553,13 @@ def inspect_model_fit(model_query: str, seq_len: int = 4096) -> dict:
         "recommended_cloud_gpu": cloud_rec_key,
         "recommended_cloud_label": cloud_rec["label"],
         "recommended_cloud_price": cloud_rec["usd_hr"],
+        "deploy_stack": deploy_stack,
         "is_live_hf": info.get("is_live_hf", False),
     }
 
 
 def advise(query: str, current_gpu: str | None = None, seq_len: int = 4096) -> dict:
-    """Deterministic sizing answer. Never raises on bad input; zero cost."""
+    """Deterministic sizing answer mapping models to local Mac/PC setups vs Nebius Cloud."""
     query = (query or "").strip() or "Can I run this model on my GPU?"
     clean_slug = extract_hf_repo_id(query)
     key = detect_model(query)
@@ -452,6 +570,7 @@ def advise(query: str, current_gpu: str | None = None, seq_len: int = 4096) -> d
     params_b = float(info["params_b"])
     layers = int(info["layers"])
     hidden = int(info["hidden"])
+    license_type = info.get("license", "Open Weights")
     w = weights_gb(params_b, precision)
     kv1 = kv_cache_gb(layers, hidden, seq_len, 1, precision)
     kv16 = kv_cache_gb(layers, hidden, seq_len, 16, precision)
@@ -471,21 +590,21 @@ def advise(query: str, current_gpu: str | None = None, seq_len: int = 4096) -> d
 
     # Structured-output / tool-call risk heuristic
     if info.get("moe"):
-        tool_note = ("MoE routing (671B total / ~37B active) is healthy for tool calls at BF16/FP8, "
-                     "but needs 2×H100/H200 tensor-parallel — single-GPU serving will OOM.")
+        tool_note = (f"MoE architecture ({params_b:g}B total) delivers high inference throughput, "
+                     "but requires multi-GPU tensor parallelism — single-card serving will OOM.")
     elif precision == "INT4":
-        tool_note = ("INT4 saves ~4× weights VRAM but is the #1 breaker of strict JSON schemas and "
-                     "tool-call argument fidelity — certify schema accuracy ≥85% before migrating.")
-    elif params_b <= 15:
-        tool_note = ("Mid-size dense models in this class usually keep JSON/tool-call accuracy high at "
-                     "BF16/FP8; verify with a structured-output replay before migrating.")
+        tool_note = ("INT4 saves ~4× VRAM but is the #1 cause of broken JSON schemas and degraded "
+                     "tool-call arguments. Always certify schema accuracy ≥85% before migrating.")
+    elif params_b <= 20:
+        tool_note = ("Compact models in this tier maintain strong tool-call accuracy at BF16/FP8; "
+                     "ideal for single-GPU or edge deployments.")
     else:
-        tool_note = ("Large dense models keep tool-call accuracy at BF16/FP8; INT4/FP8 compression is "
-                     "where schema regressions appear — certify before migrating.")
+        tool_note = ("Frontier-class models sustain high tool-call fidelity at BF16/FP8; "
+                     "verify with a structured-output replay before migrating.")
 
     if gpu:
         g = GPU_CATALOG[gpu]
-        verdict = (f"On a single {g['label']}: single-request needs ~{total1}GB "
+        verdict = (f"On {g['label']}: single-request needs ~{total1}GB "
                    f"({'FITS' if fits_single else 'OOM RISK'} vs {g['vram_gb']}GB) · "
                    f"16-way concurrency needs ~{total16}GB "
                    f"({'FITS' if fits_conc else 'OOM — escalate tier'}).")
@@ -496,18 +615,18 @@ def advise(query: str, current_gpu: str | None = None, seq_len: int = 4096) -> d
     rec = cheapest_conc or cheapest_single or "H200"
     rec_label = GPU_CATALOG[rec]["label"]
 
-    # Local open-source hardware note
-    if params_b <= 15:
-        local_note = "💻 **Local Hardware:** Fits cleanly on a single RTX 4090 / 3090 24GB at FP16/BF16."
+    # Local Hardware Mapping Note
+    if params_b <= 20:
+        local_note = "💻 **Local Hardware:** Runs smoothly on **Apple Mac Mini 16GB** or **RTX 4080/4090** via `ollama pull`."
     elif params_b <= 35:
-        local_note = "💻 **Local Hardware:** Fits on a single RTX 4090 24GB at 4-bit (AWQ/Q4_K_M), or MacBook Max 64GB."
+        local_note = "💻 **Local Hardware:** Fits on a **single 24GB GPU** (RTX 4090 / 3090 / Mac Mini 24GB) at 4-bit (AWQ/GGUF)."
     elif params_b <= 75:
-        local_note = "💻 **Local Hardware:** Needs Dual RTX 3090/4090 (48GB) or Apple Mac Studio 128GB. A single 24GB GPU will OOM."
+        local_note = "💻 **Local Hardware:** Requires **Dual RTX 3090 (48GB)** or **Apple Mac Studio 128GB**. A single 24GB card will OOM."
     else:
-        local_note = "💻 **Local Hardware:** Ultra-heavy weights require Apple Mac Studio 192GB or multi-node cloud clusters."
+        local_note = "💻 **Local Hardware:** Heavyweight scale requires **Apple Mac Studio 192GB** or **multi-node Nebius Cloud clusters**."
 
     answer = (
-        f"**{info['display']}** · {params_b:g}B params @ {precision} · seq {seq_len}\n\n"
+        f"**{info['display']}** ({params_b:g}B params · {license_type}) · @ {precision} · seq {seq_len}\n\n"
         f"**1. Parameter memory (weights):** {params_b:g}B × {BYTES_PER_PARAM.get(precision, 2.0):g} bytes "
         f"= **~{w}GB**.\n"
         f"**2. KV cache growth (PagedAttention):** `2 × {layers} layers × {hidden} hidden × {seq_len} tokens "
@@ -518,7 +637,8 @@ def advise(query: str, current_gpu: str | None = None, seq_len: int = 4096) -> d
         f"**Verdict:** {verdict}\n"
         f"{local_note}\n"
         f"**Recommended Cloud GPU:** {rec_label} "
-        f"(${GPU_CATALOG[rec]['usd_hr']:.2f}/hr — cheapest tier fitting batch-16).\n"
+        f"(${GPU_CATALOG[rec]['usd_hr']:.2f}/hr — cheapest tier fitting batch-16 via vLLM/SGLang).\n"
+        f"**Commercial License:** {license_type}\n"
         f"**Structured JSON / tool calls:** {tool_note}"
     )
 
@@ -527,6 +647,7 @@ def advise(query: str, current_gpu: str | None = None, seq_len: int = 4096) -> d
         "candidate_model": info["slug"],
         "display_model": info["display"],
         "precision": precision,
+        "license": license_type,
         "weights_gb": w,
         "kv_gb_batch1": kv1,
         "kv_gb_batch16": kv16,

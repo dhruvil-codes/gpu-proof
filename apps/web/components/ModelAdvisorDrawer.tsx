@@ -10,11 +10,11 @@ type ChatMsg = {
 };
 
 const QUICK_PROMPTS = [
-  "Can I run Llama 3.3 70B on a single 80GB H100?",
-  "What hardware does DeepSeek R1 32B need at concurrency 16?",
-  "Will Qwen 2.5 72B fit on an L40S or OOM?",
-  "Can I run Gemma 2 27B on a single L40S 48GB?",
-  "What's the cheapest GPU to serve Nemotron Nano 30B?",
+  "Can I run gpt-oss-20b on my 16GB Mac Mini?",
+  "What hardware does Qwen 3.6 27B need on a single RTX 4090?",
+  "Will DeepSeek V4 Pro fit on an L40S or OOM?",
+  "Can Llama 4 Scout handle 10M context on a single H100?",
+  "DeepSeek V4 (MIT) vs Llama 4 (Meta): which license is cleaner for enterprise?",
 ];
 
 const WELCOME: ChatMsg = {

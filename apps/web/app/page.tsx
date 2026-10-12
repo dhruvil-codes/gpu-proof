@@ -65,7 +65,7 @@ function PresetPicker() {
           value={active === "custom" ? custom : chosen.value}
           onChange={(e) => { if (active === "custom") setCustom(e.target.value); }}
           readOnly={active !== "custom"}
-          placeholder={active === "custom" ? "e.g. meta-llama/Llama-3-8B-Instruct" : undefined}
+          placeholder={active === "custom" ? "e.g. google/gemma-2-27b-it" : undefined}
           className="min-h-[44px] w-full rounded border border-canvas/30 bg-transparent px-3 text-sm outline-none placeholder:text-canvas/40 focus:border-canvas font-mono"
         />
         <button
@@ -259,13 +259,14 @@ export default function Home() {
           <span>🏆 Nebius x NVIDIA Global AI Hackathon · Best Apps &amp; Agents Track</span>
         </div>
 
-        <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-extrabold leading-[1.15] tracking-tight md:text-6xl">
-          A New AI Model Just Released. <br className="hidden sm:inline" />
-          <span className="underline decoration-ink/40 decoration-wavy decoration-2">Can Your GPU Stack Actually Run It?</span>
+        <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-extrabold leading-[1.08] tracking-tight md:text-6xl">
+          Stop Guessing If A Model Fits.
+          <br />
+          Make It Prove It On Real Hardware.
         </h1>
 
-        <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-muted">
-          Teams want to switch to newer open-source models (like <strong>NVIDIA Nemotron Nano 30B</strong>) to cut cloud bills by <strong>40%</strong> — but public benchmarks can&apos;t tell you if a model will trigger Out-Of-Memory (OOM) crashes, break your JSON schemas, or double response times. GPUProof autonomously stress-tests candidate models on Nebius cloud GPUs so you know for sure before touching production.
+        <p className="mx-auto mt-5 max-w-2xl font-mono text-[13px] leading-relaxed text-muted">
+          Autonomous stress-testing on Nebius cloud GPUs. Benchmark real VRAM capacity, latency, and tool-call schema integrity before touching production.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
@@ -279,7 +280,7 @@ export default function Home() {
             href="#live-preview"
             className="panel min-h-[48px] cursor-pointer rounded-lg border border-ink px-6 py-3 text-sm font-bold transition-all hover:bg-canvas hover:-translate-y-px shadow-[4px_4px_0_#1F1F1F]"
           >
-            Watch Live Telemetry ↓
+            Watch Live Benchmark ↓
           </a>
         </div>
       </section>
@@ -350,48 +351,98 @@ export default function Home() {
         </div>
       </section>
 
-      {/* How it works: 3 Steps */}
+      {/* How it works: 3-Step Connected Pipeline */}
       <section id="how-it-works" aria-label="How GPUProof works" className="scroll-mt-16 border-t border-ink px-6 py-14">
-        <p className="text-center text-[11px] uppercase tracking-widest text-muted font-bold">What &quot;Running a Certification&quot; Actually Means</p>
-        <h2 className="mx-auto mt-2 max-w-xl text-center text-2xl tracking-tight md:text-3xl">From guesswork to proof in three steps.</h2>
-        <div className="mx-auto mt-8 grid max-w-4xl gap-5 text-left md:grid-cols-3">
-          <article className="panel flex flex-col rounded-lg p-5 transition-all hover:shadow-[5px_5px_0_#1F1F1F] border border-ink">
-            <div className="flex items-center justify-between">
-              <span aria-hidden="true" className="text-xl">◈</span>
-              <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Step 1</span>
-            </div>
-            <h3 className="mt-3 text-sm font-bold leading-snug">Your Production Twin</h3>
-            <p className="mt-2 text-[12px] leading-relaxed text-muted">
-              We create a deterministic test set matching your real workloads (tool calling &amp; structured JSON schemas).
-            </p>
-          </article>
-          <article className="panel flex flex-col rounded-lg p-5 transition-all hover:shadow-[5px_5px_0_#1F1F1F] border border-ink">
-            <div className="flex items-center justify-between">
-              <span aria-hidden="true" className="text-xl">⬢</span>
-              <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Step 2</span>
-            </div>
-            <h3 className="mt-3 text-sm font-bold leading-snug">Autonomous Stress-Testing on Nebius</h3>
-            <p className="mt-2 text-[12px] leading-relaxed text-muted">
-              The NVIDIA Nemotron Ultra planner provisions isolated GPU containers on Nebius AI Cloud. It tests the most cost-effective GPU first (L40S). If it runs out of memory, it automatically diagnoses the issue, escalates to high-capacity hardware (H100), and tunes precision.
-            </p>
-          </article>
-          <article className="panel flex flex-col rounded-lg p-5 transition-all hover:shadow-[5px_5px_0_#1F1F1F] border border-ink">
-            <div className="flex items-center justify-between">
-              <span aria-hidden="true" className="text-xl">⬣</span>
-              <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Step 3</span>
-            </div>
-            <h3 className="mt-3 text-sm font-bold leading-snug">
-              Evidence-Backed Decision (<StatusPill status="SHIP" /> or <StatusPill status="BLOCK" />)
-            </h3>
-            <p className="mt-2 text-[12px] leading-relaxed text-muted">
-              A deterministic policy engine checks measured latency, quality, and error rates against strict gates. If it passes, you receive an official <strong>SHIP</strong> certificate. If it risks breaking production, it is <strong>BLOCKED</strong>.
-            </p>
-          </article>
+        <p className="text-center text-[11px] uppercase tracking-widest text-muted font-bold">How It Works</p>
+        <h2 className="mx-auto mt-2 max-w-2xl text-center text-2xl tracking-tight md:text-3xl">How It Works: Three Steps From Guesswork To Proof</h2>
+        <p className="mx-auto mt-3 max-w-xl text-center font-mono text-[12px] leading-relaxed text-muted">
+          Follow the data left → right: twin it, stress it, certify it.
+        </p>
+        <div className="relative mx-auto mt-10 max-w-5xl">
+          {/* Dotted pipeline connector — desktop data-flow line */}
+          <div aria-hidden="true" className="pointer-events-none absolute left-[18%] right-[18%] top-[26px] hidden md:block">
+            <div className="border-t-2 border-dotted border-ink/30" />
+            <span className="absolute -top-[13px] left-[31%] flex h-6 w-6 items-center justify-center rounded-full border border-ink bg-canvas text-[12px] font-bold leading-none">
+              →
+            </span>
+            <span className="absolute -top-[13px] left-[66%] flex h-6 w-6 items-center justify-center rounded-full border border-ink bg-canvas text-[12px] font-bold leading-none">
+              →
+            </span>
+            <span className="absolute -top-[3px] left-1/2 h-[6px] w-[6px] -translate-x-1/2 rounded-full bg-emerald-600 animate-pulse" />
+          </div>
+          <div className="relative grid gap-5 text-left md:grid-cols-3">
+            <article className="panel group relative flex flex-col rounded-lg border border-ink p-6 transition-all duration-200 hover:-translate-y-1 hover:shadow-[4px_4px_0_#1F1F1F]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-ink bg-ink text-canvas transition-transform duration-200 group-hover:scale-105">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6" aria-hidden="true">
+                    <polyline points="16 18 22 12 16 6" />
+                    <polyline points="8 6 2 12 8 18" />
+                  </svg>
+                </div>
+                <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">Step 01</span>
+              </div>
+              <h3 className="mt-4 text-sm font-bold leading-snug">01 / Shadow Workload Twin</h3>
+              <p className="mt-2 text-[12px] leading-relaxed text-muted">
+                Replays your actual JSON schemas, tool calls, and concurrency curves.
+              </p>
+              <div className="mt-4 border-t border-ink/20 pt-3 font-mono text-[11px] font-bold text-ink/70">
+                Input → Twin JSON
+              </div>
+            </article>
+            <article className="panel group relative flex flex-col rounded-lg border border-ink p-6 transition-all duration-200 hover:-translate-y-1 hover:shadow-[4px_4px_0_#1F1F1F]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-ink bg-ink text-canvas transition-transform duration-200 group-hover:scale-105">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6" aria-hidden="true">
+                    <rect x="4" y="4" width="16" height="16" rx="2" />
+                    <rect x="9" y="9" width="6" height="6" />
+                    <line x1="9" y1="1" x2="9" y2="4" />
+                    <line x1="15" y1="1" x2="15" y2="4" />
+                    <line x1="9" y1="20" x2="9" y2="23" />
+                    <line x1="15" y1="20" x2="15" y2="23" />
+                    <line x1="20" y1="9" x2="23" y2="9" />
+                    <line x1="20" y1="14" x2="23" y2="14" />
+                    <line x1="1" y1="9" x2="4" y2="9" />
+                    <line x1="1" y1="14" x2="4" y2="14" />
+                  </svg>
+                </div>
+                <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">Step 02</span>
+              </div>
+              <h3 className="mt-4 text-sm font-bold leading-snug">02 / Autonomous Cloud Stress-Test</h3>
+              <p className="mt-2 text-[12px] leading-relaxed text-muted">
+                Tests L40S 48GB first. If it OOMs, the Nemotron-Ultra planner auto-escalates to H100 80GB SXM5.
+              </p>
+              <div className="mt-4 border-t border-ink/20 pt-3 font-mono text-[11px] font-bold text-ink/70">
+                L40S 48GB → H100 80GB
+              </div>
+            </article>
+            <article className="panel group relative flex flex-col rounded-lg border border-ink p-6 transition-all duration-200 hover:-translate-y-1 hover:shadow-[4px_4px_0_#1F1F1F]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-ink bg-ink text-canvas transition-transform duration-200 group-hover:scale-105">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <polyline points="9 12 11 14 15 10" />
+                  </svg>
+                </div>
+                <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">Step 03</span>
+              </div>
+              <h3 className="mt-4 text-sm font-bold leading-snug">03 / Deterministic Certification</h3>
+              <p className="mt-2 text-[12px] leading-relaxed text-muted">
+                Automated SLA verification mints an official SHIP or BLOCK certificate.
+              </p>
+              <div className="mt-4 flex items-center gap-2 border-t border-ink/20 pt-3">
+                <StatusPill status="SHIP" /> <span className="text-[11px] text-muted">or</span> <StatusPill status="BLOCK" />
+              </div>
+            </article>
+          </div>
+          {/* Mobile flow hint */}
+          <p aria-hidden="true" className="mt-4 text-center font-mono text-[11px] text-muted md:hidden">
+            ↓ follows top → bottom on mobile ↓
+          </p>
         </div>
       </section>
 
       {/* Interactive Candidate Model Selection */}
-      <section aria-label="Test it yourself" className="grid-cells border-t border-ink px-6 py-14 text-center">
+      <section id="candidate-picker" aria-label="Test it yourself" className="grid-cells scroll-mt-16 border-t border-ink px-6 py-14 text-center">
         <p className="text-[11px] uppercase tracking-widest text-muted font-bold">Interactive Hardware Audit</p>
         <h2 className="mx-auto max-w-xl text-2xl tracking-tight md:text-3xl">Certify a Candidate Model Right Now</h2>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted">

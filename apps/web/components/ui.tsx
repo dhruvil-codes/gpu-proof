@@ -15,6 +15,7 @@ export function TopNav() {
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/#how-it-works">How It Works</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/#dilemma">Failure Modes</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/#faq">FAQ</Link>
+      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/docs">Docs</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/dashboard">Audit Portfolio</Link>
     </div>
     <div className="flex shrink-0 items-center gap-4 text-xs">
@@ -35,6 +36,7 @@ export function SiteFooter() {
         <p className="text-[11px] font-bold uppercase tracking-widest text-muted">Architecture &amp; Links</p>
         <ul className="mt-3 space-y-2 text-[12px]">
           <li><Link className="cursor-pointer underline-offset-4 hover:underline" href="/#how-it-works">How It Works</Link></li>
+          <li><Link className="cursor-pointer underline-offset-4 hover:underline" href="/docs">Architecture Docs</Link></li>
           <li><Link className="cursor-pointer underline-offset-4 hover:underline" href="/dashboard">Audit Portfolio</Link></li>
           <li><Link className="cursor-pointer underline-offset-4 hover:underline" href="/new">New Certification</Link></li>
           <li><Link className="cursor-pointer underline-offset-4 hover:underline" href="/#dilemma">Failure Modes</Link></li>

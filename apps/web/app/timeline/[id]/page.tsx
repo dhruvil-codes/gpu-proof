@@ -76,37 +76,59 @@ function Stepper({ status, expCount }: { status: string; expCount: number }) {
     { label: "Deterministic Quality & SLA Audit", state: finished ? "done" : expCount > 0 ? "active" : "pending" },
     { label: "Certificate Verdict", state: finished ? "done" : "pending" },
   ];
+  const doneCount = steps.filter((s) => s.state === "done").length;
+  const progressPct = Math.round((doneCount / steps.length) * 100);
   return (
-    <ol aria-label="Audit progress" className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {steps.map((s, i) => (
-        <li
-          key={s.label}
-          aria-current={s.state === "active" ? "step" : undefined}
-          className={`rounded-lg border p-3 text-left ${s.state === "active" ? "border-ink bg-ink text-canvas" : s.state === "done" ? "border-ink bg-[#F5F1E9]" : "border-ink/30 bg-transparent text-muted"}`}
-        >
-          <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
-            {s.state === "done" ? (
-              <span aria-hidden="true" className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-ship text-[11px] text-white">✓</span>
-            ) : s.state === "active" ? (
-              <span aria-hidden="true" className="inline-flex h-5 w-5 items-center justify-center">
-                {running && i === 1 ? (
-                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-canvas/30 border-t-canvas" />
-                ) : (
-                  <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-canvas" />
-                )}
-              </span>
-            ) : (
-              <span aria-hidden="true" className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current text-[11px]">{i + 1}</span>
-            )}
-            Step {i + 1}
-          </span>
-          <span className="mt-1 block text-[12px] font-bold leading-snug">{s.label}</span>
-          <span className={`mt-0.5 block text-[11px] ${s.state === "active" ? "text-canvas/70" : "text-muted"}`}>
-            {s.state === "done" ? "Complete" : s.state === "active" ? (running && i === 1 ? "Running…" : "In progress…") : "Pending"}
-          </span>
-        </li>
-      ))}
-    </ol>
+    <div className="mt-6">
+      <div
+        role="progressbar"
+        aria-label="Audit completion"
+        aria-valuemin={0}
+        aria-valuemax={steps.length}
+        aria-valuenow={doneCount}
+        className="mb-2 h-1 overflow-hidden rounded-full bg-ink/10"
+      >
+        <div
+          aria-hidden="true"
+          className="h-full rounded-full bg-ship transition-[width] duration-500 ease-out"
+          style={{ width: `${progressPct}%` }}
+        />
+      </div>
+      <ol aria-label="Audit progress" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {steps.map((s, i) => (
+          <li
+            key={s.label}
+            aria-current={s.state === "active" ? "step" : undefined}
+            className={`rounded-lg border p-3 text-left transition-colors duration-200 ${s.state === "active" ? "border-2 border-ink bg-ink text-canvas shadow-[3px_3px_0_rgba(31,31,31,0.25)]" : s.state === "done" ? "border-ink bg-[#F5F1E9]" : "border-ink/30 bg-transparent text-muted"}`}
+          >
+            <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
+              {s.state === "done" ? (
+                <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ship text-white">
+                  <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
+                    <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              ) : s.state === "active" ? (
+                <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
+                  {running && i === 1 ? (
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-canvas/30 border-t-canvas" />
+                  ) : (
+                    <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-canvas" />
+                  )}
+                </span>
+              ) : (
+                <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-current text-[11px] tabular-nums leading-none">{i + 1}</span>
+              )}
+              Step {i + 1}
+            </span>
+            <span className="mt-1 block text-[12px] font-bold leading-snug">{s.label}</span>
+            <span className={`mt-0.5 block text-[11px] ${s.state === "active" ? "text-canvas/70" : "text-muted"}`}>
+              {s.state === "done" ? "Complete" : s.state === "active" ? (running && i === 1 ? "Running…" : "In progress…") : "Pending"}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

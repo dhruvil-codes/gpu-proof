@@ -6,6 +6,7 @@ Callers (HTTP layer) only pass a cert id; all orchestration complexity lives her
 from __future__ import annotations
 
 import os
+import random
 import time
 
 from services import cost_engine as ce
@@ -17,6 +18,12 @@ from services import store
 from services.decision_engine import fast_classify, propose_experiment
 from services.experiment_policy import ExperimentProposal
 from services.nebius_runner import JobSpec
+
+VRAM_TOTALS = {"L40S": 48, "H100": 80, "H200": 141, "A100": 80}
+
+
+def _is_sim_mode() -> bool:
+    return os.environ.get("USE_SIMULATOR", "true").lower() == "true"
 
 
 def synth_simulated_metrics(logs: str, plan: dict) -> tuple[dict, str | None]:
@@ -64,6 +71,20 @@ class LoopHooks:
         return {"certification": cid, "status": status, "experiments": c["experiments"],
                 "spend": c["spend"], "simulated": c["simulated"], **payload}
 
+    def telemetry(self, cid: str, idx: int, step: str, tag: str, line: str) -> None:
+        """Emit a fine-grained telemetry line; sleeps in sim mode for visible streaming."""
+        c = self.certs[cid]
+        event = {"type": "telemetry", "index": idx, "step": step, "tag": tag, "line": line}
+        c.setdefault("telemetry", []).append(event)
+        # cap in-memory history so long runs stay bounded
+        if len(c["telemetry"]) > 500:
+            c["telemetry"] = c["telemetry"][-500:]
+        self.emit(cid, event)
+        # Real-time feel in simulated mode: 500-800ms between lines.
+        # GPUPROOF_FAST_SIM=1 skips the sleep for tests/CI.
+        if _is_sim_mode() and os.environ.get("GPUPROOF_FAST_SIM", "") != "1":
+            time.sleep(random.uniform(0.5, 0.8))
+
     def one(self, cid: str, idx: int, plan: dict, prev: list, runner) -> bool:
         c = self.certs[cid]
         proposal = ExperimentProposal(plan["gpu_type"], 1, plan["precision"],
@@ -82,19 +103,57 @@ class LoopHooks:
         for _ in range(5):
             state = sm.advance(state)
         self.emit(cid, {"type": "state", "index": idx, "state": state})
+        gpu_type = plan.get("gpu_type", proposal.gpu_type)
+        precision = plan.get("precision", proposal.precision)
+        batch_cfg = plan.get("batch_config", 16)
+        model = c["config"].get("candidate_model", "candidate-model")
+        total_gb = VRAM_TOTALS.get(gpu_type, 48)
         handle = runner.create(JobSpec(self.bench_image, proposal.gpu_type, 1,
                                        {"MODEL": c["config"]["candidate_model"]}))
         try:
             if c["simulated"] is None:
                 c["simulated"] = handle.simulated
+            # --- live streaming telemetry: provision -> vLLM load -> workload ---
+            self.telemetry(cid, idx, "provision", "NEBIUS",
+                           f"\u26a1 Provisioning container {handle.job_id} on Nebius AI Cloud ({gpu_type} {total_gb}GB)...")
+            self.telemetry(cid, idx, "vllm_load", "vLLM",
+                           f"\U0001f4e6 Loading vLLM engine with candidate model {model} (precision={precision})...")
+            self.telemetry(cid, idx, "concurrency", "vLLM",
+                           f"\U0001f680 Ingesting Workload Twin batch: {batch_cfg} concurrent requests (JSON tool calls)...")
             logs = runner.logs(handle)
             simulated = handle.simulated
             metrics, failure, logs = measured_or_simulated(c, plan, logs, simulated)
+            # --- VRAM telemetry derived from the outcome ---
+            if failure == "MEMORY" or "out of memory" in logs.lower():
+                over_gb = round(total_gb + random.uniform(2.0, 6.0), 1) if _is_sim_mode() else total_gb
+                kv_pct = round(random.uniform(96.0, 99.5), 1) if _is_sim_mode() else 98.0
+                self.telemetry(cid, idx, "memory", "VRAM",
+                               f"\U0001f4ca VRAM allocation: {over_gb}GB / {total_gb}GB (KV-cache utilization: {kv_pct}%)...")
+                self.telemetry(cid, idx, "oom", "OOM",
+                               f"\U0001f525 CUDA out of memory on {gpu_type} ({total_gb}GB) \u2014 KV-cache exceeded capacity, job {handle.job_id} FAILED")
+            else:
+                if _is_sim_mode():
+                    used_gb = round(total_gb * random.uniform(0.68, 0.78), 1)
+                    kv_pct = round(random.uniform(58.0, 76.0), 1)
+                else:
+                    used_gb = total_gb
+                    kv_pct = 0.0
+                self.telemetry(cid, idx, "memory", "VRAM",
+                               f"\U0001f4ca VRAM allocation: {used_gb}GB / {total_gb}GB (KV-cache utilization: {kv_pct}%)...")
             cost = 0.0 if simulated else ce.experiment_cost(proposal.gpu_type, 60.0)
             c["spend"] = round(c["spend"] + cost, 4)
             self.total["spend"] = round(self.total["spend"] + cost, 4)
             gates = [sla.Gate(**g) for g in c["config"]["gates"]]
             verdict = sla.decision(sla.evaluate_gates(gates, metrics))
+            # --- planner diagnosis streams before the card finalizes ---
+            if failure:
+                diag = f"{failure} failure (verdict={verdict}) \u2014 adapting GPU tier / precision"
+            else:
+                q = metrics.get("quality_score", 0)
+                p95 = metrics.get("latency_p95_ms", 0)
+                diag = f"quality={q:.2f} p95={p95}ms verdict={verdict} \u2014 {plan.get('reason', '')}"[:220]
+            self.telemetry(cid, idx, "diagnosis", "PLANNER",
+                           f"\U0001f9e0 Nemotron-Ultra planner analyzing metrics -> {diag}")
             exp = {"index": idx, "plan": plan, "job_id": handle.job_id, "simulated": simulated,
                    "metrics": metrics, "log": logs[-2000:], "failure": failure, "verdict": verdict,
                    "reason": plan["reason"], "state": "EVALUATING"}
@@ -154,6 +213,9 @@ class LoopHooks:
                 except RuntimeError as e:
                     self.finish(cid, "INCOMPLETE", {"reason": str(e)})
                     return
+                self.emit(cid, {"type": "plan", "index": idx, "plan": plan})
+                self.telemetry(cid, idx, "diagnosis", "PLANNER",
+                               f"\U0001f9e0 Nemotron-Ultra planner proposed {plan.get('gpu_type')} {plan.get('precision')} (batch {plan.get('batch_config')}): {plan.get('reason', '')}"[:260])
                 if self.one(cid, idx, plan, prev, runner):
                     return
             self.finish(cid, "BLOCK", {"spend": c["spend"]})

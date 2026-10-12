@@ -92,7 +92,7 @@ def _load(cid: str) -> dict:
     CERTS[cid] = {"id": cid, "status": row["status"], "config": row["config"],
                   "twin": row["twin"], "experiments": store.list_experiments(cid),
                   "spend": row["spend"], "created_at": time.time(),
-                  "simulated": row["simulated"]}
+                  "simulated": row["simulated"], "telemetry": []}
     if cid not in BUS:
         BUS[cid] = queue.Queue()
     return CERTS[cid]
@@ -156,7 +156,7 @@ def create_cert(c: NewCert):
     twin = wt.build_twin(42, c.requests, tuple(c.workload_tasks))
     CERTS[cid] = {"id": cid, "status": "CREATED", "config": c.model_dump(),
                   "twin": twin, "experiments": [], "spend": 0.0,
-                  "created_at": time.time(), "simulated": None}
+                  "created_at": time.time(), "simulated": None, "telemetry": []}
     store.store_cert(cid, "CREATED", c.model_dump(), twin, 0.0, None)
     BUS[cid] = queue.Queue()
     return {"id": cid, "twin_digest": twin["digest"], "count": twin["count"]}
@@ -191,7 +191,8 @@ def get_cert(cid: str):
 @app.get("/certifications/{cid}/experiments")
 def list_experiments(cid: str):
     c = _load(cid)
-    return {"certification": cid, "experiments": c["experiments"], "simulated": c["simulated"]}
+    return {"certification": cid, "experiments": c["experiments"],
+            "simulated": c["simulated"], "telemetry": c.get("telemetry", [])}
 
 
 @app.get("/certifications/{cid}/experiments/{idx}")

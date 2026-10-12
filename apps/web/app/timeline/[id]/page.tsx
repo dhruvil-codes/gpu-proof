@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { LiveRegion, StatusPill, TopNav } from "@/components/ui";
 
@@ -110,11 +110,80 @@ function Stepper({ status, expCount }: { status: string; expCount: number }) {
   );
 }
 
+// --- Live Telemetry Terminal ---
+
+type TeleLine = { key: number; time: string; tag: string; step: string; line: string; index: number };
+
+function stepToTag(step: string): string {
+  const s = (step || "").toLowerCase();
+  if (s === "provision") return "NEBIUS";
+  if (s === "vllm_load" || s === "concurrency") return "vLLM";
+  if (s === "memory") return "VRAM";
+  if (s === "diagnosis") return "PLANNER";
+  if (s === "oom" || s === "warn" || s === "error") return "OOM";
+  return "LOG";
+}
+
+function normalizeTag(tag: unknown, step: string): string {
+  if (typeof tag === "string" && tag.trim()) return tag.trim().toUpperCase() === "VLLM" ? "vLLM" : tag.trim().toUpperCase();
+  return stepToTag(step);
+}
+
+function tagColor(tag: string): string {
+  const t = tag.toUpperCase();
+  if (t === "NEBIUS") return "text-sky-400";
+  if (t === "VLLM") return "text-amber-400";
+  if (t === "VRAM") return "text-purple-400";
+  if (t === "PLANNER") return "text-emerald-400";
+  if (t === "OOM" || t === "WARN" || t === "ERROR") return "text-red-400";
+  if (t === "POLICY") return "text-orange-300";
+  return "text-zinc-400";
+}
+
+function nowTime(): string {
+  try {
+    return new Date().toLocaleTimeString("en-GB", { hour12: false });
+  } catch {
+    return "";
+  }
+}
+
 export default function Timeline({ params }: { params: { id: string } }) {
   const [exps, setExps] = useState<Experiment[]>([]);
   const [status, setStatus] = useState("RUNNING");
   const [sim, setSim] = useState<boolean | null>(null);
   const [live, setLive] = useState("Connecting to live run events.");
+  const [teleLines, setTeleLines] = useState<TeleLine[]>([]);
+  const [follow, setFollow] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const termRef = useRef<HTMLDivElement | null>(null);
+  const keyRef = useRef(0);
+
+  function pushLine(tag: string, step: string, line: string, index: number) {
+    keyRef.current += 1;
+    const entry: TeleLine = { key: keyRef.current, time: nowTime(), tag, step, line, index };
+    setTeleLines((prev) => [...prev.slice(-400), entry]);
+  }
+
+  function pushTelemetryEvent(e: any) {
+    const tag = normalizeTag(e.tag, e.step || "");
+    pushLine(tag, String(e.step || "log"), String(e.line || ""), typeof e.index === "number" ? e.index : -1);
+  }
+
+  useEffect(() => {
+    if (follow && termRef.current) {
+      termRef.current.scrollTop = termRef.current.scrollHeight;
+    }
+  }, [teleLines, follow]);
+
+  async function copyLogs() {
+    try {
+      await navigator.clipboard.writeText(teleLines.map((l) => `[${l.time}] [${l.tag}] ${l.line}`).join("\n"));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  }
+
   useEffect(() => {
     let dead = false;
     const es = new EventSource(`${API}/certifications/${params.id}/events`);
@@ -122,16 +191,42 @@ export default function Timeline({ params }: { params: { id: string } }) {
       if (dead || !m.data || m.data.startsWith(":")) return;
       try {
         const e = JSON.parse(m.data);
-        if (e.type === "experiment_start") setLive(`Experiment ${e.index + 1} starting: planner → policy → Nebius job.`);
-        if (e.type === "plan") setLive(`Experiment ${e.index + 1} planned: ${e.plan.gpu_type} ${e.plan.precision}. ${e.plan.reason}`);
+        if (e.type === "telemetry") {
+          pushTelemetryEvent(e);
+          return;
+        }
+        if (e.type === "experiment_start") {
+          setLive(`Experiment ${e.index + 1} starting: planner → policy → Nebius job.`);
+          pushLine("NEBIUS", "provision", `—— Experiment ${e.index + 1} starting: planner → policy → Nebius job.`, e.index ?? -1);
+        }
+        if (e.type === "plan") {
+          setLive(`Experiment ${e.index + 1} planned: ${e.plan.gpu_type} ${e.plan.precision}. ${e.plan.reason}`);
+          pushLine("PLANNER", "diagnosis", `🧠 Planned exp ${e.index + 1}: ${e.plan.gpu_type} ${e.plan.precision} batch ${e.plan.batch_config} — ${e.plan.reason}`, e.index ?? -1);
+        }
         if (e.type === "policy") setLive(e.allowed ? `Policy approved experiment ${e.index + 1} (est $${e.estimated_cost}).` : `Policy refused: ${e.reasons.join("; ")}`);
+        if (e.type === "policy") {
+          pushLine(
+            e.allowed ? "POLICY" : "WARN",
+            "provision",
+            e.allowed ? `✅ Policy approved exp ${e.index + 1} (est $${e.estimated_cost}).` : `⛔ Policy refused exp ${e.index + 1}: ${(e.reasons || []).join("; ")}`,
+            e.index ?? -1
+          );
+        }
         if (e.type === "experiment_done") {
           setExps((prev) => [...prev.filter((x) => x.index !== e.experiment.index), e.experiment]);
           setLive(`Experiment ${e.experiment.index + 1} finished: ${e.experiment.status}.`);
+          const done = e.experiment;
+          pushLine(
+            done.status === "OOM" ? "OOM" : "PLANNER",
+            "diagnosis",
+            `■ Exp ${done.index + 1} finished: ${done.status} · ${done.verdict} · p95 ${done.metrics?.latency_p95_ms}ms · q ${done.metrics?.quality_score}`,
+            done.index ?? -1
+          );
         }
         if (e.type === "done") {
           setStatus(e.status);
           setLive(`Certification ${e.status}.`);
+          pushLine(e.status === "SHIP" ? "PLANNER" : "WARN", "diagnosis", `🏁 Certification ${e.status}.`, -1);
           es.close();
           fetch(`${API}/certifications/${params.id}`).then((r) => r.json()).then((j) => { setSim(j.simulated); }).catch(() => {});
         }
@@ -143,11 +238,36 @@ export default function Timeline({ params }: { params: { id: string } }) {
       fetch(`${API}/certifications/${params.id}/experiments`).then((r) => r.json()).then((j) => {
         if (j.experiments) setExps(j.experiments);
         if (j.simulated !== undefined) setSim(j.simulated);
+        if (Array.isArray(j.telemetry) && j.telemetry.length > 0 && !dead) {
+          setTeleLines((prev) => {
+            if (prev.length >= j.telemetry.length) return prev;
+            return j.telemetry.map((t: any, i: number) => ({
+              key: i + 1,
+              time: nowTime(),
+              tag: normalizeTag(t.tag, t.step || ""),
+              step: String(t.step || "log"),
+              line: String(t.line || ""),
+              index: typeof t.index === "number" ? t.index : -1,
+            }));
+          });
+          keyRef.current = Math.max(keyRef.current, j.telemetry.length);
+        }
       }).catch(() => {});
     };
     // initial paint (covers late joiners after the SSE "done" was consumed)
     fetch(`${API}/certifications/${params.id}/experiments`).then((r) => r.json()).then((j) => {
       if (!dead && j.experiments) { setExps(j.experiments); if (j.simulated !== undefined) setSim(j.simulated); }
+      if (!dead && Array.isArray(j.telemetry) && j.telemetry.length > 0) {
+        setTeleLines(j.telemetry.map((t: any, i: number) => ({
+          key: i + 1,
+          time: nowTime(),
+          tag: normalizeTag(t.tag, t.step || ""),
+          step: String(t.step || "log"),
+          line: String(t.line || ""),
+          index: typeof t.index === "number" ? t.index : -1,
+        })));
+        keyRef.current = j.telemetry.length;
+      }
     }).catch(() => {});
     fetch(`${API}/certifications/${params.id}`).then((r) => r.json()).then((j) => {
       if (!dead && j.status && j.status !== "RUNNING" && j.status !== "CREATED") {
@@ -159,6 +279,7 @@ export default function Timeline({ params }: { params: { id: string } }) {
     return () => { dead = true; es.close(); };
   }, [params.id]);
   const finished = status !== "RUNNING" && status !== "CREATED";
+  const activeJobId = exps.length > 0 ? exps[exps.length - 1].job_id : "waiting for job…";
   return (<main>
     <TopNav />
     <div className="mx-auto max-w-3xl px-6 py-8">
@@ -169,6 +290,74 @@ export default function Timeline({ params }: { params: { id: string } }) {
         <StatusPill status={status} simulated={sim ?? undefined} />
       </div>
       <Stepper status={status} expCount={exps.length} />
+      <section aria-label="Live telemetry terminal" className="mt-6 overflow-hidden rounded-lg border border-ink bg-[#141414] text-zinc-200 shadow-[4px_4px_0_rgba(31,31,31,0.15)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-black/40 px-3 py-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <span aria-hidden="true" className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#FF5F57]" />
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#FEBC2E]" />
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#28C840]" />
+            </span>
+            <span className="truncate font-mono text-[11px] text-zinc-400">job {activeJobId}</span>
+          </div>
+          {finished ? (
+            <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-zinc-500">
+              <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-zinc-500" />
+              Stream ended
+            </span>
+          ) : (
+            <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-green-400">
+              <span className="relative flex h-2 w-2" aria-hidden="true">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+              </span>
+              <span className="animate-pulse">Live streaming</span>
+            </span>
+          )}
+        </div>
+        <div
+          ref={termRef}
+          role="log"
+          aria-label="Live GPU engine telemetry"
+          className="h-72 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed"
+          style={{ fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" }}
+        >
+          {teleLines.length === 0 && (
+            <p className="text-zinc-500">$ awaiting GPU engine output… planner → policy → Nebius job.</p>
+          )}
+          {teleLines.map((l) => (
+            <div key={l.key} className="whitespace-pre-wrap break-words">
+              <span className="text-zinc-600">[{l.time}]</span>{" "}
+              <span className={`font-bold ${tagColor(l.tag)}`}>[{l.tag}]</span>{" "}
+              <span className="text-zinc-200">{l.line}</span>
+            </div>
+          ))}
+          {!finished && teleLines.length > 0 && (
+            <span aria-hidden="true" className="mt-1 inline-block h-3.5 w-2 animate-pulse bg-green-400" />
+          )}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-black/40 px-3 py-2">
+          <label className="flex cursor-pointer items-center gap-2 font-mono text-[11px] text-zinc-400">
+            <input
+              type="checkbox"
+              checked={follow}
+              onChange={(e) => setFollow(e.target.checked)}
+              className="h-3.5 w-3.5 accent-green-500"
+            />
+            Follow output
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[11px] text-zinc-600">{teleLines.length} lines</span>
+            <button
+              type="button"
+              onClick={copyLogs}
+              className="cursor-pointer rounded border border-white/20 px-2 py-1 font-mono text-[11px] text-zinc-300 transition-colors hover:border-white/40 hover:text-white"
+            >
+              {copied ? "Copied!" : "Copy Logs"}
+            </button>
+          </div>
+        </div>
+      </section>
       <div className="mt-6 space-y-3" aria-live="off">
         {exps.length === 0 && (<div className="panel animate-pulse rounded p-6 text-sm text-muted">Provisioning first experiment… planner → policy → Nebius job.</div>)}
         {exps.map((e) => {

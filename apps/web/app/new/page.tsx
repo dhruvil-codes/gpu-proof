@@ -17,6 +17,15 @@ type FormState = {
 
 const NANO = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B";
 
+const POPULAR_PROD_MODELS = [
+  { label: "Llama 3.3 70B", slug: "meta-llama/Llama-3.3-70B-Instruct" },
+  { label: "DeepSeek R1 32B", slug: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B" },
+  { label: "Qwen 2.5 72B", slug: "Qwen/Qwen2.5-72B-Instruct" },
+  { label: "Nemotron Nano 30B", slug: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B" },
+  { label: "Mistral Large 123B", slug: "mistralai/Mistral-Large-Instruct-2407" },
+  { label: "Llama 3.1 8B", slug: "meta-llama/Meta-Llama-3.1-8B-Instruct" },
+];
+
 const TEMPLATES: {
   id: string;
   glyph: string;
@@ -190,6 +199,28 @@ function NewForm() {
             <label htmlFor="cand" className={label}>Candidate Model to Certify</label>
             <span id="cand-help" className={helper}>The new model you are evaluating (Hugging Face ID).</span>
             <input id="cand" value={form.candidate_model} onChange={(e) => set("candidate_model", e.target.value)} aria-invalid={!!errors.candidate_model} aria-describedby="cand-err cand-help" className={field} placeholder="e.g. nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B" />
+            <div className="mt-2.5">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-muted">Popular in Production (1-click fill):</span>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {POPULAR_PROD_MODELS.map((m) => {
+                  const active = form.candidate_model === m.slug;
+                  return (
+                    <button
+                      key={m.slug}
+                      type="button"
+                      onClick={() => set("candidate_model", m.slug)}
+                      className={`cursor-pointer rounded border px-2 py-1 text-[11px] font-mono transition-all ${
+                        active
+                          ? "border-ink bg-ink text-canvas font-bold shadow-[2px_2px_0_rgba(31,31,31,0.2)]"
+                          : "border-ink/30 bg-canvas/70 text-ink/80 hover:border-ink hover:bg-canvas"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             {errors.candidate_model && <p id="cand-err" role="alert" className="mt-1 text-[11px] text-block">{errors.candidate_model}</p>}
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -6,9 +6,12 @@ import { SiteFooter, StatusPill, TopNav } from "@/components/ui";
 import { ModelAdvisorFab } from "@/components/ModelAdvisorDrawer";
 
 const PRESETS = [
-  { id: "nano", glyph: "⚡", label: "Nemotron Nano 30B", sub: "40% cheaper, high tool accuracy", value: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B" },
-  { id: "qwen", glyph: "🛡️", label: "Qwen3 8B", sub: "Budget tier baseline", value: "Qwen3-8B" },
-  { id: "custom", glyph: "⚙️", label: "Custom Hugging Face Model", sub: "Enter any HF model ID", value: "" },
+  { id: "nano", glyph: "⚡", label: "Nemotron Nano 30B", sub: "NVIDIA agentic workhorse (~40% cost cut)", value: "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B" },
+  { id: "llama70b", glyph: "🦙", label: "Llama 3.3 70B", sub: "Enterprise flagship production workhorse", value: "meta-llama/Llama-3.3-70B-Instruct" },
+  { id: "r1-32b", glyph: "🧠", label: "DeepSeek R1 32B", sub: "Open reasoning & math powerhouse", value: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B" },
+  { id: "qwen72b", glyph: "🎯", label: "Qwen 2.5 72B", sub: "Complex JSON schemas & coding", value: "Qwen/Qwen2.5-72B-Instruct" },
+  { id: "llama8b", glyph: "🛡️", label: "Llama 3.1 8B", sub: "Low-latency high-throughput baseline", value: "meta-llama/Meta-Llama-3.1-8B-Instruct" },
+  { id: "custom", glyph: "⚙️", label: "Custom HF Model", sub: "Type any Hugging Face repo ID", value: "" },
 ];
 
 function PresetPicker() {

@@ -358,10 +358,10 @@ function NewForm() {
     if (Object.keys(errs).length) return;
     if (stress.oom) {
       setMsg(
-        `Creating twin… (⚠️ ${stress.totalGb}GB projected on ${form.target_gpu} — expected CUDA OOM, run will prove the failure limit.)`
+        `Starting test run… (⚠️ ${stress.totalGb}GB projected on ${form.target_gpu} — testing failure limit.)`
       );
     } else {
-      setMsg("Creating twin...");
+      setMsg("Starting test run… Replaying queries on test GPU container...");
     }
     try {
       const mode = getExecutionMode();
@@ -374,22 +374,44 @@ function NewForm() {
         gpu_type: form.target_gpu,
         mode,
       };
-      const res = await fetch(`${API}/certifications`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...byokHeaders, ...execHeaders },
-        body: JSON.stringify(payload),
-      });
+
+      // Try Next.js server proxy first (/api/certifications), fallback to direct API
+      let res: Response;
+      try {
+        res = await fetch("/api/certifications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...byokHeaders, ...execHeaders },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        res = await fetch(`${API}/certifications`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...byokHeaders, ...execHeaders },
+          body: JSON.stringify(payload),
+        });
+      }
+
       if (!res.ok) throw new Error(`create failed: ${res.status}`);
       const j = await res.json();
       setMsg(
-        `twin ${j.twin_digest} · launching...${j.byok_used ? " (BYOK: your Nebius key)" : ""}${
+        `Benchmark created [${j.id}] · launching test container...${j.byok_used ? " (Nebius Live Key)" : ""}${
           j.mode ? ` [${j.mode === "real" ? "⚡ Live GPU" : "🧪 Simulator"}]` : ""
         }`
       );
-      const s = await fetch(`${API}/certifications/${j.id}/start`, {
-        method: "POST",
-        headers: { ...byokHeaders, ...execHeaders },
-      });
+
+      let s: Response;
+      try {
+        s = await fetch(`/api/certifications/${j.id}/start`, {
+          method: "POST",
+          headers: { ...byokHeaders, ...execHeaders },
+        });
+      } catch {
+        s = await fetch(`${API}/certifications/${j.id}/start`, {
+          method: "POST",
+          headers: { ...byokHeaders, ...execHeaders },
+        });
+      }
+
       if (!s.ok) throw new Error(`start failed: ${s.status}`);
       try {
         const items = JSON.parse(localStorage.getItem("gpuproof-certs") || "[]");
@@ -406,7 +428,7 @@ function NewForm() {
       } catch {}
       r.push(`/timeline/${j.id}`);
     } catch (err: unknown) {
-      setMsg(`Error: ${err instanceof Error ? err.message : String(err)} — is the API running on ${API}?`);
+      setMsg(`Error: ${err instanceof Error ? err.message : String(err)} — is backend running? Try refreshing or checking http://localhost:8000`);
     }
   }
 
@@ -424,9 +446,9 @@ function NewForm() {
       {/* Compact header + BYOK status on one row */}
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-ink/20 pb-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight lg:text-2xl">New Hardware Audit &amp; Certification</h1>
+          <h1 className="text-xl font-bold tracking-tight lg:text-2xl">Hardware Sizing &amp; Live Cloud Benchmark</h1>
           <p className="mt-0.5 text-xs leading-relaxed text-muted">
-            Bring ANY open-source model (Hugging Face ID or full URL). Compare local open-source setups vs production Nebius cloud GPUs.
+            Test any open-source model under real user traffic. Verify if it fits your local machine or benchmark it on a Nebius Cloud GPU.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2" aria-label="Execution mode">
@@ -441,6 +463,16 @@ function NewForm() {
         </div>
       </div>
       <ByokModal open={byokOpen} onClose={() => setByokOpen(false)} />
+
+      {/* Human-friendly explanation banner */}
+      <div className="mt-3 rounded-lg border border-ink/30 bg-[#F5F1E9] p-3 text-xs leading-relaxed text-ink/90 shadow-[2px_2px_0_#1F1F1F]">
+        <p className="font-bold flex items-center gap-1.5 text-ink">
+          <span>💡</span> What this benchmark test actually does:
+        </p>
+        <p className="mt-1 text-muted">
+          We spin up an isolated test container on Nebius Cloud (or the free local simulator), replay <strong>{form.requests} realistic user queries</strong> at <strong>{form.concurrency} concurrent streams</strong>, and measure real-world VRAM usage, P95 response speed, and output accuracy. If it passes, you get a turnkey <code className="font-mono bg-ink/10 px-1 py-0.5 rounded">vllm serve</code> command and exact hourly cost to deploy in production.
+        </p>
+      </div>
 
       {/* One-click presets — full-width strip above the master-detail grid */}
       <div className="mt-3" role="group" aria-label="One-click testing presets">
@@ -1142,9 +1174,12 @@ function NewForm() {
             type="submit"
             className="mt-3 min-h-[52px] w-full cursor-pointer rounded-lg bg-canvas px-4 py-3 text-base font-extrabold tracking-tight text-ink shadow-[4px_4px_0_rgba(239,235,228,0.25)] transition-all hover:bg-white hover:-translate-y-px active:translate-y-0"
           >
-            Run Certification →
+            🚀 Run Hardware Benchmark on Cloud GPU →
           </button>
-          <p aria-live="polite" className="mt-1.5 min-h-[16px] font-mono text-[11px] text-canvas/70">
+          <p className="mt-1 text-center text-[10px] text-canvas/60">
+            Replays {form.requests} real queries to measure VRAM, latency &amp; errors before you deploy.
+          </p>
+          <p aria-live="polite" className="mt-1 min-h-[16px] font-mono text-[11px] text-canvas/70">
             {msg || `${form.requests} req · max $${Number(form.budget_usd || 0).toFixed(2)} · ${form.concurrency} streams · ${form.context_len.toLocaleString("en-US")} ctx`}
           </p>
 

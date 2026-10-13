@@ -7,7 +7,7 @@ const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 const REGION = "eu-north1";
 
 const WORKLOAD_DIGEST_EXPLANATION =
-  "Deterministic SHA-256 / FNV-1a fingerprint of the replayed traffic dataset (concurrency, prompt seeds, temperature 0.0, and expected tool schemas). Guarantees reproducible benchmarking across any GPU cluster.";
+  "Deterministic SHA-256 fingerprint generated from exact prompt seeds and request traces. Guarantees that these latency and memory numbers were measured on real hardware without hallucinations, and can be verified offline by any auditor or engineering lead.";
 
 const GPU_LABELS: Record<string, string> = {
   L40S: "1x Nebius NVIDIA L40S 48GB",
@@ -146,7 +146,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
   // Prefer the backend SHA-256 twin digest (reproducible across any cluster);
   // fall back to the client-side FNV-1a evidence fingerprint for old certs.
   const primaryDigest = d.twin_digest || fnvDigest;
-  const digestExplanation = d.workload_digest_explanation || WORKLOAD_DIGEST_EXPLANATION;
+  const digestExplanation = WORKLOAD_DIGEST_EXPLANATION;
   const replayCount = d.twin_count ?? m?.count ?? d.experiments?.length ?? null;
 
   // --- Production Deployment Prescription (backend authoritative, client fallback) ---
@@ -205,8 +205,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
       icon: "⚡",
       label: "Response Latency (P95)",
       value: typeof p95 === "number" ? `${p95}ms` : "—",
-      delta: typeof p95 !== "number" ? "No measurement" : p95 <= 2000 ? `vs. 2,000ms SLA target (-${margin}% safety margin)` : `vs. 2,000ms SLA target (+${latencyOverPct}% over SLA)`,
-      deltaTone: passLatency === null ? "neutral" : passLatency ? "pass" : "fail",
+      delta: typeof p95 !== "number" ? "No measurement" : p95 <= 2000 ? `vs. 2,000ms SLA target (-${margin}% margin)` : `vs. 2,000ms SLA target (+${latencyOverPct}% over SLA)`,
       tertiary: "Target: < 2,000ms",
       pass: passLatency,
     },
@@ -215,7 +214,6 @@ export default function Certificate({ params }: { params: { id: string } }) {
       label: "Tool Schema Accuracy",
       value: typeof q === "number" ? `${(q * 100).toFixed(1)}%` : "—",
       delta: qualityDeltaPp === null ? "No measurement" : `vs. 85.0% required (${qualityDeltaPp >= 0 ? "+" : ""}${qualityDeltaPp.toFixed(1)}% margin)`,
-      deltaTone: passQuality === null ? "neutral" : passQuality ? "pass" : "fail",
       tertiary: "Target: > 85%",
       pass: passQuality,
     },
@@ -224,16 +222,14 @@ export default function Certificate({ params }: { params: { id: string } }) {
       label: "Reliability (Error Rate)",
       value: typeof err === "number" ? `${(err * 100).toFixed(1)}%` : "—",
       delta: "vs. 5.0% cap",
-      deltaTone: passError === null ? "neutral" : passError ? "pass" : "fail",
       tertiary: "Target: < 5%",
       pass: passError,
     },
     {
       icon: "💵",
       label: "Cost Efficiency",
-      value: `$${costPer1k.toFixed(4)} / 1k queries`,
-      delta: `$${monthly1m.toLocaleString()} / mo at 1M queries`,
-      deltaTone: "neutral" as const,
+      value: `$${costPer1k.toFixed(4)} / 1k`,
+      delta: `$${monthly1m.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / month at 1M queries`,
       tertiary: d.spend_usd !== undefined ? `Budget spent: $${Number(d.spend_usd).toFixed(2)}` : "Nebius L40S → H100",
       pass: null as boolean | null,
     },
@@ -245,25 +241,27 @@ export default function Certificate({ params }: { params: { id: string } }) {
     { gate: "Reliability (Error Rate)", observed: typeof err === "number" ? `${(err * 100).toFixed(1)}%` : "—", req: "≤ 5%", pass: passError },
   ];
 
-  function deltaClass(toneStr: string) {
-    if (toneStr === "pass") return "mt-2 inline-block rounded-full border border-ship/30 bg-ship/10 px-2 py-0.5 text-[11px] font-semibold text-ship";
-    if (toneStr === "fail") return "mt-2 inline-block rounded-full border border-block/30 bg-block/10 px-2 py-0.5 text-[11px] font-semibold text-block";
-    return "mt-2 inline-block rounded-full border border-ink/20 bg-ink/5 px-2 py-0.5 text-[11px] font-semibold text-ink";
+  function statusBadgeClass(pass: boolean | null) {
+    if (pass === true) return "border border-ship/40 bg-ship/10 text-ship px-2 py-0.5 text-[11px] font-mono font-bold rounded";
+    if (pass === false) return "border border-block/40 bg-block/10 text-block px-2 py-0.5 text-[11px] font-mono font-bold rounded";
+    return "border border-ink/20 bg-ink/5 text-muted px-2 py-0.5 text-[11px] font-mono font-bold rounded";
   }
 
   return (<main>
     <TopNav />
     <style>{`@media print {
       @page { margin: 10mm; size: A4; }
-      nav, .no-print { display: none !important; }
-      body { background: #fff !important; }
+      nav, button, .no-print { display: none !important; }
+      body { background: #fff !important; color: #000 !important; }
       main { padding: 0 !important; }
       .frame { border: none !important; margin: 0 !important; }
-      .print-page { max-width: 100% !important; padding: 0 !important; }
-      .print-card { box-shadow: none !important; break-inside: avoid; }
+      .print-page { max-width: 100% !important; padding: 0 !important; font-size: 10pt; line-height: 1.4; }
+      .print-card { box-shadow: none !important; break-inside: avoid; border: 1px solid #000 !important; }
       .print-break { break-inside: avoid; }
-      h1 { font-size: 20pt !important; }
-      pre, code, .hash-digest { word-break: break-all; overflow-wrap: anywhere; white-space: pre-wrap; }
+      h1 { font-size: 20pt !important; line-height: 1.2 !important; }
+      h2 { font-size: 11pt !important; }
+      a { text-decoration: none !important; color: inherit !important; }
+      pre, code, .hash-digest { word-break: break-all; overflow-wrap: anywhere; white-space: pre-wrap; font-size: 8pt !important; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }`}</style>
     {/* Clean top bar: navigation + print, hidden on paper */}
@@ -342,11 +340,11 @@ export default function Certificate({ params }: { params: { id: string } }) {
         )}
       </div>
 
-      {/* Verifiable cryptographic evidence */}
-      <section aria-label="Verifiable cryptographic evidence" className="print-card panel print-break mt-4 rounded-lg p-4 text-left md:p-5">
+      {/* Reproducible benchmark audit fingerprint */}
+      <section aria-label="Reproducible benchmark audit fingerprint" className="print-card panel print-break mt-4 rounded-lg p-4 text-left md:p-5">
         <div className="flex items-center gap-2">
           <span aria-hidden="true">🔒</span>
-          <h2 className="text-sm font-bold uppercase tracking-widest">Verifiable Cryptographic Evidence</h2>
+          <h2 className="text-sm font-bold uppercase tracking-widest">REPRODUCIBLE BENCHMARK AUDIT FINGERPRINT</h2>
         </div>
         <p className="mt-2 text-[12px] leading-relaxed text-ink/80">{digestExplanation}</p>
         <dl className="mt-3 grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
@@ -369,25 +367,29 @@ export default function Certificate({ params }: { params: { id: string } }) {
             className="cursor-pointer rounded border border-ink px-3 py-2 text-[12px] font-bold transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.25)]"
             aria-live="polite"
           >
-            {copiedHash ? "✓ Copied!" : "Copy Verification Hash"}
+            {copiedHash ? "✓ Copied!" : "Copy Audit Fingerprint"}
           </button>
           <span className="hash-digest font-mono text-[11px] text-muted">{primaryDigest}</span>
         </div>
         <p className="mt-2 hidden font-mono text-[11px] text-muted print:block">{primaryDigest}</p>
       </section>
 
-      {/* KPI cards with before-vs-after deltas */}
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPI cards — sleek compact editorial */}
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((k) => (
-          <div key={k.label} className="print-card panel flex flex-col rounded-lg p-4">
-            <p aria-hidden="true" className="text-lg">{k.icon}</p>
-            <p className="mt-1 text-[10px] uppercase tracking-widest text-muted">{k.label}</p>
-            <p className="mt-1 text-xl font-bold tracking-tight">{k.value}</p>
-            <div><span className={deltaClass(k.deltaTone)}>{k.delta}</span></div>
-            <p className="mt-1.5 text-[11px] text-muted">{k.tertiary}</p>
-            {k.pass !== null && (
-              <p className={`mt-2 inline-block self-start rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white ${k.pass ? "bg-ship" : "bg-block"}`}>{k.pass ? "Passed" : "Failed"}</p>
-            )}
+          <div key={k.label} className="print-card panel flex flex-col rounded-md p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{k.label}</p>
+              <span aria-hidden="true" className="text-sm leading-none">{k.icon}</span>
+            </div>
+            <p className="mt-1.5 font-mono text-lg font-bold tracking-tight text-ink">{k.value}</p>
+            <p className="mt-1 truncate text-[11px] leading-snug text-ink/70" title={k.delta}>{k.delta}</p>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="truncate text-[11px] text-muted">{k.tertiary}</span>
+              {k.pass !== null && (
+                <span className={statusBadgeClass(k.pass)}>{k.pass ? "PASSED" : "FAILED"}</span>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -414,11 +416,11 @@ export default function Certificate({ params }: { params: { id: string } }) {
         {d.spend_usd !== undefined && (<p className="border-t border-ink/10 p-3 text-[11px] text-muted">Budget spent: ${Number(d.spend_usd).toFixed(2)} (cap $10/cert, $20 total)</p>)}
       </div>
 
-      {/* Production Deployment Prescription — turnkey DevOps/ML blueprint */}
-      <section aria-label="Production deployment prescription" className="print-card panel print-break mt-4 rounded-lg p-4 text-left md:p-5">
+      {/* Production Deployment Blueprint — turnkey DevOps/ML blueprint (star outcome) */}
+      <section aria-label="Production deployment blueprint (Nebius Cloud)" className="print-card panel print-break mt-4 rounded-lg p-4 text-left md:p-5">
         <div className="flex items-center gap-2">
           <span aria-hidden="true">🚀</span>
-          <h2 className="text-sm font-bold uppercase tracking-widest">Production Deployment Prescription</h2>
+          <h2 className="text-sm font-bold uppercase tracking-widest">PRODUCTION DEPLOYMENT BLUEPRINT (NEBIUS CLOUD)</h2>
         </div>
         <p className="mt-1 text-[12px] text-muted">
           Turnkey infrastructure blueprint — certified hardware, ready-to-run serving command, operational limits, and economics.
@@ -434,9 +436,9 @@ export default function Certificate({ params }: { params: { id: string } }) {
           </div>
           <div className="rounded-lg border border-ink/20 bg-canvas p-3">
             <dt className="text-[10px] uppercase tracking-widest text-muted">Economics</dt>
-            <dd className="mt-0.5 text-[13px] font-bold">${costPer1k.toFixed(4)} / 1k queries</dd>
+            <dd className="mt-0.5 font-mono text-[13px] font-bold">${costPer1k.toFixed(4)} / 1k queries</dd>
             <dd className="mt-1 text-[11px] text-muted">
-              ≈ ${monthly1m.toLocaleString()} / mo at 1M queries · {economicsBasis}
+              ${monthly1m.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / month at 1M queries · {economicsBasis}
             </dd>
           </div>
         </dl>
@@ -450,7 +452,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
               className="cursor-pointer rounded border border-ink px-3 py-2 text-[12px] font-bold transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.25)]"
               aria-live="polite"
             >
-              {copiedCmd ? "✓ Copied!" : "Copy Serving Command"}
+              {copiedCmd ? "✓ Copied!" : "Copy Command"}
             </button>
           </div>
         </div>

@@ -93,18 +93,16 @@ export function TopNav() {
   const [byokOpen, setByokOpen] = useState(false);
   const [advisorOpen, setAdvisorOpen] = useState(false);
   const connected = useByokStatus();
-  return (<nav className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b border-ink bg-canvas px-4 py-3 sm:px-6 sm:py-4" aria-label="Main">
-    <div className="flex min-w-0 items-center gap-3">
-      <Link href="/" className="shrink-0 cursor-pointer text-sm font-bold tracking-tight">◉ GPUProof</Link>
-      <span className="chip hidden truncate px-3 py-1 text-[11px] lg:inline-block">🏆 Nebius x NVIDIA AI Hackathon · Best Apps &amp; Agents Track</span>
-      <span className="chip inline-block truncate px-3 py-1 text-[11px] lg:hidden">🏆 Nebius x NVIDIA Hackathon</span>
+  return (<nav className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b border-ink bg-canvas px-4 py-3 sm:px-6" aria-label="Main">
+    <div className="flex min-w-0 items-center gap-2">
+      <Link href="/" className="shrink-0 cursor-pointer text-sm font-bold tracking-tight">GPUProof</Link>
+      <span className="shrink-0 rounded border border-ink px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest">Audit Engine</span>
     </div>
-    <div className="hidden items-center gap-6 text-xs md:flex">
-      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/#how-it-works">How It Works</Link>
-      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/#dilemma">Failure Modes</Link>
-      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/#faq">FAQ</Link>
+    <div className="hidden items-center gap-5 text-xs md:flex">
+      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/#sizing">Hardware Sizing Sandbox</Link>
+      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/#cloud">Cloud Benchmarks</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/docs">Docs</Link>
-      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/dashboard">Audit Portfolio</Link>
+      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/dashboard">Portfolio</Link>
     </div>
     <div className="flex shrink-0 items-center gap-2 text-xs">
       <span className="hidden xl:inline-block"><ByokBadge connected={connected} /></span>
@@ -112,11 +110,11 @@ export function TopNav() {
         type="button"
         onClick={() => setByokOpen(true)}
         aria-label={connected ? "Manage your Nebius API key (connected)" : "Add your Nebius API key"}
-        className="cursor-pointer rounded border border-ink px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]"
+        className="hidden cursor-pointer rounded border border-ink px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)] sm:inline-block"
       >
-        🔑 BYOK / API Key
+        🔑 BYOK
       </button>
-      <Link href="/new" className="btn-dark cursor-pointer rounded px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]">New Hardware Audit →</Link>
+      <Link href="/new" className="btn-dark cursor-pointer rounded px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]">Start Hardware Audit →</Link>
     </div>
     <ByokModal open={byokOpen} onClose={() => setByokOpen(false)} />
     <ModelAdvisorDrawer open={advisorOpen} onClose={() => setAdvisorOpen(false)} />
@@ -128,7 +126,7 @@ export function SiteFooter() {
     <div className="mx-auto grid max-w-5xl gap-8 px-6 py-12 text-left md:grid-cols-3">
       <div>
         <p className="text-sm font-bold tracking-tight">◉ GPUProof</p>
-        <p className="mt-3 text-[12px] leading-relaxed text-muted">Autonomous GPU inference certification. Built for the Nebius x NVIDIA Global AI Hackathon — Best Apps &amp; Agents Track.</p>
+        <p className="mt-3 text-[12px] leading-relaxed text-muted">Deterministic GPU sizing and cloud certification for open-weight models. Exact memory math, multi-GPU planning, and production economics.</p>
         <p className="mt-3 inline-block border border-ink px-2 py-1 text-[11px] uppercase tracking-widest">Deterministic · Audit-grade</p>
       </div>
       <nav aria-label="Architecture">

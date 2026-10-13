@@ -181,13 +181,23 @@ function NewForm() {
   const [modelFit, setModelFit] = useState<ModelFit | null>(null);
   const [inspecting, setInspecting] = useState(false);
 
-  // Sync candidate from query parameter
+  // Sync candidate and hardware parameters from URL query
   useEffect(() => {
     const v = q.get("candidate_model");
-    if (v && v !== form.candidate_model) {
-      const clean = extractHfRepoId(v);
-      setForm((f) => ({ ...f, candidate_model: clean }));
-    }
+    const targetGpu = q.get("target_gpu") || q.get("gpu");
+    const concurrency = q.get("concurrency") || q.get("users");
+    const contextLen = q.get("context_len");
+    const precision = q.get("precision");
+
+    setForm((f) => {
+      let updated = { ...f };
+      if (v) updated.candidate_model = extractHfRepoId(v);
+      if (targetGpu) updated.target_gpu = targetGpu.toUpperCase();
+      if (concurrency && !isNaN(Number(concurrency))) updated.concurrency = Number(concurrency);
+      if (contextLen && !isNaN(Number(contextLen))) updated.context_len = Number(contextLen);
+      if (precision) updated.precision = precision.toUpperCase();
+      return updated;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 

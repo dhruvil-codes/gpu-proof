@@ -170,6 +170,11 @@ class NewCert(BaseModel):
     ]
     budget_usd: float = Field(default=10.0, gt=0, le=100.0)
     requests: int = Field(default=200, gt=0, le=10000)
+    # Breakscale stress calibration (parallel streams × context window).
+    # Validated loosely so old clients keep working; the /new UI snaps to
+    # CONCURRENCY_STEPS / CONTEXT_STEPS defined in services/advisor.py.
+    concurrency: int = Field(default=16, gt=0, le=64)
+    context_len: int = Field(default=4096, gt=0, le=131072)
     # Legacy aliases
     budget_limit_usd: float | None = None
     sample_size: int | None = None
@@ -186,6 +191,11 @@ class NewCert(BaseModel):
 class AdvisorRequest(BaseModel):
     query: str = ""
     current_gpu: str | None = None
+    # Breakscale stress operating point (all optional, backwards-compatible).
+    concurrency: int | None = None
+    context_len: int | None = None
+    seq_len: int | None = None
+    target_gpu: str | None = None
 
 
 def _normalize_mode(*values: str | None) -> str:
@@ -222,7 +232,16 @@ def advisor(
     `source` is 'nemotron-ultra' when Token Factory enriched the answer,
     otherwise 'deterministic'.
     """
-    det = advisor_svc.advise(req.query, req.current_gpu)
+    eff_context = req.context_len or req.seq_len or 4096
+    eff_concurrency = req.concurrency or 16
+    det = advisor_svc.advise(
+        req.query,
+        req.current_gpu,
+        seq_len=eff_context,
+        concurrency=eff_concurrency,
+        context_len=eff_context,
+        target_gpu=req.target_gpu,
+    )
     byok_key = (x_nebius_api_key or "").strip() or None
     try:
         from services.decision_engine import PLANNER_MODEL, _call
@@ -258,15 +277,58 @@ def system_hardware():
 
 
 @app.get("/models/inspect")
-def inspect_model(query: str = ""):
-    """Dynamic hardware sizing & compatibility inspection for ANY Hugging Face model or URL."""
-    return advisor_svc.inspect_model_fit(query)
+def inspect_model(
+    query: str = "",
+    concurrency: int = 16,
+    context_len: int | None = None,
+    seq_len: int | None = None,
+    precision: str = "BF16",
+    target_gpu: str | None = "H100",
+):
+    """Dynamic hardware sizing & compatibility inspection for ANY Hugging Face model or URL.
+
+    Breakscale query params: `concurrency` (parallel streams), `context_len`
+    (tokens, `seq_len` legacy alias), `precision`, `target_gpu`.
+    """
+    eff_context = context_len or seq_len or 4096
+    try:
+        eff_concurrency = int(concurrency or 16)
+    except (TypeError, ValueError):
+        eff_concurrency = 16
+    try:
+        eff_context = int(eff_context or 4096)
+    except (TypeError, ValueError):
+        eff_context = 4096
+    return advisor_svc.inspect_model_fit(
+        query,
+        seq_len=eff_context,
+        concurrency=eff_concurrency,
+        context_len=eff_context,
+        precision=precision or "BF16",
+        target_gpu=target_gpu or "H100",
+    )
 
 
 @app.post("/models/inspect")
 def inspect_model_post(payload: dict):
     q = payload.get("query") or payload.get("model") or payload.get("candidate_model") or ""
-    return advisor_svc.inspect_model_fit(str(q))
+    eff_context = payload.get("context_len") or payload.get("seq_len") or 4096
+    try:
+        eff_concurrency = int(payload.get("concurrency") or 16)
+    except (TypeError, ValueError):
+        eff_concurrency = 16
+    try:
+        eff_context = int(eff_context or 4096)
+    except (TypeError, ValueError):
+        eff_context = 4096
+    return advisor_svc.inspect_model_fit(
+        str(q),
+        seq_len=eff_context,
+        concurrency=eff_concurrency,
+        context_len=eff_context,
+        precision=str(payload.get("precision") or "BF16"),
+        target_gpu=str(payload.get("target_gpu") or payload.get("gpu_type") or "H100"),
+    )
 
 
 @app.get("/certifications")
@@ -404,15 +466,30 @@ def start_cert(
 
 @app.get("/certifications/{cid}/certificate")
 def certificate(cid: str):
+    from services.certificate_engine import build_deployment_prescription
     c = _load(cid)
+    twin = c.get("twin") or {}
+    candidate = (c.get("config") or {}).get("candidate_model", "candidate-model")
+    last = c["experiments"][-1] if c["experiments"] else None
+    plan = (last or {}).get("plan") or {}
+    metrics = (last or {}).get("metrics") or {}
     if c["simulated"]:
+        deployment = build_deployment_prescription(
+            plan=plan, metrics=metrics,
+            candidate_model=candidate, spend_usd=c["spend"])
         return {"certification": cid, "verdict": "SIMULATED",
                 "note": "simulator output is dev-only and can never produce a real certificate",
-                "experiments": c["experiments"]}
-    last = c["experiments"][-1] if c["experiments"] else None
+                "experiments": c["experiments"],
+                "candidate_model": candidate,
+                "twin_digest": twin.get("digest"),
+                "twin_count": twin.get("count"),
+                "deployment": deployment}
     if not last:
         raise HTTPException(409, "no experiments yet")
     gates = [sla.Gate(**g) for g in c["config"]["gates"]]
     results = sla.evaluate_gates(gates, last["metrics"])
     return build_certificate(certification_id=cid, gate_results=results,
-                             metrics=last["metrics"], spend_usd=c["spend"])
+                             metrics=last["metrics"], spend_usd=c["spend"],
+                             plan=plan, candidate_model=candidate,
+                             twin_digest=twin.get("digest"),
+                             twin_count=twin.get("count"))

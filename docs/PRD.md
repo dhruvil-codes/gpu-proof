@@ -338,7 +338,7 @@ The MVP is complete when:
 
 **Cut order if time runs short:** (1) drop the second task type, (2) drop parallel experiments, (3) simplify the dashboard to a plain list. **Never cut** the adaptive retry or the real-run evidence.
 
-## 16. Success Criterion
+## 15. Success Criterion
 
 A fully autonomous, budget-safe certification loop runs on real Nebius infrastructure, a failed experiment changes the agent's next experiment, and the result is a trustworthy SHIP / BLOCK decision based on measured evidence.
 

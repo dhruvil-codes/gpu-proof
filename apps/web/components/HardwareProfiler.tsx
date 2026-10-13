@@ -174,7 +174,7 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
                     type="button"
                     onClick={() => selectRam(gb)}
                     aria-pressed={active}
-                    className={`cursor-pointer rounded px-2 py-0.5 font-mono text-[10px] font-bold transition-all ${
+                    className={`gp-chip cursor-pointer rounded px-2 py-0.5 font-mono text-[10px] font-bold transition-[transform,border-color,background-color,color] duration-200 active:scale-[0.97] ${
                       active
                         ? "border border-canvas bg-canvas text-ink"
                         : "border border-canvas/30 text-canvas/80 hover:border-canvas hover:text-canvas"
@@ -209,7 +209,7 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
           onClick={redetect}
           disabled={detecting}
           aria-live="polite"
-          className="inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-full border border-ink bg-ink px-4 py-2 text-xs font-bold text-canvas transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.3)] disabled:opacity-60"
+          className="gp-chip inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-full border border-ink bg-ink px-4 py-2 text-xs font-bold text-canvas transition-[transform,border-color,background-color,box-shadow] duration-200 hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.3)] active:scale-[0.97] disabled:opacity-60"
         >
           <span aria-hidden="true">{detecting ? "⏳" : "🔍"}</span>
           {detecting ? "Detecting…" : detected ? "Re-detect My Machine" : "Auto-Detect My Machine"}
@@ -242,7 +242,7 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
                 type="button"
                 onClick={() => selectRam(gb)}
                 aria-pressed={active}
-                className={`cursor-pointer rounded px-2.5 py-1 font-mono text-[11px] font-bold transition-all ${
+                className={`gp-chip cursor-pointer rounded px-2.5 py-1 font-mono text-[11px] font-bold transition-[transform,border-color,background-color,color,box-shadow] duration-200 active:scale-[0.97] ${
                   active
                     ? "border border-ink bg-ink text-canvas shadow-[2px_2px_0_rgba(31,31,31,0.25)]"
                     : "border border-ink/25 bg-canvas/70 text-ink hover:border-ink hover:bg-canvas"
@@ -269,7 +269,7 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
               setDropdownOpen(false);
             }}
             aria-pressed={isAuto}
-            className={`inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-bold transition-all ${
+            className={`gp-chip inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-bold transition-[transform,border-color,background-color,color,box-shadow] duration-200 active:scale-[0.97] ${
               isAuto
                 ? "border-ink bg-ink text-canvas shadow-[2px_2px_0_rgba(31,31,31,0.25)]"
                 : "border-ink/30 bg-transparent text-ink hover:border-ink"
@@ -283,19 +283,31 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
               onClick={() => setDropdownOpen((v) => !v)}
               aria-expanded={dropdownOpen}
               aria-haspopup="listbox"
-              className={`inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-bold transition-all ${
+              className={`gp-chip inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-bold transition-[transform,border-color,background-color,color,box-shadow] duration-200 active:scale-[0.97] ${
                 !isAuto
                   ? "border-ink bg-ink text-canvas shadow-[2px_2px_0_rgba(31,31,31,0.25)]"
                   : "border-ink/30 bg-transparent text-ink hover:border-ink"
               }`}
             >
-              {isAuto ? "Evaluate a different machine / server ▾" : `Target: ${targetLabel(targetKey, detected)} ▾`}
+              <span>{isAuto ? "Evaluate a different machine / server" : `Target: ${targetLabel(targetKey, detected)}`}</span>
+              <span className="gp-chevron" data-open={dropdownOpen} aria-hidden="true">
+                <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                </svg>
+              </span>
             </button>
-            {dropdownOpen && (
+            <div
+              className={`absolute left-0 z-30 mt-1 w-72 transition-opacity duration-200 ${
+                dropdownOpen ? "visible opacity-100" : "invisible opacity-0"
+              }`}
+            >
+              <div className="gp-accordion" data-open={dropdownOpen}>
+                <div className="gp-accordion-inner">
               <div
                 role="listbox"
                 aria-label="Target hardware"
-                className="absolute left-0 z-30 mt-1 max-h-72 w-72 overflow-y-auto rounded-lg border border-ink bg-canvas p-1 shadow-[4px_4px_0_#1F1F1F]"
+                aria-hidden={!dropdownOpen}
+                className="max-h-72 overflow-y-auto rounded-lg border border-ink bg-canvas p-1 shadow-[4px_4px_0_#1F1F1F]"
               >
                 {HARDWARE_TARGETS.map((t) => {
                   const active = targetKey === t.key;
@@ -335,19 +347,22 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
                       setDropdownOpen(false);
                       setCliOpen((v) => !v);
                     }}
-                    className="w-full cursor-pointer rounded px-2.5 py-1.5 text-left font-mono text-[11px] text-muted hover:bg-ink/5 hover:text-ink"
+                    className="w-full cursor-pointer rounded px-2.5 py-1.5 text-left font-mono text-[11px] text-muted transition-colors duration-200 hover:bg-ink/5 hover:text-ink"
                   >
                     ⌨ Paste `gpuproof detect` output for exact specs →
                   </button>
                 </div>
               </div>
-            )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* CLI bridge collapsible */}
-      {cliOpen && (
+      {/* CLI bridge collapsible — grid-rows accordion, no layout jumps */}
+      <div className="gp-accordion" data-open={cliOpen}>
+        <div className="gp-accordion-inner">
         <div className="mt-3 rounded border border-dashed border-ink/40 bg-canvas/60 p-3">
           <p className="text-[11px] font-bold">Exact specs via terminal probe</p>
           <p className="mt-1 font-mono text-[11px] leading-relaxed text-muted">
@@ -364,7 +379,7 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
             rows={3}
             spellCheck={false}
             placeholder='{"profileKey": "RTX4090", "label": "NVIDIA GeForce RTX 4090 (24GB GDDR6X)", "usableGB": 24, …}'
-            className="mt-2 min-h-[64px] w-full rounded border border-ink/30 bg-transparent p-2 font-mono text-[11px] outline-none focus:border-ink"
+            className="mt-2 min-h-[64px] w-full rounded border border-ink/30 bg-transparent p-2 font-mono text-[11px] outline-none transition-[border-color] duration-200 focus:border-ink"
           />
           {cliError && (
             <p role="alert" className="mt-1 text-[11px] font-bold text-block">
@@ -376,7 +391,7 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
               type="button"
               onClick={applyCli}
               disabled={!cliText.trim()}
-              className="cursor-pointer rounded bg-ink px-3 py-1.5 text-[11px] font-bold text-canvas disabled:opacity-50"
+              className="gp-chip cursor-pointer rounded bg-ink px-3 py-1.5 text-[11px] font-bold text-canvas transition-[transform,opacity] duration-200 active:scale-[0.97] disabled:opacity-50"
             >
               Apply exact profile
             </button>
@@ -386,19 +401,20 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
                 setCliOpen(false);
                 setCliError("");
               }}
-              className="cursor-pointer rounded border border-ink/30 px-3 py-1.5 text-[11px] font-bold hover:border-ink"
+              className="gp-chip cursor-pointer rounded border border-ink/30 px-3 py-1.5 text-[11px] font-bold transition-[transform,border-color] duration-200 hover:border-ink active:scale-[0.97]"
             >
               Cancel
             </button>
           </div>
         </div>
-      )}
+        </div>
+      </div>
 
       {/* Dynamic "Will It Run on MY Current Device?" card */}
       {modelFit && fit && (
         <div
           aria-live="polite"
-          className={`mt-3 rounded-md border p-3 text-xs leading-relaxed ${
+          className={`mt-3 rounded-md border p-3 text-xs leading-relaxed transition-[border-color,background-color] duration-200 ${
             fit.fits ? "border-emerald-700/40 bg-emerald-500/10" : "border-red-700/40 bg-red-500/10"
           }`}
         >

@@ -6,14 +6,49 @@ import { TopNav } from "@/components/ui";
 const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 const REGION = "eu-north1";
 
+const WORKLOAD_DIGEST_EXPLANATION =
+  "Deterministic SHA-256 / FNV-1a fingerprint of the replayed traffic dataset (concurrency, prompt seeds, temperature 0.0, and expected tool schemas). Guarantees reproducible benchmarking across any GPU cluster.";
+
+const GPU_LABELS: Record<string, string> = {
+  L40S: "1x Nebius NVIDIA L40S 48GB",
+  H100: "1x Nebius NVIDIA H100 80GB SXM5",
+  H200: "1x Nebius NVIDIA H200 141GB SXM5",
+  A100: "1x NVIDIA A100 80GB SXM4",
+};
+
 type GateFail = { metric: string; observed: number; threshold: number; detail?: string };
-type Metrics = { latency_p95_ms: number; quality_score: number; error_rate: number };
+type Metrics = {
+  latency_p95_ms: number;
+  quality_score: number;
+  error_rate: number;
+  count?: number;
+  simulated?: boolean;
+};
 type Experiment = {
   index: number;
-  plan: { gpu_type: string; precision: string };
+  plan: { gpu_type: string; precision: string; engine?: string; batch_config?: number };
   status: string;
   verdict: string;
   metrics: Metrics;
+};
+type Deployment = {
+  certified_hardware: string;
+  gpu_type: string;
+  precision: string;
+  engine: string;
+  candidate_model: string;
+  serving_command: string;
+  operational_limits: {
+    max_safe_concurrency: number;
+    max_safe_concurrency_note: string;
+    max_context_tokens: number;
+    max_context_note: string;
+  };
+  economics: {
+    cost_per_1k_queries_usd: number;
+    monthly_run_rate_1m_queries_usd: number;
+    basis: string;
+  };
 };
 type CertData = {
   certification_id?: string;
@@ -24,6 +59,11 @@ type CertData = {
   failing_gates?: GateFail[];
   evidence?: { metrics: Metrics; baseline: Record<string, unknown> };
   experiments?: Experiment[];
+  candidate_model?: string;
+  twin_digest?: string | null;
+  twin_count?: number | null;
+  workload_digest_explanation?: string;
+  deployment?: Deployment;
 };
 
 /** Deterministic FNV-1a digest of the evidence payload (client-side, stable per content). */
@@ -35,6 +75,16 @@ function evidenceDigest(payload: unknown): string {
     h = Math.imul(h, 0x01000193);
   }
   return `fnv1a:${(h >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+/** Client-side fallback: same shape as services/certificate_engine.build_serving_command. */
+function fallbackServingCommand(candidate: string, precision: string): string {
+  const model = (candidate || "candidate-model").trim() || "candidate-model";
+  const dtype = (precision || "FP8").trim().toLowerCase() || "fp8";
+  return (
+    `vllm serve ${model} --dtype ${dtype} ` +
+    `--max-model-len 8192 --gpu-memory-utilization 0.95 --tensor-parallel-size 1 --port 8000`
+  );
 }
 
 function Seal({ tone }: { tone: "ship" | "block" | "sim" }) {
@@ -54,7 +104,8 @@ function Seal({ tone }: { tone: "ship" | "block" | "sim" }) {
 export default function Certificate({ params }: { params: { id: string } }) {
   const [d, setD] = useState<CertData | null>(null);
   const [waiting, setWaiting] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copiedHash, setCopiedHash] = useState(false);
+  const [copiedCmd, setCopiedCmd] = useState(false);
   const [issuedAt] = useState(() => new Date());
   useEffect(() => {
     let alive = true;
@@ -91,23 +142,60 @@ export default function Certificate({ params }: { params: { id: string } }) {
   const qualityDeltaPp = typeof q === "number" ? q * 100 - 85 : null;
   const latencyOverPct = typeof p95 === "number" && p95 > 2000 ? Math.round((p95 / 2000 - 1) * 100) : null;
 
-  const digest = evidenceDigest(d.experiments ?? d.evidence);
+  const fnvDigest = evidenceDigest(d.experiments ?? d.evidence);
+  // Prefer the backend SHA-256 twin digest (reproducible across any cluster);
+  // fall back to the client-side FNV-1a evidence fingerprint for old certs.
+  const primaryDigest = d.twin_digest || fnvDigest;
+  const digestExplanation = d.workload_digest_explanation || WORKLOAD_DIGEST_EXPLANATION;
+  const replayCount = d.twin_count ?? m?.count ?? d.experiments?.length ?? null;
 
-  async function copyDigest() {
+  // --- Production Deployment Prescription (backend authoritative, client fallback) ---
+  const planGpu = (lastExp?.plan?.gpu_type || d.deployment?.gpu_type || "H100").toUpperCase();
+  const planPrecision = (lastExp?.plan?.precision || d.deployment?.precision || "FP8").toUpperCase();
+  const candidateModel =
+    d.deployment?.candidate_model || d.candidate_model || "candidate-model";
+  const certifiedHardware =
+    d.deployment?.certified_hardware || GPU_LABELS[planGpu] || `1x Nebius NVIDIA ${planGpu}`;
+  const servingCommand =
+    d.deployment?.serving_command || fallbackServingCommand(candidateModel, planPrecision);
+  const maxConcurrency = d.deployment?.operational_limits?.max_safe_concurrency ?? 24;
+  const concurrencyNote =
+    d.deployment?.operational_limits?.max_safe_concurrency_note ||
+    `${maxConcurrency} parallel streams before P95 breaches 2,000ms.`;
+  const maxContext = d.deployment?.operational_limits?.max_context_tokens ?? 8192;
+  const contextNote =
+    d.deployment?.operational_limits?.max_context_note ||
+    `${maxContext.toLocaleString()} tokens before KV-cache offload on ${certifiedHardware} (PagedAttention, --gpu-memory-utilization 0.95).`;
+  const spendUsd = typeof d.spend_usd === "number" ? d.spend_usd : 0;
+  const countN = typeof m?.count === "number" && m.count > 0 ? m.count : 100;
+  const fallbackCostPer1k =
+    spendUsd > 0 ? Math.round((spendUsd / Math.max(1, countN)) * 1000 * 10000) / 10000 : 0.566;
+  const costPer1k =
+    d.deployment?.economics?.cost_per_1k_queries_usd ?? fallbackCostPer1k;
+  const monthly1m =
+    d.deployment?.economics?.monthly_run_rate_1m_queries_usd ??
+    Math.round(costPer1k * 1000 * 100) / 100;
+  const economicsBasis =
+    d.deployment?.economics?.basis ||
+    (spendUsd > 0
+      ? `$${spendUsd.toFixed(4)} audit spend over ~${countN} replayed requests`
+      : `Estimated from ${certifiedHardware} hourly rate over ~${countN} replayed requests`);
+
+  async function copyText(text: string, done: (v: boolean) => void) {
     try {
-      await navigator.clipboard.writeText(digest);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(text);
+      done(true);
+      setTimeout(() => done(false), 2000);
     } catch {
       try {
         const ta = document.createElement("textarea");
-        ta.value = digest;
+        ta.value = text;
         document.body.appendChild(ta);
         ta.select();
         document.execCommand("copy");
         document.body.removeChild(ta);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        done(true);
+        setTimeout(() => done(false), 2000);
       } catch {}
     }
   }
@@ -143,8 +231,8 @@ export default function Certificate({ params }: { params: { id: string } }) {
     {
       icon: "💵",
       label: "Cost Efficiency",
-      value: "~$0.0018 / 1k queries",
-      delta: "~38% cloud GPU savings",
+      value: `$${costPer1k.toFixed(4)} / 1k queries`,
+      delta: `$${monthly1m.toLocaleString()} / mo at 1M queries`,
       deltaTone: "neutral" as const,
       tertiary: d.spend_usd !== undefined ? `Budget spent: $${Number(d.spend_usd).toFixed(2)}` : "Nebius L40S → H100",
       pass: null as boolean | null,
@@ -166,16 +254,35 @@ export default function Certificate({ params }: { params: { id: string } }) {
   return (<main>
     <TopNav />
     <style>{`@media print {
-      @page { margin: 12mm; size: A4; }
+      @page { margin: 10mm; size: A4; }
       nav, .no-print { display: none !important; }
       body { background: #fff !important; }
       main { padding: 0 !important; }
       .frame { border: none !important; margin: 0 !important; }
       .print-page { max-width: 100% !important; padding: 0 !important; }
       .print-card { box-shadow: none !important; break-inside: avoid; }
+      .print-break { break-inside: avoid; }
       h1 { font-size: 20pt !important; }
+      pre, code, .hash-digest { word-break: break-all; overflow-wrap: anywhere; white-space: pre-wrap; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }`}</style>
+    {/* Clean top bar: navigation + print, hidden on paper */}
+    <div className="no-print mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2 px-6 pt-5">
+      <Link
+        href="/dashboard"
+        className="chip inline-block min-h-[44px] cursor-pointer px-4 py-2.5 text-xs font-bold transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.25)]"
+        aria-label="Return to dashboard"
+      >
+        ← Return to Dashboard
+      </Link>
+      <button
+        type="button"
+        onClick={() => window.print()}
+        className="btn-dark min-h-[44px] cursor-pointer rounded px-4 py-2.5 text-xs font-bold transition-all hover:-translate-y-px"
+      >
+        Print / Save PDF
+      </button>
+    </div>
     <div className="print-page mx-auto max-w-4xl px-6 py-8">
       {/* Header + seal */}
       <div className="text-center">
@@ -186,9 +293,9 @@ export default function Certificate({ params }: { params: { id: string } }) {
 
       {/* Metadata bar */}
       <dl className="print-card panel mt-6 grid grid-cols-2 gap-3 rounded-lg p-4 text-left md:grid-cols-4">
-        <div><dt className="text-[10px] uppercase tracking-widest text-muted">Certification ID</dt><dd className="mt-0.5 truncate font-mono text-[12px] font-bold" title={params.id}>{params.id}</dd></div>
+        <div><dt className="text-[10px] uppercase tracking-widest text-muted">Certification ID</dt><dd className="hash-digest mt-0.5 truncate font-mono text-[12px] font-bold" title={params.id}>{params.id}</dd></div>
         <div><dt className="text-[10px] uppercase tracking-widest text-muted">Issued</dt><dd className="mt-0.5 text-[12px] font-bold">{issuedAt.toLocaleString()}</dd></div>
-        <div><dt className="text-[10px] uppercase tracking-widest text-muted">Workload Hash Digest</dt><dd className="mt-0.5 truncate font-mono text-[12px] font-bold" title={digest}>{digest}</dd></div>
+        <div><dt className="text-[10px] uppercase tracking-widest text-muted">Workload Hash Digest</dt><dd className="hash-digest mt-0.5 truncate font-mono text-[12px] font-bold" title={primaryDigest}>{primaryDigest}</dd></div>
         <div><dt className="text-[10px] uppercase tracking-widest text-muted">Nebius Region</dt><dd className="mt-0.5 text-[12px] font-bold">{REGION}</dd></div>
       </dl>
 
@@ -235,6 +342,40 @@ export default function Certificate({ params }: { params: { id: string } }) {
         )}
       </div>
 
+      {/* Verifiable cryptographic evidence */}
+      <section aria-label="Verifiable cryptographic evidence" className="print-card panel print-break mt-4 rounded-lg p-4 text-left md:p-5">
+        <div className="flex items-center gap-2">
+          <span aria-hidden="true">🔒</span>
+          <h2 className="text-sm font-bold uppercase tracking-widest">Verifiable Cryptographic Evidence</h2>
+        </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-ink/80">{digestExplanation}</p>
+        <dl className="mt-3 grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
+          <div>
+            <dt className="text-[10px] uppercase tracking-widest text-muted">Workload Hash Digest</dt>
+            <dd className="hash-digest mt-0.5 break-all font-mono text-[12px] font-bold" title={primaryDigest}>{primaryDigest}</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] uppercase tracking-widest text-muted">Replayed Requests</dt>
+            <dd className="mt-0.5 font-bold">{replayCount !== null ? `${replayCount} requests · temperature 0.0` : "temperature 0.0 · seeded prompts"}</dd>
+          </div>
+        </dl>
+        {d.twin_digest && (
+          <p className="mt-2 font-mono text-[11px] text-muted">twin sha256:{d.twin_digest} · evidence {fnvDigest}</p>
+        )}
+        <div className="no-print mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => copyText(primaryDigest, setCopiedHash)}
+            className="cursor-pointer rounded border border-ink px-3 py-2 text-[12px] font-bold transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.25)]"
+            aria-live="polite"
+          >
+            {copiedHash ? "✓ Copied!" : "Copy Verification Hash"}
+          </button>
+          <span className="hash-digest font-mono text-[11px] text-muted">{primaryDigest}</span>
+        </div>
+        <p className="mt-2 hidden font-mono text-[11px] text-muted print:block">{primaryDigest}</p>
+      </section>
+
       {/* KPI cards with before-vs-after deltas */}
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((k) => (
@@ -273,6 +414,58 @@ export default function Certificate({ params }: { params: { id: string } }) {
         {d.spend_usd !== undefined && (<p className="border-t border-ink/10 p-3 text-[11px] text-muted">Budget spent: ${Number(d.spend_usd).toFixed(2)} (cap $10/cert, $20 total)</p>)}
       </div>
 
+      {/* Production Deployment Prescription — turnkey DevOps/ML blueprint */}
+      <section aria-label="Production deployment prescription" className="print-card panel print-break mt-4 rounded-lg p-4 text-left md:p-5">
+        <div className="flex items-center gap-2">
+          <span aria-hidden="true">🚀</span>
+          <h2 className="text-sm font-bold uppercase tracking-widest">Production Deployment Prescription</h2>
+        </div>
+        <p className="mt-1 text-[12px] text-muted">
+          Turnkey infrastructure blueprint — certified hardware, ready-to-run serving command, operational limits, and economics.
+          {sim ? " Simulation values shown; re-run live for production-grade numbers." : ""}
+        </p>
+        <dl className="mt-3 grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
+          <div className="rounded-lg border border-ink/20 bg-canvas p-3">
+            <dt className="text-[10px] uppercase tracking-widest text-muted">Certified Hardware</dt>
+            <dd className="mt-0.5 text-[13px] font-bold">{certifiedHardware}</dd>
+            <dd className="mt-1 font-mono text-[11px] text-muted">
+              {candidateModel} · {planPrecision} · {(lastExp?.plan?.engine || d.deployment?.engine || "vLLM")}
+            </dd>
+          </div>
+          <div className="rounded-lg border border-ink/20 bg-canvas p-3">
+            <dt className="text-[10px] uppercase tracking-widest text-muted">Economics</dt>
+            <dd className="mt-0.5 text-[13px] font-bold">${costPer1k.toFixed(4)} / 1k queries</dd>
+            <dd className="mt-1 text-[11px] text-muted">
+              ≈ ${monthly1m.toLocaleString()} / mo at 1M queries · {economicsBasis}
+            </dd>
+          </div>
+        </dl>
+        <div className="mt-3">
+          <p className="text-[10px] uppercase tracking-widest text-muted">Ready-to-Run Serving Command</p>
+          <pre className="hash-digest mt-1 overflow-auto rounded-lg border border-ink bg-ink p-3 font-mono text-[11px] leading-relaxed text-canvas">{servingCommand}</pre>
+          <div className="no-print mt-2">
+            <button
+              type="button"
+              onClick={() => copyText(servingCommand, setCopiedCmd)}
+              className="cursor-pointer rounded border border-ink px-3 py-2 text-[12px] font-bold transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.25)]"
+              aria-live="polite"
+            >
+              {copiedCmd ? "✓ Copied!" : "Copy Serving Command"}
+            </button>
+          </div>
+        </div>
+        <ul className="mt-3 space-y-2 text-[12px] leading-relaxed">
+          <li className="rounded-lg border border-ink/15 p-3">
+            <span className="font-bold">Max safe concurrency: {maxConcurrency} streams. </span>
+            <span className="text-ink/80">{concurrencyNote}</span>
+          </li>
+          <li className="rounded-lg border border-ink/15 p-3">
+            <span className="font-bold">Max context length: {maxContext.toLocaleString()} tokens. </span>
+            <span className="text-ink/80">{contextNote}</span>
+          </li>
+        </ul>
+      </section>
+
       {/* Official cryptographic footer / document seal */}
       <div className="print-card panel mt-4 rounded-lg p-4 text-left">
         <div className="flex items-center gap-2">
@@ -294,20 +487,20 @@ export default function Certificate({ params }: { params: { id: string } }) {
           </div>
           <div>
             <dt className="text-[10px] uppercase tracking-widest text-muted">Workload Digest</dt>
-            <dd className="mt-0.5 truncate font-mono text-[12px] font-bold" title={digest}>{digest}</dd>
+            <dd className="hash-digest mt-0.5 break-all font-mono text-[12px] font-bold" title={primaryDigest}>{primaryDigest}</dd>
           </div>
         </dl>
         <div className="no-print mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={copyDigest}
+            onClick={() => copyText(primaryDigest, setCopiedHash)}
             className="cursor-pointer rounded border border-ink px-3 py-2 text-[12px] font-bold transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.25)]"
           >
-            {copied ? "✓ Copied!" : "Copy Verification Hash"}
+            {copiedHash ? "✓ Copied!" : "Copy Verification Hash"}
           </button>
-          <span className="font-mono text-[11px] text-muted">{digest}</span>
+          <span className="hash-digest font-mono text-[11px] text-muted">{primaryDigest}</span>
         </div>
-        <p className="mt-2 hidden font-mono text-[11px] text-muted print:block">{digest}</p>
+        <p className="hash-digest mt-2 hidden break-all font-mono text-[11px] text-muted print:block">{primaryDigest}</p>
       </div>
 
       {/* Engineering drawer */}

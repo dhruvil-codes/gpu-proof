@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SiteFooter, StatusPill, TopNav } from "@/components/ui";
-import { ModelAdvisorFab } from "@/components/ModelAdvisorDrawer";
 import HardwareProfiler from "@/components/HardwareProfiler";
 
 const PRESETS = [
@@ -43,7 +42,7 @@ function PresetPicker() {
   }
 
   return (
-    <form onSubmit={go} className="mx-auto mt-8 max-w-2xl rounded-xl bg-ink p-4 text-left text-canvas sm:p-6 shadow-[6px_6px_0_rgba(31,31,31,0.25)]">
+    <form onSubmit={go} className="mx-auto mt-5 max-w-2xl rounded-xl bg-ink p-4 text-left text-canvas sm:p-6 shadow-[6px_6px_0_rgba(31,31,31,0.25)]">
       <div className="flex items-center justify-between">
         <p className="text-[11px] uppercase tracking-widest text-canvas/70 font-bold">Pick a candidate model — 1 click to audit</p>
         <span className="text-[11px] text-canvas/50">Auto-fills setup</span>
@@ -153,7 +152,7 @@ function LiveSimulationTerminal() {
   }, [running, index]);
 
   return (
-    <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-xl border border-ink bg-[#141414] text-left text-canvas shadow-[8px_8px_0_#1F1F1F]">
+    <div className="mx-auto mt-5 max-w-4xl overflow-hidden rounded-xl border border-ink bg-[#141414] text-left text-canvas shadow-[8px_8px_0_#1F1F1F]">
       <div className="flex flex-wrap items-center justify-between border-b border-canvas/20 bg-ink px-4 py-2.5 text-xs">
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-full bg-red-500/80" />
@@ -234,11 +233,11 @@ const FAQS = [
 function FaqSection() {
   const [open, setOpen] = useState<number | null>(0);
   return (
-    <section id="faq" aria-label="Frequently Asked Questions" className="border-t border-ink px-6 py-14">
+    <section id="faq" aria-label="Frequently Asked Questions" className="border-t border-ink px-6 py-8 lg:py-12">
       <div className="mx-auto max-w-3xl">
         <p className="text-center text-[11px] uppercase tracking-widest text-muted font-bold">Frequently Asked Questions</p>
         <h2 className="mx-auto mt-2 text-center text-2xl tracking-tight md:text-3xl">Everything you need to know about hardware certification</h2>
-        <div className="mt-8 space-y-3">
+        <div className="mt-5 space-y-3">
           {FAQS.map((f, i) => {
             const isOpen = open === i;
             return (
@@ -428,9 +427,9 @@ export default function Home() {
       <TopNav />
 
       {/* Hero — Editorial Split 2-Column (Titan reference) */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 border-b border-ink/20 min-h-[580px]">
+      <section className="grid grid-cols-1 lg:grid-cols-2 border-b border-ink/20 lg:min-h-[480px]">
         {/* Left Column */}
-        <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-ink/20 text-left">
+        <div className="p-6 lg:p-8 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-ink/20 text-left">
           <Link href="/#how-it-works" className="inline-flex items-center gap-2 group w-fit">
             <span className="rounded-full bg-amber-500/15 border border-amber-600/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
               NEW
@@ -440,13 +439,13 @@ export default function Home() {
             </span>
           </Link>
 
-          <div className="my-8">
+          <div className="my-5">
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] text-ink">
               Make your model<br />
               prove it on<br />
               real hardware.
             </h1>
-            <div className="mt-8 flex flex-wrap items-center gap-6">
+            <div className="mt-5 flex flex-wrap items-center gap-6">
               <Link
                 href="/new"
                 className="rounded-full bg-ink px-8 py-3.5 text-xs font-bold uppercase tracking-widest text-canvas shadow-[3px_3px_0_rgba(31,31,31,0.25)] transition-all hover:bg-black hover:-translate-y-px active:translate-y-0"
@@ -478,11 +477,11 @@ export default function Home() {
         </div>
 
         {/* Right Column */}
-        <div className="p-8 sm:p-12 lg:p-16 flex flex-col justify-between text-left bg-canvas gap-10">
+        <div className="p-6 lg:p-8 flex flex-col justify-between text-left bg-canvas gap-6">
           <div className="flex-1 flex items-center">
             <DatacenterEngraving />
           </div>
-          <div className="pt-8 border-t border-ink/20">
+          <div className="pt-5 border-t border-ink/20">
             <div className="grid grid-cols-3 gap-6">
               <div>
                 <p className="text-[11px] text-muted uppercase tracking-wider">Average GPU Cost Cut</p>
@@ -497,7 +496,7 @@ export default function Home() {
                 <p className="mt-1 text-3xl sm:text-4xl font-extrabold tracking-tight text-ink">100%</p>
               </div>
             </div>
-            <div className="mt-6 flex items-center gap-1.5 text-[11px] text-muted">
+            <div className="mt-4 flex items-center gap-1.5 text-[11px] text-muted">
               <span>ⓘ</span>
               <Link href="/docs" className="underline hover:text-ink">See SLA Policy &amp; Gate Disclosures</Link>
             </div>
@@ -506,7 +505,7 @@ export default function Home() {
       </section>
 
       {/* Live Interactive Telemetry Showcase */}
-      <section id="live-preview" aria-label="Live Benchmarking Simulation" className="px-6 py-12 text-center bg-canvas">
+      <section id="live-preview" aria-label="Live Benchmarking Simulation" className="px-6 py-8 text-center bg-canvas">
         <p className="text-[11px] uppercase tracking-widest text-muted font-bold">Interactive Telemetry Preview</p>
         <h2 className="mx-auto mt-2 max-w-xl text-2xl tracking-tight md:text-3xl">Watch Autonomous Cloud GPU Adaptation</h2>
         <p className="mx-auto mt-2 max-w-2xl text-[12px] text-muted">
@@ -516,10 +515,10 @@ export default function Home() {
       </section>
 
       {/* The 3 Production Failure Modes */}
-      <section id="dilemma" aria-label="The 3 critical questions every AI team faces" className="border-t border-ink px-6 py-14">
+      <section id="dilemma" aria-label="The 3 critical questions every AI team faces" className="border-t border-ink px-6 py-8 lg:py-12">
         <p className="text-center text-[11px] uppercase tracking-widest text-muted font-bold">The Production Dilemma</p>
         <h2 className="mx-auto mt-2 max-w-xl text-center text-2xl tracking-tight md:text-3xl">The 3 Critical Questions Every AI Team Faces</h2>
-        <div className="mx-auto mt-8 grid max-w-4xl gap-5 text-left md:grid-cols-3">
+        <div className="mx-auto mt-5 grid max-w-4xl gap-5 text-left md:grid-cols-3">
           <article className="panel flex flex-col rounded-lg p-5 transition-all hover:shadow-[5px_5px_0_#1F1F1F] border border-ink">
             <span aria-hidden="true" className="text-2xl">💾</span>
             <h3 className="mt-3 text-sm font-bold leading-snug">Hardware &amp; VRAM Compatibility</h3>
@@ -554,13 +553,13 @@ export default function Home() {
       </section>
 
       {/* How it works: 3-Step Connected Pipeline */}
-      <section id="how-it-works" aria-label="How GPUProof works" className="scroll-mt-16 border-t border-ink px-6 py-14">
+      <section id="how-it-works" aria-label="How GPUProof works" className="scroll-mt-16 border-t border-ink px-6 py-8 lg:py-12">
         <p className="text-center text-[11px] uppercase tracking-widest text-muted font-bold">How It Works</p>
         <h2 className="mx-auto mt-2 max-w-2xl text-center text-2xl tracking-tight md:text-3xl">How It Works: Three Steps From Guesswork To Proof</h2>
         <p className="mx-auto mt-3 max-w-xl text-center font-mono text-[12px] leading-relaxed text-muted">
           Follow the data left → right: twin it, stress it, certify it.
         </p>
-        <div className="relative mx-auto mt-10 max-w-5xl">
+        <div className="relative mx-auto mt-6 max-w-5xl">
           {/* Dotted pipeline connector — desktop data-flow line */}
           <div aria-hidden="true" className="pointer-events-none absolute left-[18%] right-[18%] top-[26px] hidden md:block">
             <div className="border-t-2 border-dotted border-ink/30" />
@@ -644,7 +643,7 @@ export default function Home() {
       </section>
 
       {/* Interactive Candidate Model Selection */}
-      <section id="candidate-picker" aria-label="Test it yourself" className="grid-cells scroll-mt-16 border-t border-ink px-6 py-14 text-center">
+      <section id="candidate-picker" aria-label="Test it yourself" className="grid-cells scroll-mt-16 border-t border-ink px-6 py-8 lg:py-12 text-center">
         <p className="text-[11px] uppercase tracking-widest text-muted font-bold">Interactive Hardware Audit</p>
         <h2 className="mx-auto max-w-xl text-2xl tracking-tight md:text-3xl">Certify a Candidate Model Right Now</h2>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted">
@@ -659,11 +658,11 @@ export default function Home() {
       </section>
 
       {/* Engineering Testimonials / Case Studies */}
-      <section aria-label="Engineering quotes" className="border-t border-ink bg-canvas px-6 py-14">
+      <section aria-label="Engineering quotes" className="border-t border-ink bg-canvas px-6 py-8 lg:py-12">
         <div className="mx-auto max-w-4xl text-center">
           <p className="text-[11px] uppercase tracking-widest text-muted font-bold">Field Evidence</p>
           <h2 className="mt-2 text-2xl tracking-tight md:text-3xl">Why AI Engineering Teams Require Proof</h2>
-          <div className="mt-8 grid gap-4 text-left sm:grid-cols-2">
+          <div className="mt-5 grid gap-4 text-left sm:grid-cols-2">
             <div className="panel rounded-lg p-5 border border-ink shadow-[4px_4px_0_#1F1F1F]">
               <p className="text-[12px] leading-relaxed italic text-ink/90">
                 &ldquo;We cut our H100 cluster expenditure by 38% by migrating our agent router to Nemotron Nano 30B after GPUProof certified zero JSON schema regression. No guesswork.&rdquo;
@@ -690,7 +689,7 @@ export default function Home() {
       <FaqSection />
 
       {/* Final Dramatic CTA */}
-      <section aria-label="Final call to action" className="border-t border-ink bg-ink px-6 py-16 text-center text-canvas">
+      <section aria-label="Final call to action" className="border-t border-ink bg-ink px-6 py-10 lg:py-12 text-center text-canvas">
         <div className="mx-auto max-w-3xl">
           <p className="text-[11px] uppercase tracking-widest text-canvas/60 font-bold">Deterministic CI/CD for AI Models</p>
           <h2 className="mt-3 text-3xl font-extrabold tracking-tight md:text-5xl">
@@ -717,7 +716,6 @@ export default function Home() {
       </section>
 
       <SiteFooter />
-      <ModelAdvisorFab />
     </main>
   );
 }

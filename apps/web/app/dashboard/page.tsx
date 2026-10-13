@@ -108,7 +108,7 @@ export default function Dashboard() {
 
   return (<main>
     <TopNav />
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto w-full max-w-[1280px] px-4 py-5 lg:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl tracking-tight">Certification Portfolio</h1>
@@ -118,27 +118,27 @@ export default function Dashboard() {
       </div>
 
       {/* Executive stats bar */}
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="panel rounded-lg p-4">
+      <div className="mt-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        <div className="panel rounded-lg p-3.5">
           <p className="text-[10px] uppercase tracking-widest text-muted">Total Certifications Run</p>
-          <p className="mt-1 text-3xl font-bold tracking-tight">{total}</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight">{total}</p>
         </div>
-        <div className="panel rounded-lg border-l-4 border-l-ship p-4">
+        <div className="panel rounded-lg border-l-4 border-l-ship p-3.5">
           <p className="text-[10px] uppercase tracking-widest text-muted">Production Approved (SHIP)</p>
-          <p className="mt-1 text-3xl font-bold tracking-tight text-ship">{ship}</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-ship">{ship}</p>
         </div>
-        <div className="panel rounded-lg border-l-4 border-l-block p-4">
+        <div className="panel rounded-lg border-l-4 border-l-block p-3.5">
           <p className="text-[10px] uppercase tracking-widest text-muted">Production Blocked (BLOCK)</p>
-          <p className="mt-1 text-3xl font-bold tracking-tight text-block">{blocked}</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-block">{blocked}</p>
         </div>
-        <div className="panel rounded-lg p-4">
+        <div className="panel rounded-lg p-3.5">
           <p className="text-[10px] uppercase tracking-widest text-muted">Total Spend Guardrail</p>
           <div className="mt-1"><BudgetMeter spend={cap.spend} cap={cap.cap} /></div>
         </div>
       </div>
 
       {/* Filter tabs */}
-      <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Filter certifications by status">
+      <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filter certifications by status">
         {tabs.map((t) => {
           const active = filter === t.id;
           return (
@@ -157,17 +157,17 @@ export default function Dashboard() {
 
       <p className="mt-3 text-xs text-muted">Simulator runs are labelled SIMULATED and can never mint certificates.</p>
 
-      {/* Cards */}
-      <div className="mt-4 grid gap-3">
+      {/* Cards — dense 2-column grid on desktop, stacked on mobile */}
+      <div className="mt-3 grid gap-2.5 lg:grid-cols-2">
         {items.length === 0 && (
-          <div className="panel rounded-lg p-8 text-center">
+          <div className="panel rounded-lg p-6 text-center lg:col-span-2">
             <p className="text-lg font-bold tracking-tight">No certifications yet — run your first audit in one click.</p>
             <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted">Pick a scenario template (cost, latency, or accuracy), and GPUProof will stress-test the candidate model on Nebius GPUs and issue a SHIP / BLOCK certificate.</p>
             <Link href="/new" className="btn-dark mt-4 inline-block min-h-[44px] cursor-pointer rounded px-6 py-3 text-sm font-bold transition-colors">Run Your First Certification →</Link>
           </div>
         )}
         {items.length > 0 && visible.length === 0 && (
-          <div className="panel rounded-lg p-6 text-center text-sm text-muted">No certifications match this filter yet.</div>
+          <div className="panel rounded-lg p-6 text-center text-sm text-muted lg:col-span-2">No certifications match this filter yet.</div>
         )}
         {visible.map((c) => {
           const det = details[c.id] ?? {};

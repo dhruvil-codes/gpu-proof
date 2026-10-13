@@ -84,6 +84,61 @@ GPU_CATALOG: dict[str, dict] = {
     },
 }
 
+# ---------------------------------------------------------------------------
+# Breakscale workload stress calibration — real-world stress testing presets.
+# Philosophy: "Load a system until it breaks, and watch why."
+# ---------------------------------------------------------------------------
+
+# Allowed stepper/slider stops for concurrency (parallel streams) and
+# context window (tokens). UI sliders snap to these indices.
+CONCURRENCY_STEPS: list[int] = [1, 4, 8, 16, 24, 32]
+
+# Core Breakscale context stops. 2048 is included so the Smoke Test preset
+# (8 streams · 2K context) lands exactly on a stop; the five required stops
+# from the spec (1024 / 4096 / 8192 / 16384 / 32768) are all present.
+CONTEXT_STEPS: list[int] = [1024, 2048, 4096, 8192, 16384, 32768]
+
+# One-click testing presets: streams × context × budget cap (+ replay count).
+STRESS_PRESETS: dict[str, dict] = {
+    "smoke": {
+        "id": "smoke",
+        "label": "Smoke Test",
+        "description": "Quick cold-start and sanity test.",
+        "concurrency": 8,
+        "context_len": 2048,
+        "budget_usd": 0.50,
+        "requests": 50,
+    },
+    "production": {
+        "id": "production",
+        "label": "Production SLA Gate",
+        "description": "Recommended standard.",
+        "concurrency": 16,
+        "context_len": 4096,
+        "budget_usd": 2.50,
+        "requests": 200,
+    },
+    "soak": {
+        "id": "soak",
+        "label": "Breakscale Soak Test",
+        "description": "Stress to failure limit.",
+        "concurrency": 32,
+        "context_len": 8192,
+        "budget_usd": 8.00,
+        "requests": 500,
+    },
+}
+
+# Runtime overhead (CUDA context + PagedAttention block tables) in GB.
+RUNTIME_OVERHEAD_GB: float = 2.0
+
+# Only ~95% of advertised VRAM is safely allocatable before CUDA OOM
+# (fragmentation + allocator reserve). Totals above vram * this fraction OOM.
+USABLE_VRAM_FRACTION: float = 0.95
+
+# GPUs surfaced in the stress saturation panel (L40S entry → H100 flagship).
+STRESS_TARGET_GPUS: list[str] = ["L40S", "H100", "A100", "H200"]
+
 # Real-world production & lab model catalog
 MODEL_CATALOG: dict[str, dict] = {
     # The Big Five
@@ -335,6 +390,134 @@ def kv_cache_gb(layers: int, hidden: int, seq_len: int, batch: int, precision: s
     return round(2 * layers * hidden * seq_len * batch / 1e9 * b, 2)
 
 
+def snap_to_step(value: int, steps: list[int]) -> int:
+    """Snap an arbitrary value to the nearest allowed stress step."""
+    if not steps:
+        return value
+    return min(steps, key=lambda s: (abs(s - value), steps.index(s)))
+
+
+def calibrate_stress(
+    layers: int,
+    hidden: int,
+    params_b: float,
+    precision: str = "BF16",
+    concurrency: int = 16,
+    context_len: int = 4096,
+    target_gpu: str | None = "H100",
+) -> dict:
+    """Real-time KV-cache & VRAM failure calculation for a stress point.
+
+    Formula: KV = 2 * layers * hidden_size * context_len * batch * precision_bytes / 1e9
+    Total  = weights + KV + RUNTIME_OVERHEAD_GB.
+    Saturation = total / vram_gb; OOM when total > vram * USABLE_VRAM_FRACTION.
+
+    Returns weights/kv/total plus a per-GPU saturation map and a target-GPU
+    verdict so the UI can warn *before* the user burns budget on a doomed run.
+    """
+    concurrency = int(concurrency or 16)
+    context_len = int(context_len or 4096)
+    precision = (precision or "BF16").upper()
+    if precision not in BYTES_PER_PARAM:
+        precision = "BF16"
+
+    weights = weights_gb(float(params_b), precision)
+    kv = kv_cache_gb(int(layers), int(hidden), context_len, concurrency, precision)
+    total = round(weights + kv + RUNTIME_OVERHEAD_GB, 2)
+
+    saturation: dict[str, dict] = {}
+    for gkey in STRESS_TARGET_GPUS:
+        ginfo = GPU_CATALOG.get(gkey)
+        if not ginfo:
+            continue
+        vram = float(ginfo["vram_gb"])
+        usable = round(vram * USABLE_VRAM_FRACTION, 2)
+        pct = round(total / vram * 100.0, 1) if vram else 0.0
+        oom = total > usable
+        headroom = round(usable - total, 2)
+        saturation[gkey] = {
+            "gpu_key": gkey,
+            "label": ginfo["label"],
+            "vram_gb": vram,
+            "usable_gb": usable,
+            "saturation_pct": pct,
+            "headroom_gb": headroom,
+            "oom": oom,
+            "status": "OOM" if oom else ("TIGHT" if pct >= 85.0 else "FITS"),
+        }
+
+    target_key = (target_gpu or "H100").upper()
+    # Resolve common aliases ("h100 80gb", "L40S 48GB") to catalog keys.
+    resolved_target = detect_gpu(target_key) or target_key
+    if resolved_target not in GPU_CATALOG:
+        resolved_target = "H100" if "H100" in GPU_CATALOG else STRESS_TARGET_GPUS[0]
+    entry = saturation.get(resolved_target, {})
+    oom = bool(entry.get("oom", False))
+
+    if oom:
+        verdict = (
+            f"CUDA OOM on {resolved_target}: ~{total}GB needed vs "
+            f"~{entry.get('usable_gb', 0)}GB usable "
+            f"({entry.get('saturation_pct', 0)}% of {entry.get('vram_gb', 0)}GB). "
+            f"Reduce concurrency/context or escalate tier before running."
+        )
+    elif (entry.get("saturation_pct", 0) or 0) >= 85.0:
+        verdict = (
+            f"TIGHT on {resolved_target}: ~{total}GB (~{entry.get('saturation_pct', 0)}% "
+            f"of {entry.get('vram_gb', 0)}GB). Expect fragmentation risk at peak batch."
+        )
+    else:
+        verdict = (
+            f"FITS on {resolved_target}: ~{total}GB (~{entry.get('saturation_pct', 0)}% "
+            f"of {entry.get('vram_gb', 0)}GB, {entry.get('headroom_gb', 0)}GB headroom)."
+        )
+
+    return {
+        "formula": "2 * layers * hidden_size * context_len * batch_size * precision_bytes / 1e9",
+        "layers": int(layers),
+        "hidden": int(hidden),
+        "params_b": float(params_b),
+        "precision": precision,
+        "precision_bytes": BYTES_PER_PARAM.get(precision, 2.0),
+        "concurrency": concurrency,
+        "context_len": context_len,
+        "weights_gb": weights,
+        "kv_cache_gb": kv,
+        "overhead_gb": RUNTIME_OVERHEAD_GB,
+        "total_gb": total,
+        "target_gpu": resolved_target,
+        "oom": oom,
+        "verdict": verdict,
+        "saturation": saturation,
+    }
+
+
+def stress_fit_for_model(
+    model_query: str,
+    concurrency: int = 16,
+    context_len: int = 4096,
+    precision: str = "BF16",
+    target_gpu: str | None = "H100",
+) -> dict:
+    """Resolve any model query then calibrate its stress point."""
+    info = get_model_info(detect_model(model_query))
+    cal = calibrate_stress(
+        layers=int(info["layers"]),
+        hidden=int(info["hidden"]),
+        params_b=float(info["params_b"]),
+        precision=detect_precision(precision or model_query),
+        concurrency=concurrency,
+        context_len=context_len,
+        target_gpu=target_gpu,
+    )
+    return {
+        "model_slug": info["slug"],
+        "display_name": info["display"],
+        "params_b": float(info["params_b"]),
+        **cal,
+    }
+
+
 def fetch_hf_metadata(repo_id: str) -> dict | None:
     """Fetch live metadata from Hugging Face Hub public API. Zero auth required for public models."""
     if not repo_id or "/" not in repo_id:
@@ -448,14 +631,34 @@ def cheapest_gpu_for(total_gb: float, cloud_only: bool = True) -> str | None:
     return items[0][0]
 
 
-def inspect_model_fit(model_query: str, seq_len: int = 4096) -> dict:
-    """Full hardware compatibility evaluation for ANY model, mapping to real lab/business deployments."""
+def inspect_model_fit(
+    model_query: str,
+    seq_len: int = 4096,
+    concurrency: int = 16,
+    context_len: int | None = None,
+    precision: str = "BF16",
+    target_gpu: str | None = "H100",
+) -> dict:
+    """Full hardware compatibility evaluation for ANY model, mapping to real lab/business deployments.
+
+    Breakscale extension: `concurrency` (parallel streams) + `context_len`
+    (tokens) drive a live stress calibration (KV formula + VRAM saturation
+    vs L40S/H100) returned as `stress`. `seq_len` is kept as a legacy alias
+    for `context_len` so old callers keep working.
+    """
     clean_id = extract_hf_repo_id(model_query) or model_query
     info = get_model_info(clean_id)
     params_b = float(info["params_b"])
     layers = int(info["layers"])
     hidden = int(info["hidden"])
     license_type = info.get("license", "Open Weights")
+    # Resolve the effective stress point (new args win, legacy seq_len falls back).
+    eff_context = int(context_len) if context_len else int(seq_len or 4096)
+    eff_concurrency = int(concurrency or 16)
+    eff_precision = (precision or "BF16").upper()
+    if eff_precision not in BYTES_PER_PARAM:
+        eff_precision = "BF16"
+    eff_target = (target_gpu or "H100")
 
     w_fp16 = weights_gb(params_b, "FP16")
     w_fp8 = weights_gb(params_b, "FP8")
@@ -536,6 +739,17 @@ def inspect_model_fit(model_query: str, seq_len: int = 4096) -> dict:
         "commercial_license": license_type,
     }
 
+    # Breakscale live stress calibration at the requested operating point.
+    stress = calibrate_stress(
+        layers=layers,
+        hidden=hidden,
+        params_b=params_b,
+        precision=eff_precision,
+        concurrency=eff_concurrency,
+        context_len=eff_context,
+        target_gpu=eff_target,
+    )
+
     return {
         "model_slug": info["slug"],
         "display_name": info["display"],
@@ -560,25 +774,45 @@ def inspect_model_fit(model_query: str, seq_len: int = 4096) -> dict:
         "recommended_cloud_price": cloud_rec["usd_hr"],
         "deploy_stack": deploy_stack,
         "is_live_hf": info.get("is_live_hf", False),
+        # Breakscale stress calibration payload (backwards-compatible addition).
+        "stress": stress,
+        "stress_presets": STRESS_PRESETS,
+        "concurrency_steps": CONCURRENCY_STEPS,
+        "context_steps": CONTEXT_STEPS,
     }
 
 
-def advise(query: str, current_gpu: str | None = None, seq_len: int = 4096) -> dict:
-    """Deterministic sizing answer mapping models to local Mac/PC setups vs Nebius Cloud."""
+def advise(
+    query: str,
+    current_gpu: str | None = None,
+    seq_len: int = 4096,
+    concurrency: int = 16,
+    context_len: int | None = None,
+    target_gpu: str | None = None,
+) -> dict:
+    """Deterministic sizing answer mapping models to local Mac/PC setups vs Nebius Cloud.
+
+    Breakscale extension: `concurrency` + `context_len` (fallback `seq_len`)
+    calibrate the same KV/VRAM stress point returned as `stress`, so callers
+    can warn about CUDA OOM before spending budget.
+    """
     query = (query or "").strip() or "Can I run this model on my GPU?"
     clean_slug = extract_hf_repo_id(query)
     key = detect_model(query)
     info = get_model_info(key)
     precision = detect_precision(query)
     gpu = detect_gpu(query) or detect_gpu(current_gpu)
+    eff_context = int(context_len) if context_len else int(seq_len or 4096)
+    eff_concurrency = int(concurrency or 16)
+    eff_target = target_gpu or gpu or "H100"
 
     params_b = float(info["params_b"])
     layers = int(info["layers"])
     hidden = int(info["hidden"])
     license_type = info.get("license", "Open Weights")
     w = weights_gb(params_b, precision)
-    kv1 = kv_cache_gb(layers, hidden, seq_len, 1, precision)
-    kv16 = kv_cache_gb(layers, hidden, seq_len, 16, precision)
+    kv1 = kv_cache_gb(layers, hidden, eff_context, 1, precision)
+    kv16 = kv_cache_gb(layers, hidden, eff_context, eff_concurrency, precision)
     overhead = 2.0
     total1 = round(w + kv1 + overhead, 2)
     total16 = round(w + kv16 + overhead, 2)
@@ -611,11 +845,11 @@ def advise(query: str, current_gpu: str | None = None, seq_len: int = 4096) -> d
         g = GPU_CATALOG[gpu]
         verdict = (f"On {g['label']}: single-request needs ~{total1}GB "
                    f"({'FITS' if fits_single else 'OOM RISK'} vs {g['vram_gb']}GB) · "
-                   f"16-way concurrency needs ~{total16}GB "
+                   f"{eff_concurrency}-way concurrency needs ~{total16}GB "
                    f"({'FITS' if fits_conc else 'OOM — escalate tier'}).")
     else:
-        verdict = (f"Single-request needs ~{total1}GB; 16-way concurrency needs ~{total16}GB "
-                   f"(weights FP8/BF16 + KV cache @ seq {seq_len} + 2GB runtime).")
+        verdict = (f"Single-request needs ~{total1}GB; {eff_concurrency}-way concurrency needs ~{total16}GB "
+                   f"(weights FP8/BF16 + KV cache @ seq {eff_context} + 2GB runtime).")
 
     rec = cheapest_conc or cheapest_single or "H200"
     rec_label = GPU_CATALOG[rec]["label"]
@@ -631,20 +865,30 @@ def advise(query: str, current_gpu: str | None = None, seq_len: int = 4096) -> d
         local_note = "💻 **Local Hardware:** Heavyweight scale requires **Apple Mac Studio 192GB** or **multi-node Nebius Cloud clusters**."
 
     answer = (
-        f"**{info['display']}** ({params_b:g}B params · {license_type}) · @ {precision} · seq {seq_len}\n\n"
+        f"**{info['display']}** ({params_b:g}B params · {license_type}) · @ {precision} · seq {eff_context}\n\n"
         f"**1. Parameter memory (weights):** {params_b:g}B × {BYTES_PER_PARAM.get(precision, 2.0):g} bytes "
         f"= **~{w}GB**.\n"
-        f"**2. KV cache growth (PagedAttention):** `2 × {layers} layers × {hidden} hidden × {seq_len} tokens "
+        f"**2. KV cache growth (PagedAttention):** `2 × {layers} layers × {hidden} hidden × {eff_context} tokens "
         f"× batch × {BYTES_PER_PARAM.get(precision, 2.0):g}B / 1e9` → **~{kv1}GB @ batch 1**, "
-        f"**~{kv16}GB @ batch 16** (concurrency is what OOMs, not weights).\n"
+        f"**~{kv16}GB @ batch {eff_concurrency}** (concurrency is what OOMs, not weights).\n"
         f"**3. Runtime overhead:** ~{overhead}GB (CUDA context + block tables) → "
-        f"**total ~{total1}GB (batch 1) / ~{total16}GB (batch 16)**.\n\n"
+        f"**total ~{total1}GB (batch 1) / ~{total16}GB (batch {eff_concurrency})**.\n\n"
         f"**Verdict:** {verdict}\n"
         f"{local_note}\n"
         f"**Recommended Cloud GPU:** {rec_label} "
-        f"(${GPU_CATALOG[rec]['usd_hr']:.2f}/hr — cheapest tier fitting batch-16 via vLLM/SGLang).\n"
+        f"(${GPU_CATALOG[rec]['usd_hr']:.2f}/hr — cheapest tier fitting batch-{eff_concurrency} via vLLM/SGLang).\n"
         f"**Commercial License:** {license_type}\n"
         f"**Structured JSON / tool calls:** {tool_note}"
+    )
+
+    stress = calibrate_stress(
+        layers=layers,
+        hidden=hidden,
+        params_b=params_b,
+        precision=precision,
+        concurrency=eff_concurrency,
+        context_len=eff_context,
+        target_gpu=eff_target,
     )
 
     return {
@@ -664,4 +908,7 @@ def advise(query: str, current_gpu: str | None = None, seq_len: int = 4096) -> d
         "fits_concurrent": fits_conc if gpu else None,
         "source": "deterministic",
         "cta": f"/new?candidate_model={info['slug']}",
+        "stress": stress,
+        "concurrency": eff_concurrency,
+        "context_len": eff_context,
     }

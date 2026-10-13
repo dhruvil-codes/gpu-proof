@@ -5,12 +5,24 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get("query") || searchParams.get("model") || "";
+  const concurrency = searchParams.get("concurrency") || "16";
+  const context_len =
+    searchParams.get("context_len") || searchParams.get("seq_len") || "4096";
+  const precision = searchParams.get("precision") || "BF16";
+  const target_gpu = searchParams.get("target_gpu") || "H100";
   const base = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 6000);
-    const upstream = await fetch(`${base}/models/inspect?query=${encodeURIComponent(query)}`, {
+    const params = new URLSearchParams({
+      query,
+      concurrency,
+      context_len,
+      precision,
+      target_gpu,
+    });
+    const upstream = await fetch(`${base}/models/inspect?${params.toString()}`, {
       signal: ctrl.signal,
     });
     clearTimeout(timer);

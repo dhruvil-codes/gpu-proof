@@ -13,3 +13,126 @@ body { background: #EFEBE4; }
 .btn-dark:hover { background: #000; }
 .chip { border: 1px solid #1F1F1F; border-radius: 999px; }
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #1F1F1F; outline-offset: 2px; }
+
+/* ————————————————————————————————————————————————
+   GPUProof purposeful motion system
+   Inspired by transitions.dev principles (state-change driven,
+   no copied visual styles): every animation maps to a system
+   state change — expand, morph, stream.
+   Easing: cubic-bezier(0.16, 1, 0.3, 1) for buttery motion.
+   ———————————————————————————————————————————————— */
+:root {
+  --gp-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --gp-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 1. Accordion & expansion — grid-rows 0fr -> 1fr, no layout jumps */
+.gp-accordion {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 380ms var(--gp-ease);
+}
+.gp-accordion[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.gp-accordion-inner {
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Smooth rotating chevron (200ms) — pair with data-open on trigger */
+.gp-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 200ms var(--gp-ease);
+  transform-origin: center;
+  flex-shrink: 0;
+}
+.gp-chevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+/* ▶ glyph variant rotates 90deg into ▼ */
+.gp-chevron-right[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+/* 2. State morphing — stepper cards fluidly transition Pending/Running/Done */
+.gp-step {
+  transition:
+    background-color 250ms var(--gp-ease),
+    border-color 250ms var(--gp-ease),
+    color 250ms var(--gp-ease),
+    box-shadow 250ms var(--gp-ease),
+    transform 250ms var(--gp-ease);
+  will-change: background-color, border-color, box-shadow;
+}
+.gp-step-running {
+  animation: gp-halo 2.2s ease-in-out infinite;
+}
+@keyframes gp-halo {
+  0%, 100% {
+    box-shadow: 3px 3px 0 rgba(31, 31, 31, 0.25), 0 0 0 0 rgba(31, 31, 31, 0.16);
+  }
+  50% {
+    box-shadow: 3px 3px 0 rgba(31, 31, 31, 0.25), 0 0 0 6px rgba(31, 31, 31, 0.07);
+  }
+}
+/* Spring pop for completed checkmark */
+.gp-pop {
+  animation: gp-pop 420ms var(--gp-spring) both;
+  transform-origin: center;
+}
+@keyframes gp-pop {
+  0% { transform: scale(0.4); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* RAM chips + hardware pills — subtle scale micro-interaction */
+.gp-chip {
+  transition:
+    transform 150ms var(--gp-ease),
+    border-color 200ms var(--gp-ease),
+    background-color 200ms var(--gp-ease),
+    color 200ms var(--gp-ease),
+    box-shadow 200ms var(--gp-ease);
+  will-change: transform, border-color;
+}
+.gp-chip:active {
+  transform: scale(0.97);
+}
+
+/* 3. Streaming terminal — crisp fade-and-slide, 150ms */
+.gp-log-line {
+  animation: gp-log-in 150ms ease-out both;
+}
+@keyframes gp-log-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 4. Accessibility — immediate 0ms when reduced motion is requested */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .gp-accordion,
+  .gp-chevron,
+  .gp-step,
+  .gp-chip,
+  .gp-log-line,
+  .gp-pop,
+  .gp-step-running {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+  }
+  .gp-log-line {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+  .gp-step-running {
+    animation: none !important;
+  }
+}

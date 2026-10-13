@@ -14,6 +14,8 @@ const SECTIONS = [
   { id: "hardware-tiers", num: "04", label: "Hardware Tiers & Economics" },
   { id: "sla-gates", num: "05", label: "SLA Gates & Safety Guardrails" },
   { id: "certificates", num: "06", label: "Interpreting Official Certificates" },
+  { id: "breakscale-presets", num: "07", label: "Breakscale Stress Presets" },
+  { id: "deployment-blueprint", num: "08", label: "Turnkey Deployment Blueprint" },
 ];
 
 function SectionHeading({ num, eyebrow, title }: { num: string; eyebrow: string; title: string }) {
@@ -407,6 +409,134 @@ def approve(plan, spend_so_far):
                   Read the FAQ
                 </Link>
               </div>
+            </div>
+          </section>
+
+          {/* 07 — Breakscale Presets */}
+          <section id="breakscale-presets" aria-label="Breakscale Concurrency and Context Stress Test Presets" className="scroll-mt-24 border-t border-ink pt-10">
+            <SectionHeading num="07" eyebrow="Breakscale Concurrency & Context Stress Test Presets" title="Load it until it breaks — then prove where" />
+            <p className="mt-3 text-[13px] leading-relaxed text-muted">
+              Breakscale is the load-to-failure engine behind the <code className="rounded bg-ink/10 px-1.5 py-0.5 font-mono text-[12px]">/new</code> workload
+              stress calibration. Two snapping sliders — concurrency (parallel streams) and context window
+              (tokens per stream) — drive a live KV-cache projection so teams see CUDA OOM{" "}
+              <em>before</em> spending budget. Philosophy: public synthetic leaderboards score batch-1
+              textbook knowledge; production breaks on bursty concurrency × long context.
+            </p>
+
+            <Code title="breakscale.py · KV-cache growth + pre-flight headroom check">
+{`# KV (GB) = 2 * layers * hidden * context_len * concurrency * precision_bytes / 1e9
+# Total   = weights (params_b * bytes) + KV + 2.0GB runtime (CUDA + PagedAttention tables)
+# OOM when total > vram * 0.95  ·  TIGHT when saturation >= 85%
+KV = 2 * 48 * 5120 * 4096 * 16 * 1.0 / 1e9  # Nemotron Nano 30B FP8 @ 16x4K = ~32.21GB
+total = 30.00 + 32.21 + 2.0                 # = 64.21GB -> OOM on L40S 48GB, FITS on H100 80GB`}
+            </Code>
+
+            <div className="mt-4 overflow-hidden rounded-lg border border-ink">
+              <table className="w-full text-left text-[12px]">
+                <thead>
+                  <tr className="bg-ink font-mono text-[11px] uppercase tracking-widest text-canvas">
+                    <th className="px-4 py-3">Preset</th>
+                    <th className="px-4 py-3">Streams × Context</th>
+                    <th className="px-4 py-3">Replay / Cap</th>
+                    <th className="px-4 py-3">Use it when</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink/20 bg-[#F5F1E9]">
+                  <tr>
+                    <td className="px-4 py-3 font-bold">💨 Smoke Test</td>
+                    <td className="px-4 py-3 font-mono">8 × 2,048</td>
+                    <td className="px-4 py-3 font-mono">50 reqs · ~$0.50</td>
+                    <td className="px-4 py-3 text-muted">Cold-start sanity. Lands exactly on slider stops.</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-bold">✅ SLA Gate <span className="ml-1 rounded border border-ink px-1.5 py-0.5 font-mono text-[10px] uppercase">Recommended</span></td>
+                    <td className="px-4 py-3 font-mono">16 × 4,096</td>
+                    <td className="px-4 py-3 font-mono">200 reqs · ~$2.50</td>
+                    <td className="px-4 py-3 text-muted">Standard production certification — the default twin.</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-bold">🔥 Soak Test</td>
+                    <td className="px-4 py-3 font-mono">32 × 8,192</td>
+                    <td className="px-4 py-3 font-mono">500 reqs · ~$8.00</td>
+                    <td className="px-4 py-3 text-muted">Stress to the failure limit. Expected to OOM 48GB tiers.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <article className="panel rounded-lg border border-ink p-4">
+                <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">Slider stops</p>
+                <p className="mt-2 font-mono text-[12px] leading-relaxed">
+                  Concurrency: 1 · 4 · 8 · 16 · 24 · 32<br />
+                  Context: 1K · 2K · 4K · 8K · 16K · 32K
+                </p>
+                <p className="mt-2 text-[12px] leading-relaxed text-muted">
+                  Precision drives both weights and KV math — BF16 2B · FP8 1B · INT4 0.5B per
+                  parameter. The telemetry panel solves{" "}
+                  <code className="rounded bg-ink/10 px-1 font-mono">maxSafeStreams = ⌊(usable − weights − 2) / perStreamKV⌋</code>{" "}
+                  on every move and reports “Breaks at ≥ N streams”.
+                </p>
+              </article>
+              <article className="rounded-lg border border-ink bg-ink p-4 text-canvas">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-canvas/60">Failure taxonomy (Nano classifier)</p>
+                <ul className="mt-2 space-y-1.5 font-mono text-[11px] text-canvas/85">
+                  <li><span className="font-bold">SCHEMA_VIOLATION</span> — valid JSON, wrong keys/types</li>
+                  <li><span className="font-bold">TOOL_MISFIRE</span> — wrong function or args</li>
+                  <li><span className="font-bold">TRUNCATION</span> — max-tokens cut mid-JSON</li>
+                  <li><span className="font-bold">OOM_FATAL</span> — KV-cache exceeded usable VRAM</li>
+                  <li><span className="font-bold">LATENCY_BREACH</span> — P95 tail over 2,000ms</li>
+                </ul>
+                <p className="mt-3 border-t border-canvas/20 pt-2 text-[11px] leading-relaxed text-canvas/70">
+                  Full math and gate definitions live in <code className="font-mono">docs/METRICS_SLA.md</code>.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          {/* 08 — Turnkey Deployment Blueprint */}
+          <section id="deployment-blueprint" aria-label="Turnkey Production Deployment Blueprint" className="scroll-mt-24 border-t border-ink pt-10">
+            <SectionHeading num="08" eyebrow="Turnkey Production Deployment Blueprint" title="Copy-paste production — certified on Nebius" />
+            <p className="mt-3 text-[13px] leading-relaxed text-muted">
+              Every real certificate ships a deterministic DevOps blueprint: certified hardware, a
+              ready-to-run vLLM serving command, operational limits, and measured economics. No YAML
+              archaeology — the command below is exactly what passed the SLA gates.
+            </p>
+
+            <Code title="production.sh · certified serving command (H100 FP8 example)">
+{`vllm serve nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B --dtype fp8 \\
+  --max-model-len 8192 \\
+  --gpu-memory-utilization 0.95 \\
+  --tensor-parallel-size 1 --port 8000`}
+            </Code>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <article className="panel rounded-lg border border-ink p-4">
+                <p className="text-sm font-bold">◉ vLLM + PagedAttention limits</p>
+                <ul className="mt-2 space-y-1.5 text-[12px] leading-relaxed text-muted">
+                  <li><span className="font-bold text-ink">--gpu-memory-utilization 0.95</span> — matches the pre-flight usable-VRAM math; 5% stays reserved for fragmentation. Never raise without re-certifying.</li>
+                  <li><span className="font-bold text-ink">--max-model-len 8192</span> — PagedAttention holds 8K tokens before KV-cache offload on the certified tier.</li>
+                  <li><span className="font-bold text-ink">Max 24 parallel streams</span> — conservative SLO before P95 breaches 2,000ms; the certificate prints measured headroom (2000 − observed) at the certified batch.</li>
+                  <li><span className="font-bold text-ink">Single-GPU policy</span> — <code className="rounded bg-ink/10 px-1 font-mono">--tensor-parallel-size 1</code>; L40S 48GB entry → H100 80GB SXM5 escalation only on diagnosed OOM.</li>
+                </ul>
+              </article>
+              <article className="panel rounded-lg border border-ink p-4">
+                <p className="text-sm font-bold">◉ Handoff checklist for DevOps</p>
+                <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-[12px] leading-relaxed text-muted">
+                  <li>Copy the serving command from <code className="rounded bg-ink/10 px-1 font-mono">/certificate/[id]</code> — model, dtype, and max-len are pre-filled.</li>
+                  <li>Pin concurrency ≤ 24 and context ≤ 8,192 (raise only after a Soak re-run).</li>
+                  <li>Budget from measured <code className="rounded bg-ink/10 px-1 font-mono">$/1k queries</code> — audit spend ÷ replayed requests, never fabricated.</li>
+                  <li>Attach the FNV-1a digest + PDF so reviewers can re-hash evidence offline.</li>
+                </ol>
+                <div className="mt-4 flex flex-wrap gap-3 text-xs font-bold">
+                  <Link href="/new" className="btn-dark min-h-[44px] cursor-pointer rounded-lg px-5 py-2.5 transition-all hover:-translate-y-px">
+                    Certify This Config →
+                  </Link>
+                  <Link href="/dashboard" className="panel min-h-[44px] cursor-pointer rounded-lg border border-ink px-5 py-2.5 transition-all hover:-translate-y-px">
+                    View Audit Portfolio
+                  </Link>
+                </div>
+              </article>
             </div>
           </section>
 

@@ -23,6 +23,8 @@ import urllib.request
 TOKENFACTORY_DEFAULT_URL = "https://api.tokenfactory.nebius.com/v1"
 NIM_URL = "https://integrate.api.nvidia.com/v1"
 DEFAULT_JUDGE_MODEL = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
+# NIM catalog uses different IDs — verified live 2026-10-14.
+DEFAULT_NIM_JUDGE_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
 
 JUDGE_SYSTEM = (
     "You are a strict tool-calling evaluator. Given the original prompt, "
@@ -157,19 +159,18 @@ def resolve_judge_config(model: str | None = None,
     Order: explicit key / NEBIUS_TF_KEY / NEBIUS_API_KEY -> Token Factory;
     else NVIDIA_NIM_KEY -> NIM; else RuntimeError.
     """
-    wanted = (model or "").strip() or os.environ.get("JUDGE_MODEL", "").strip() \
-        or DEFAULT_JUDGE_MODEL
+    wanted = (model or "").strip() or os.environ.get("JUDGE_MODEL", "").strip()
     tf_key = ((api_key or "").strip()
               or os.environ.get("NEBIUS_TF_KEY", "").strip()
               or os.environ.get("NEBIUS_API_KEY", "").strip())
     if tf_key:
         base = os.environ.get("TOKENFACTORY_URL", "").strip() or TOKENFACTORY_DEFAULT_URL
         return {"base_url": base.rstrip("/"), "api_key": tf_key,
-                "model": wanted, "source": "tokenfactory"}
+                "model": wanted or DEFAULT_JUDGE_MODEL, "source": "tokenfactory"}
     nim_key = os.environ.get("NVIDIA_NIM_KEY", "").strip()
     if nim_key:
         return {"base_url": NIM_URL, "api_key": nim_key,
-                "model": wanted, "source": "nim"}
+                "model": wanted or DEFAULT_NIM_JUDGE_MODEL, "source": "nim"}
     raise RuntimeError("no judge credentials")
 
 

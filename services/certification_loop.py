@@ -47,6 +47,21 @@ def _policy_scope(cert: dict, total_spend: float, total_cap: float) -> tuple[flo
 
 
 def synth_simulated_metrics(logs: str, plan: dict) -> tuple[dict, str | None]:
+    # TODO(judge-hook, agent-runner): replace the synthesized quality_score
+    # below with a live Nemotron judge call once real response texts are
+    # threaded through. Exact insertion snippet (do NOT use in sim mode —
+    # there is no real model output to score here; wire it into the
+    # measured/replay path in measured_or_simulated instead):
+    #   from services.nemotron_judge import score_tool_call as _judge
+    #   try:
+    #       j = _judge(prompt=item["prompt"], response_text=text,
+    #                  schema_desc=json.dumps(item.get("expect_schema")),
+    #                  task="tool-calling")
+    #       metrics["quality_score"] = round(j["accuracy"], 4)
+    #       metrics["judge_detail"] = j["detail"]
+    #       metrics["judge_model"] = j["model"]
+    #   except RuntimeError as _je:  # no creds/judge down -> keep deterministic score
+    #       metrics["judge_error"] = str(_je)[:200]
     if "out of memory" in logs.lower():
         return ({"quality_score": 0.0, "error_rate": 1.0, "latency_p95_ms": 0,
                  "ttft_p95_ms": 0, "requests_per_s": 0.0, "tokens_per_s": 0.0,
@@ -64,6 +79,9 @@ def measured_or_simulated(cert: dict, plan: dict, logs: str, simulated: bool,
                           api_key: str | None = None) -> tuple[dict, str | None, str]:
     if simulated:
         m, failure = synth_simulated_metrics(logs, plan)
+        # NOTE(agent-runner): sim branch intentionally keeps the deterministic
+        # quality_score — no real model output exists to judge. See the
+        # TODO(judge-hook) in synth_simulated_metrics for the live snippet.
         return m, failure, logs
     from services import replay as replay_mod
     endpoint = os.environ.get("BENCH_ENDPOINT", "")

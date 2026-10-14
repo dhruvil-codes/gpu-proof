@@ -20,7 +20,7 @@ AI engineers, ML infra engineers, and startup CTOs running open-source models wh
 
 - **Event:** Nebius x NVIDIA Global AI Hackathon
 - **Deadline:** Oct 30, 2026, 10:00am PDT
-- **Track:** Best Apps and Agents
+- **Track:** Coding and Agentic Engineering (autonomous plan → benchmark → diagnose → retry loop; decided Oct 14, supersedes earlier Apps-track note)
 - **Mandatory:** must run on Nebius (Token Factory and/or AI Cloud) and use at least one NVIDIA open-source model
 - **Judging criteria:** Technological Implementation, Design (complete product, not a PoC), Potential Impact, Quality of Idea
 
@@ -333,7 +333,7 @@ The MVP is complete when:
 - [ ] README with setup and run instructions, highlighting how Nemotron, Token Factory, and other Nebius services are used
 - [ ] Written feedback on Nebius Token Factory, AI Cloud, and NVIDIA tools used
 - [ ] Project description (what, why, how)
-- [ ] Track selected: Best Apps and Agents
+- [ ] Track selected: Coding and Agentic Engineering
       |
 
 **Cut order if time runs short:** (1) drop the second task type, (2) drop parallel experiments, (3) simplify the dashboard to a plain list. **Never cut** the adaptive retry or the real-run evidence.

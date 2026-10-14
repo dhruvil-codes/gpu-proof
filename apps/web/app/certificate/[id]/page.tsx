@@ -103,7 +103,8 @@ function Seal({ tone }: { tone: "ship" | "block" | "sim" }) {
 
 export default function Certificate({ params }: { params: { id: string } }) {
   const [d, setD] = useState<CertData | null>(null);
-  const [waiting, setWaiting] = useState("");
+  const [phase, setPhase] = useState<{ status?: string; experiments?: number; simulated?: boolean | null }>({});
+  const [elapsed, setElapsed] = useState(0);
   const [copiedHash, setCopiedHash] = useState(false);
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [issuedAt] = useState(() => new Date());
@@ -113,17 +114,79 @@ export default function Certificate({ params }: { params: { id: string } }) {
       try {
         const r = await fetch(`${API}/certifications/${params.id}/certificate`);
         if (!r.ok) {
-          if (alive) setWaiting("Audit still running — this certificate will be issued automatically when all gates complete.");
+          try {
+            const s = await fetch(`${API}/certifications/${params.id}`);
+            if (s.ok && alive) {
+              const j = await s.json();
+              setPhase({ status: j.status, experiments: j.experiments, simulated: j.simulated });
+            }
+          } catch {}
           return;
         }
         const j = await r.json();
-        if (alive) { setD(j); setWaiting(""); }
+        if (alive) { setD(j); }
       } catch {}
     }
-    load(); const t = setInterval(load, 4000); return () => { alive = false; clearInterval(t); };
+    load(); const t = setInterval(load, 3000);
+    const clock = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => { alive = false; clearInterval(t); clearInterval(clock); };
   }, [params.id]);
 
-  if (!d) return (<main><TopNav /><p className="p-8 text-sm">{waiting || "Loading certificate…"}</p></main>);
+  if (!d) {
+    const st = (phase.status || "RUNNING").toUpperCase();
+    const expCount = phase.experiments ?? 0;
+    const terminalIdle = ["BLOCKED_BUDGET", "CANCELLED", "INCOMPLETE"].includes(st);
+    const steps = [
+      { label: "Workload twin ready", done: true },
+      { label: st === "CREATED" ? "Queued — benchmark starting" : "Benchmarking on GPU", done: st !== "CREATED", active: st === "RUNNING" && expCount === 0 },
+      { label: expCount > 0 ? `${expCount} experiment${expCount === 1 ? "" : "s"} measured` : "Measuring latency · accuracy · errors", done: expCount > 0, active: st === "RUNNING" && expCount > 0 },
+      { label: "Verdict & cryptographic seal", done: false, active: false },
+    ];
+    return (
+      <main>
+        <TopNav />
+        <div className="mx-auto max-w-xl px-6 py-12 text-center">
+          <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-ink/20">
+            {terminalIdle ? (
+              <span className="font-mono text-xl font-bold text-block">!</span>
+            ) : (
+              <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-ink/20 border-t-ink" />
+            )}
+          </span>
+          <h1 className="mt-4 text-2xl tracking-tight">
+            {terminalIdle ? "Audit ended without a verdict" : "Minting your certificate…"}
+          </h1>
+          <p className="mt-1 font-mono text-[12px] text-muted">
+            {params.id} · {terminalIdle ? `status ${st}` : `status ${st} · elapsed ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`}
+          </p>
+          <ol aria-label="Audit progress" className="panel mx-auto mt-6 max-w-md space-y-2 rounded-lg p-4 text-left">
+            {steps.map((s, i) => (
+              <li key={s.label} className="flex items-center gap-2.5 text-[13px]">
+                <span
+                  aria-hidden="true"
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${s.done ? "border-ship bg-ship text-white" : s.active ? "border-ink bg-ink text-canvas" : "border-ink/25 text-muted"}`}
+                >
+                  {s.done ? "✓" : s.active ? "◌" : i + 1}
+                </span>
+                <span className={s.done || s.active ? "font-bold" : "text-muted"}>{s.label}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            {!terminalIdle && (
+              <Link href={`/timeline/${params.id}`} className="btn-dark min-h-[44px] cursor-pointer rounded px-5 py-2.5 text-sm font-bold">
+                Watch it live →
+              </Link>
+            )}
+            <Link href="/dashboard" className="chip inline-block min-h-[44px] cursor-pointer px-5 py-2.5 text-sm">
+              Dashboard
+            </Link>
+          </div>
+          <p className="mt-3 font-mono text-[11px] text-muted">This view turns into the sealed certificate automatically — no refresh needed.</p>
+        </div>
+      </main>
+    );
+  }
 
   const ship = d.verdict === "SHIP";
   const sim = d.verdict === "SIMULATED";

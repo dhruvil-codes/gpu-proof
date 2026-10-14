@@ -309,6 +309,56 @@ def inspect_model(
     )
 
 
+@app.get("/models/live")
+def models_live(
+    sort: str = "likes",
+    direction: str = "-1",
+    limit: int = 40,
+    search: str | None = None,
+    filter: str | None = None,
+    expand: str | None = None,
+):
+    """Server-side Hugging Face model listing (bypasses browser adblock/CORS issues).
+
+    Returns slim items: id, likes, downloads, lastModified, safetensors.total.
+    """
+    import urllib.parse
+    import urllib.request
+
+    params: dict[str, str] = {
+        "sort": sort or "likes",
+        "direction": direction or "-1",
+        "limit": str(max(1, min(int(limit or 40), 100))),
+    }
+    if search:
+        params["search"] = search
+    if filter:
+        params["filter"] = filter
+    if expand:
+        params["expand"] = expand
+    url = "https://huggingface.co/api/models?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"User-Agent": "GPUProof/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            items = json.loads(r.read().decode() or "[]")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"huggingface unreachable: {e}")
+    out = []
+    for m in items if isinstance(items, list) else []:
+        if not isinstance(m, dict):
+            continue
+        st = m.get("safetensors") or {}
+        total = st.get("total") if isinstance(st, dict) else None
+        out.append({
+            "id": m.get("id"),
+            "likes": m.get("likes"),
+            "downloads": m.get("downloads"),
+            "lastModified": m.get("lastModified"),
+            "safetensors": {"total": total},
+        })
+    return out
+
+
 @app.post("/models/inspect")
 def inspect_model_post(payload: dict):
     q = payload.get("query") or payload.get("model") or payload.get("candidate_model") or ""

@@ -203,10 +203,10 @@ STRESS_TARGET_GPUS: list[str] = ["L40S", "H100", "A100", "H200"]
 # Real-world production & lab model catalog
 MODEL_CATALOG: dict[str, dict] = {
     # The Big Five
-    "qwen3.6-27b": {
-        "params_b": 27.0, "layers": 48, "hidden": 5120, "license": "Apache 2.0",
-        "slug": "Qwen/Qwen3.6-27B-Instruct", "display": "Qwen 3.6 27B",
-        "note": "Most downloaded family in the world; runs on single 24GB GPU, beats larger models on coding."
+    "qwen3.8-27b": {
+        "params_b": 27.8, "layers": 64, "hidden": 5120, "license": "Apache 2.0",
+        "slug": "Qwen/Qwen3.8-27B", "display": "Qwen3.8 27B",
+        "note": "Newest dense Qwen; 256K context; runs on single 24GB GPU, beats larger models on coding."
     },
     "deepseek-v4-pro": {
         "params_b": 685.0, "layers": 64, "hidden": 7168, "moe": True, "license": "MIT",
@@ -334,8 +334,10 @@ _ALIASES: dict[str, str] = {
     "qwen 2.5 14b": "qwen2.5-14b", "qwen2.5 14b": "qwen2.5-14b", "qwen 14b": "qwen2.5-14b",
     "qwen 2.5 72b": "qwen2.5-72b", "qwen2.5 72b": "qwen2.5-72b", "qwen 72b": "qwen2.5-72b",
     # Qwen 3.x family
-    "qwen 3.6 27b": "qwen3.6-27b", "qwen3.6 27b": "qwen3.6-27b", "qwen3.6": "qwen3.6-27b",
-    "qwen 3.6": "qwen3.6-27b", "qwen3 27b": "qwen3.6-27b", "qwen 27b": "qwen3.6-27b",
+    "qwen 3.8 27b": "qwen3.8-27b", "qwen3.8 27b": "qwen3.8-27b", "qwen3.8": "qwen3.8-27b",
+    "qwen 3.8": "qwen3.8-27b", "qwen3 27b": "qwen3.8-27b", "qwen 27b": "qwen3.8-27b",
+    "qwen 3.6 27b": "qwen3.8-27b", "qwen3.6 27b": "qwen3.8-27b", "qwen3.6": "qwen3.8-27b",
+    "qwen 3.6": "qwen3.8-27b",
     "qwen3 coder 30b": "qwen3-coder-30b", "qwen3-coder-30b": "qwen3-coder-30b", "qwen3 coder": "qwen3-coder-30b",
     "qwen coder 30b": "qwen3-coder-30b", "qwen 30b": "qwen3-coder-30b",
     # DeepSeek family
@@ -434,7 +436,7 @@ def detect_model(query: str) -> str:
     m = re.search(r"(\d+(?:\.\d+)?)\s*b\b", q)
     if m:
         return f"generic-{m.group(1)}b"
-    return "qwen3.6-27b"
+    return "qwen3.8-27b"
 
 
 def detect_gpu(text: str | None) -> str | None:

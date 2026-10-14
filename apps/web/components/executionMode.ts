@@ -36,6 +36,29 @@ export function setExecutionMode(mode: ExecutionMode): void {
   }
 }
 
+/** Local-only dev bypass for testing mint flows against a simulator backend.
+ * Enabled only via ?devsim=1 (sets a localStorage flag). Bypassed runs are
+ * always labeled SIMULATED and can never certify production. */
+const DEV_SIM_KEY = "gpuproof-dev-sim";
+
+export function isDevSim(): boolean {
+  try {
+    return typeof window !== "undefined" && localStorage.getItem(DEV_SIM_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function enableDevSimFromQuery(): void {
+  try {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("devsim") === "1") {
+      localStorage.setItem(DEV_SIM_KEY, "1");
+    }
+  } catch {
+    /* ignore */
+  }
+}
 /** Headers attached per-request so the API can log the explicit user choice. */
 export function buildExecutionHeaders(mode?: ExecutionMode): Record<string, string> {
   const m = mode ?? getExecutionMode();

@@ -1,7 +1,7 @@
 """Cost engine — Nebius $/GPU-hr pricing, measured-runtime math only."""
 from __future__ import annotations
 
-GPU_HOURLY_USD = {"L40S": 1.35, "H100": 3.20}  # L40S verified from docs; H100 re-pulled at runtime
+GPU_HOURLY_USD = {"L40S": 1.35, "H100": 4.50}  # Oct 2026 Nebius PAYG
 CPU_HOURLY_USD = 0.012
 RAM_HOURLY_USD = 0.0032
 

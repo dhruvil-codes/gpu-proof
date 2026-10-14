@@ -1,111 +1,135 @@
-# GPUProof: CI/CD for AI Inference — Make your model prove it.
+# GPUProof — crash-tests for open-weight models — SHIP or BLOCK with receipts.
 
-GPUProof certifies candidate models against your production deployment on real Nebius GPUs.
+GPUProof certifies a candidate model against your production deployment on real Nebius GPUs.
 Give it your current deployment, a candidate model, and production requirements. It runs real
 experiments, learns from failures, and issues a **SHIP / BLOCK** certificate backed by measured
 evidence — never vibes.
 
 > AI proposes. Policy approves. Nebius executes. Metrics decide.
 
-Built for the **Nebius x NVIDIA Global AI Hackathon** (Track: **Best Apps and Agents**).
+Built for the **Nebius x NVIDIA Global AI Hackathon** (deadline Oct 30 2026).
+Track per submission paperwork: **Coding and Agentic Engineering**.
+(Note: `docs/PRD.md` §4 still says "Best Apps and Agents" — pre-existing text, see `DISCLOSURE.md`.)
 
-## How it works
+## Quick start
 
-```mermaid
-flowchart LR
-    A[Inputs: current + candidate + workload + SLA gates + budget] --> B[Workload Twin]
-    B --> C[Nemotron Ultra Planner]
-    C --> D[Deterministic Policy Engine]
-    D -->|approved| E[Nebius GPU Job: vLLM sandbox]
-    D -->|refused| Z[BLOCKED POLICY/BUDGET]
-    E --> F[Workload Replay: TTFT, latency, throughput, VRAM]
-    F --> G[Deterministic Quality + SLA Evaluator]
-    G -->|fail| H[Nemotron Nano Classifier]
-    H -->|adapt| C
-    G -->|all gates pass| I[SHIP]
-    G -->|gate fails| J[BLOCK]
-```
-
-1. **Workload Twin** — a fixed, seeded synthetic test set (tool calling + structured output)
-   with deterministic checks (JSON validity, schema, tool selection + args).
-2. **Nemotron Ultra planner** (via Nebius Token Factory) proposes one experiment at a time:
-   GPU type, precision, batch config, reason. Planner down means
-   **Certification incomplete** — never a fabricated SHIP.
-3. **Deterministic policy engine** validates every proposal. AI cannot bypass it:
-   1 GPU, L40S/H100 only, vLLM only, 15 min, $2 per experiment, $10 per certification,
-   5 experiments max, $20 total hard cap with ledger refusal.
-4. **Nebius Serverless Job** runs the candidate in a fresh vLLM container per experiment,
-   with log capture and teardown in every path (including errors and timeouts).
-5. **Replay + evaluator** measures per-request TTFT/latency/throughput/VRAM and checks
-   every hard SLA gate against measured numbers. Any failing gate means BLOCK.
-6. **Nemotron Nano classifier** labels failures (MEMORY, LATENCY, QUALITY, RELIABILITY,
-   INFRASTRUCTURE) so the next proposal visibly adapts (e.g. L40S OOM escalates to H100).
-7. **Certificate engine** mints deterministic SHIP/BLOCK from gate results only.
-   Simulator output is labelled SIMULATED and can never produce a real certificate.
-
-## Stack & Nebius / NVIDIA technologies
-
-- **Nebius Token Factory** (OpenAI-compatible `POST /v1/chat/completions` with JSON mode):
-  Nemotron Ultra 550B (`nvidia/Nemotron-3-Ultra-550b-a55b`) as the deep planner and
-  Nemotron Nano 30B (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`) as the fast failure
-  classifier. Strict JSON validation with deterministic fallbacks.
-- **Nebius AI Cloud Serverless Jobs** (`POST /ai/v1/jobs`, logs, cancel, delete):
-  one isolated GPU job per experiment (L40S first, then H100 on OOM), vLLM serving
-  the candidate, auto-teardown always.
-- **NVIDIA open models**: Nemotron-3-Nano-30B as the candidate under test, Qwen3-8B
-  on H100 FP8 as the cached baseline. The whole decision layer is NVIDIA-native.
-- **vLLM** as the only allowed serving engine inside the sandbox.
-- **FastAPI** (`apps/api`) controller: background loop, SQLite persistence, SSE event
-  stream, policy-gated ledger. **Next.js + Tailwind** (`apps/web`) frontend: landing,
-  Dashboard, New Certification, Experiment Timeline, Certificate — warm off-white
-  mono aesthetic per the design reference.
-
-## Quickstart
-
-### Local dev (Windows / Linux)
+Prereqs: Python 3.11+, Node 18+, Docker (optional, for compose).
 
 ```powershell
-Copy-Item .env.example .env   # fill NEBIUS_API_KEY, NEBIUS_PROJECT_ID, NEBIUS_SUBNET_ID
-pip install -r apps/api/requirements.txt   # includes python-dotenv; .env auto-loads
-$env:USE_SIMULATOR = "true"                # "false" for real GPU jobs
+# 1. env (backend auto-loads .env via python-dotenv)
+Copy-Item .env.example .env   # then fill keys (names only — never commit values)
+
+# 2. backend :8000
+pip install -r apps/api/requirements.txt
+$env:USE_SIMULATOR = "true"   # "false" for real Nebius GPU jobs
 python -m uvicorn main:app --app-dir apps/api/app --host 127.0.0.1 --port 8000
-```
 
-```powershell
+# 3. web :3000 (new terminal)
 npm --prefix apps/web install
 $env:NEXT_PUBLIC_API = "http://127.0.0.1:8000"
 npm --prefix apps/web run dev   # http://localhost:3000
 ```
 
-Run a certification: `POST /certifications` then `POST /certifications/{id}/start`,
-watch `GET /certifications/{id}/events` (SSE), read `GET /certifications/{id}/certificate`.
-
-### Docker Compose
+Run a certification (verified in `apps/api/app/main.py`):
 
 ```powershell
-docker compose up        # API on :8000 + Postgres on :5432
-docker build -f apps/api/Dockerfile -t gpuproof-api .
-docker run -p 8000:8000 --env-file .env -e USE_SIMULATOR=false gpuproof-api
+# create -> start -> stream events -> read certificate
+curl -X POST http://127.0.0.1:8000/certifications -H "Content-Type: application/json" -d "{}"
+curl -X POST http://127.0.0.1:8000/certifications/{id}/start
+curl http://127.0.0.1:8000/certifications/{id}/events        # SSE stream
+curl http://127.0.0.1:8000/certifications/{id}/certificate
 ```
 
-### Tests
+Health: `GET /health`, `GET /ready`. Full endpoint list: see `docs/ARCHITECTURE.md` §6.
+
+### Env keys (names only — no values in repo)
+
+| Key | Purpose |
+|-----|---------|
+| `NEBIUS_API_KEY` | Token Factory inference + AI Cloud Jobs auth (BYOK header `X-Nebius-Api-Key` overrides per-run, in-memory only) |
+| `NEBIUS_PROJECT_ID` | AI Cloud parent project for `POST /jobs` |
+| `NEBIUS_REGION` | GPU provisioning region (default `eu-north1`) |
+| `NEBIUS_SUBNET_ID` | VPC subnet for jobs (empty = real job creation blocked, simulator only) |
+| `HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN` | Optional; public models only when empty |
+| `MAX_BUDGET_USD` | Total hard cap (default `20.00`) |
+| `MAX_PER_RUN_USD` | Per-certification reference cap (default `10.00`) |
+| `USE_SIMULATOR` | `true` = deterministic simulator, `$0`, `SIMULATED` verdicts only |
+| `CANDIDATE_MODEL` | Default candidate (`Nemotron-3-Nano-30B`) |
+| `BASELINE_MODEL` | Cached baseline (`Qwen3-8B`) |
+| `PLANNER_MODEL` | `nvidia/Nemotron-3-Ultra-550b-a55b` |
+| `CLASSIFIER_MODEL` | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` |
+
+## Architecture (ASCII)
+
+```text
+ Next.js 14 web (apps/web: /, /new, /dashboard, /timeline, /certificate/[id], /docs)
+   |  REST + SSE
+ FastAPI (apps/api/app/main.py) — certs, ledger, background loop, SSE bus, SQLite store
+   |-- services/workload_twin.py   seeded twin (SHA-256 digest, 16 hex chars)
+   |-- services/decision_engine.py Nemotron Ultra planner + Nano classifier (Token Factory)
+   |-- services/experiment_policy.py  deterministic gates (AI cannot bypass)
+   |-- services/nebius_runner.py   Real (AI Cloud REST) | Simulated (dev/test only)
+   |-- services/replay.py + metrics_math.py + quality_checks.py  measured metrics
+   |-- services/sla_evaluator.py   SHIP iff ALL hard gates pass, else BLOCK
+   |-- services/certificate_engine.py  deterministic SHIP/BLOCK + deployment prescription
+   +-- services/cost_engine.py     measured-runtime $ math, ledger refusal
+```
+
+Data flow: inputs → Workload Twin → planner proposes → policy validates →
+Nebius job (vLLM sandbox, teardown always) → replay → evaluator →
+fail = classify + adapt (max 5 exps) / pass = SHIP/BLOCK certificate.
+Planner down = "Certification incomplete", never SHIP. Simulator = `SIMULATED`, never a real certificate.
+
+## Gates, caps, provenance
+
+- **Hard gates** (`apps/api/app/main.py:NewCert` defaults): `latency_p95_ms <= 2000`,
+  `quality_score >= 0.85`, `error_rate <= 0.05`. Missing metric = FAIL = BLOCK.
+- **Caps** (`services/experiment_policy.py` + `main.py`): 1 GPU, L40S/H100 only,
+  vLLM only, 15 min/job, **$2/experiment, $10/certification, $20 total hard cap**,
+  5 experiments max. Ledger refuses over-budget launches before they spend.
+- **Provenance**: MEASURED (replay latencies/quality/errors on the job) →
+  COMPUTED (percentiles, KV-cache sizing, `$` from measured runtime) →
+  STATIC-PRICED (`services/cost_engine.py:GPU_HOURLY_USD`, L40S $1.35 / H100 $3.20).
+  No live-price feed exists in this checkout.
+
+## Integrations (only what exists in code)
+
+- **Nebius Token Factory** — carries planner + classifier inference.
+  `services/decision_engine.py:BASE_URL=https://api.tokenfactory.nebius.com/v1`,
+  `POST /chat/completions` (OpenAI-compatible, `response_format: json_object`).
+- **NVIDIA Nemotron** — carries decisions, not vibes. Planner
+  `nvidia/Nemotron-3-Ultra-550b-a55b` proposes one experiment JSON;
+  classifier `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` labels failures
+  (MEMORY/LATENCY/QUALITY/RELIABILITY/INFRASTRUCTURE/UNKNOWN) with deterministic
+  fallback (`services/failure_classifier.py`). Subject under test:
+  Nemotron-3-Nano-30B; cached baseline Qwen3-8B on H100 FP8.
+- **Nebius AI Cloud Serverless Jobs** — carries isolated GPU execution.
+  `services/nebius_runner.py:API_BASE=https://api.nebius.cloud/ai/v1`:
+  `POST /jobs`, `GET /jobs/{id}/logs`, `POST /jobs/cancel`, `DELETE /jobs/{id}`.
+  One fresh vLLM container per experiment, teardown on every path.
+- **Hugging Face** — carries model identity + architecture truth.
+  `services/advisor.py:fetch_hf_metadata` reads
+  `https://huggingface.co/{repo}/raw/main/config.json` and
+  `https://huggingface.co/api/models/{repo}` (optional `HF_TOKEN`);
+  web widget validates `https://huggingface.co/api/models/{slug}` client-side.
+- **Tavily: not integrated in this checkout.** No import, call, or env key found
+  (searched `services/`, `apps/`). Any bonus targeting needs new work — see `DISCLOSURE.md`.
+
+## Tests
 
 ```powershell
-python -m pytest tests/unit tests/integration -q   # USE_SIMULATOR=true; 15 tests
+python -m pytest tests/unit tests/integration -q   # USE_SIMULATOR=true
 npm --prefix apps/web run build                     # production frontend build
 ```
 
-## Key features
+## Docs
 
-- **Budget safety**: $20 total hard cap, $10 per certification, $2 per experiment,
-  15-minute timeouts, ledger refusal before launch, teardown on every path.
-- **Deterministic verification**: JSON validity, schema conformance, tool selection +
-  argument checks, SLA gates on measured TTFT/latency/throughput/quality/error rate.
-- **Adaptive failures**: OOM on L40S escalates to H100, INT4 quality regression
-  retries FP8 with tuned batch — each failure visibly changes the next plan, with
-  planner and classifier reasoning persisted on the timeline.
-- **Integrity**: simulator runs are labelled SIMULATED and can never mint certificates;
-  planner outages return Certification incomplete, never SHIP.
+- `docs/ARCHITECTURE.md` — components, data flow, sizing formulas, gates, caps, provenance.
+- `docs/METRICS_SLA.md` — gate semantics, Breakscale math, failure taxonomy, verification protocol.
+- `docs/DEMO_SCRIPT.md` — 3-min demo beats (verified L40S-OOM → H100-FP8-SHIP path).
+- `VIDEO_SCRIPT.md` — 180-second shoot script + shot list.
+- `FEEDBACK_TF_NVIDIA.md` — provider feedback drafts.
+- `DISCLOSURE.md` — pre-existing-work statement + track rationale.
 
 ## License
 

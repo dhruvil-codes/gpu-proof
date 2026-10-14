@@ -55,6 +55,9 @@ export function ByokBadge({ connected }: { connected: boolean }) {
 }
 
 export function ExecutionModeToggle({ compact = false }: { compact?: boolean }) {
+  // Shipped UI is real-only: the simulator switch renders only in dev
+  // when NEXT_PUBLIC_ALLOW_SIM=1. Any existing usages render nothing.
+  if (process.env.NEXT_PUBLIC_ALLOW_SIM !== "1") return null;
   const [mode, setMode] = useExecutionMode();
   const opt = (id: ExecutionMode, glyph: string, label: string, hint: string) => {
     const active = mode === id;
@@ -98,9 +101,10 @@ export function TopNav() {
       <Link href="/" className="shrink-0 cursor-pointer text-sm font-bold tracking-tight">GPUProof</Link>
       <span className="shrink-0 rounded border border-ink px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest">Audit Engine</span>
     </div>
-    <div className="hidden items-center gap-5 text-xs md:flex">
-      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/#sizing">Hardware Sizing Sandbox</Link>
-      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/#cloud">Cloud Benchmarks</Link>
+    <div className="hidden items-center gap-6 text-xs md:flex">
+      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/new">Hardware</Link>
+      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/sandbox">Sandbox</Link>
+      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/usage">Usage</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/docs">Docs</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/dashboard">Portfolio</Link>
     </div>
@@ -114,7 +118,7 @@ export function TopNav() {
       >
         🔑 BYOK
       </button>
-      <Link href="/new" className="btn-dark cursor-pointer rounded px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]">Start Hardware Audit →</Link>
+      <Link href="/new" className="btn-dark cursor-pointer rounded px-3 py-2 font-bold transition-all hover:-translate-y-px hover:shadow-[4px_4px_0_rgba(31,31,31,0.25)]">Verify Hardware Fit →</Link>
     </div>
     <ByokModal open={byokOpen} onClose={() => setByokOpen(false)} />
     <ModelAdvisorDrawer open={advisorOpen} onClose={() => setAdvisorOpen(false)} />

@@ -1,1223 +1,1601 @@
 "use client";
+
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { useState } from "react";
 import { SiteFooter, TopNav } from "@/components/ui";
+import { ScrollStack, ScrollStackItem } from "@/components/ScrollStack";
+import crashwall from "@/data/crashwall.json";
+
+const transition =
+  "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none";
+
+const stackEase = "transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]";
 
 /* ————————————————————————————————————————————————
-   Interactive Hardware Sizing Widget
-   Client-side planning estimates: weights + KV-cache + 2GB runtime.
+   Isometric projection helpers.
+   Every diagram on this page is a self-contained inline
+   SVG drawn on a 30° axonometric grid. No external assets.
+   ———————————————————————————————————————————————— */
+const ISO_COS = Math.cos(Math.PI / 6); // 0.866
+const ISO_SIN = 0.5;
+
+function isoPt(x: number, y: number, z: number, u = 1): [number, number] {
+  return [(x - y) * ISO_COS * u, (x + y) * ISO_SIN * u - z * u];
+}
+
+function poly(points: [number, number][]): string {
+  return points.map(([px, py]) => `${px.toFixed(2)},${py.toFixed(2)}`).join(" ");
+}
+
+interface IsoFaces {
+  top: string;
+  right: string;
+  front: string;
+  anchors: { tr: [number, number]; tl: [number, number]; top: [number, number] };
+}
+
+function isoBox(
+  cx: number,
+  cy: number,
+  z: number,
+  w: number,
+  d: number,
+  h: number,
+  u = 1
+): IsoFaces {
+  const x0 = cx - w / 2;
+  const x1 = cx + w / 2;
+  const y0 = cy - d / 2;
+  const y1 = cy + d / 2;
+  const at = (gx: number, gy: number, gz: number) => isoPt(gx, gy, gz, u);
+  return {
+    top: poly([at(x0, y0, z + h), at(x1, y0, z + h), at(x1, y1, z + h), at(x0, y1, z + h)]),
+    right: poly([at(x1, y0, z + h), at(x1, y1, z + h), at(x1, y1, z), at(x1, y0, z)]),
+    front: poly([at(x0, y1, z + h), at(x1, y1, z + h), at(x1, y1, z), at(x0, y1, z)]),
+    anchors: {
+      tr: at(x1, y0, z + h),
+      tl: at(x0, y1, z + h),
+      top: at(cx, cy, z + h),
+    },
+  };
+}
+
+/* ————————————————————————————————————————————————
+   Data
    ———————————————————————————————————————————————— */
 
-type WidgetModel = {
-  id: string;
-  label: string;
-  slug: string;
-  paramsB: number;
-  layers: number;
-  hidden: number;
-  blurb: string;
-};
-
-const WIDGET_MODELS: WidgetModel[] = [
+// Exploded-stack workloads (Section 2 + hero telemetry share these numbers)
+const STACK_MODELS = [
   {
     id: "qwen27",
-    label: "Qwen 3.6 27B",
-    slug: "Qwen/Qwen3.6-27B-Instruct",
-    paramsB: 27,
-    layers: 64,
-    hidden: 5120,
-    blurb: "Single-GPU friendly",
+    name: "Qwen3.8 27B",
+    hardware: "H100 80GB SXM5",
+    capacityGb: 80,
+    weightsGb: 27.8,
+    precision: "FP8",
+    kvGb: 14.8,
+    runtimeGb: 2.0,
+    totalGb: 44.6,
+    tps: 94.2,
+    slug: "Qwen/Qwen3.8-27B",
   },
   {
     id: "llama70",
-    label: "Llama 3.3 70B",
+    name: "Llama 3.3 70B",
+    hardware: "H100 80GB SXM5",
+    capacityGb: 80,
+    weightsGb: 35.0,
+    precision: "FP8",
+    kvGb: 22.4,
+    runtimeGb: 2.5,
+    totalGb: 59.9,
+    tps: 68.5,
     slug: "meta-llama/Llama-3.3-70B-Instruct",
-    paramsB: 70,
-    layers: 80,
-    hidden: 8192,
-    blurb: "Needs multi-GPU / cloud",
   },
   {
     id: "ds38",
-    label: "DeepSeek V4 Flash 38B",
-    slug: "deepseek-ai/DeepSeek-V4-Flash",
-    paramsB: 38,
-    layers: 48,
-    hidden: 5120,
-    blurb: "Reasoning value pick",
-  },
-  {
-    id: "glm32",
-    label: "GLM-5 32B",
-    slug: "THUDM/glm-5-32b",
-    paramsB: 32,
-    layers: 64,
-    hidden: 5120,
-    blurb: "Agent tool-calling",
-  },
-  {
-    id: "gptoss20",
-    label: "gpt-oss 20B",
-    slug: "openai/gpt-oss-20b",
-    paramsB: 20,
-    layers: 48,
-    hidden: 4096,
-    blurb: "Fits 16GB Mac Mini",
-  },
-  {
-    id: "codestral22",
-    label: "Codestral 22B",
-    slug: "mistralai/Codestral-22B-v0.1",
-    paramsB: 22,
-    layers: 56,
-    hidden: 6144,
-    blurb: "IDE code completion",
-  },
-  {
-    id: "gemma31",
-    label: "Gemma 4 31B",
-    slug: "google/gemma-4-31b-it",
-    paramsB: 31,
-    layers: 62,
-    hidden: 5376,
-    blurb: "All-round single GPU",
-  },
-];
-
-type HwGroup = "Apple Silicon" | "Local PC & Homelab" | "Nebius Cloud";
-type HwTarget = {
-  key: string;
-  label: string;
-  gb: number;
-  group: HwGroup;
-  memory: string;
-  bandwidth: number;
-  factor: number;
-  priceHr?: number;
-};
-const HW_GROUPS: HwGroup[] = [
-  "Apple Silicon",
-  "Local PC & Homelab",
-  "Nebius Cloud",
-];
-const HW_TARGETS: HwTarget[] = [
-  {
-    key: "mini16",
-    label: "Mac Mini 16GB",
-    gb: 16,
-    group: "Apple Silicon",
-    memory: "16 GB Unified",
-    bandwidth: 120,
-    factor: 1,
-  },
-  {
-    key: "mini24",
-    label: "Mac Mini 24GB",
-    gb: 24,
-    group: "Apple Silicon",
-    memory: "24 GB Unified",
-    bandwidth: 120,
-    factor: 1,
-  },
-  {
-    key: "mbp36",
-    label: "MacBook Pro 36GB",
-    gb: 36,
-    group: "Apple Silicon",
-    memory: "36 GB Unified",
-    bandwidth: 150,
-    factor: 1,
-  },
-  {
-    key: "mbp64",
-    label: "MacBook Pro 64GB",
-    gb: 64,
-    group: "Apple Silicon",
-    memory: "64 GB Unified",
-    bandwidth: 400,
-    factor: 1.05,
-  },
-  {
-    key: "studio128",
-    label: "Mac Studio 128GB",
-    gb: 128,
-    group: "Apple Silicon",
-    memory: "128 GB Unified",
-    bandwidth: 800,
-    factor: 1.1,
-  },
-  {
-    key: "studio192",
-    label: "Mac Studio 192GB",
-    gb: 192,
-    group: "Apple Silicon",
-    memory: "192 GB Unified",
-    bandwidth: 800,
-    factor: 1.1,
-  },
-  {
-    key: "rtx4090",
-    label: "RTX 4090 24GB",
-    gb: 24,
-    group: "Local PC & Homelab",
-    memory: "24 GB VRAM",
-    bandwidth: 1008,
-    factor: 1.6,
-  },
-  {
-    key: "dual3090",
-    label: "Dual RTX 3090 48GB",
-    gb: 48,
-    group: "Local PC & Homelab",
-    memory: "2 × 24GB VRAM",
-    bandwidth: 936,
-    factor: 1.4,
-  },
-  {
-    key: "quad3090",
-    label: "Quad RTX 3090 96GB",
-    gb: 96,
-    group: "Local PC & Homelab",
-    memory: "4 × 24GB VRAM",
-    bandwidth: 936,
-    factor: 1.4,
-  },
-  {
-    key: "l40s",
-    label: "1× L40S 48GB",
-    gb: 48,
-    group: "Nebius Cloud",
-    memory: "48 GB VRAM",
-    bandwidth: 864,
-    factor: 2.2,
-    priceHr: 1.35,
-  },
-  {
-    key: "h100",
-    label: "1× H100 80GB",
-    gb: 80,
-    group: "Nebius Cloud",
-    memory: "80 GB VRAM",
-    bandwidth: 3350,
-    factor: 3.2,
-    priceHr: 3.2,
-  },
-  {
-    key: "h100x8",
-    label: "8× H100 640GB",
-    gb: 640,
-    group: "Nebius Cloud",
-    memory: "8 × 80GB VRAM",
-    bandwidth: 3350,
-    factor: 3.2,
-    priceHr: 25.6,
-  },
-];
-const CLOUD_TIERS = [
-  { key: "L40S", label: "1× L40S 48GB", gb: 48, price: 1.35, tp: 1, perf: 1 },
-  { key: "H100", label: "1× H100 80GB", gb: 80, price: 3.2, tp: 1, perf: 2.6 },
-  {
-    key: "H100",
-    label: "8× H100 640GB",
-    gb: 640,
-    price: 25.6,
-    tp: 8,
-    perf: 4.5,
-  },
-];
-
-const CTX_TOKENS = 4096;
-const RUNTIME_GB = 2.0;
-const TOKENS_PER_QUERY = 500;
-
-function estimateParamsFromSlug(slug: string): number {
-  const m = slug.match(/(\d+(?:\.\d+)?)\s*b\b/i);
-  if (m) {
-    const v = parseFloat(m[1]);
-    if (v >= 1 && v <= 800) return v;
-  }
-  return 30;
-}
-
-function r1(n: number) {
-  return Math.round(n * 10) / 10;
-}
-
-function SizingWidget() {
-  const [modelId, setModelId] = useState("qwen27");
-  const [customSlug, setCustomSlug] = useState("");
-  const [hub, setHub] = useState<{
-    slug: string;
-    state: "checking" | "valid" | "missing" | "offline";
-  }>({ slug: "", state: "checking" });
-  const [hwKey, setHwKey] = useState("mini24");
-  const [group, setGroup] = useState<HwGroup>("Apple Silicon");
-  const [gpuCount, setGpuCount] = useState(2);
-  const [users, setUsers] = useState(1);
-  const [cli, setCli] = useState<"vLLM" | "Ollama">("vLLM");
-  const [copyState, setCopyState] = useState("");
-  const slug = customSlug.trim();
-  const validSlug =
-    /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(slug);
-
-  useEffect(() => {
-    if (!validSlug) return;
-    const controller = new AbortController();
-    let cancelled = false;
-    setHub({ slug, state: "checking" });
-    const timer = setTimeout(async () => {
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      try {
-        const response = await fetch(
-          `https://huggingface.co/api/models/${slug}`,
-          { signal: controller.signal },
-        );
-        if (!cancelled)
-          setHub({
-            slug,
-            state: response.ok
-              ? "valid"
-              : response.status === 404
-                ? "missing"
-                : "offline",
-          });
-      } catch {
-        if (!cancelled) setHub({ slug, state: "offline" });
-      } finally {
-        clearTimeout(timeout);
-      }
-    }, 450);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [slug, validSlug]);
-
-  const base = WIDGET_MODELS.find((m) => m.id === modelId) ?? WIDGET_MODELS[0];
-  const paramsB = estimateParamsFromSlug(slug);
-  const model = validSlug
-    ? {
-        ...base,
-        slug,
-        label: slug.split("/")[1],
-        paramsB,
-        layers: Math.round(28 + paramsB * 0.7),
-        hidden: paramsB >= 60 ? 8192 : paramsB >= 25 ? 5120 : 4096,
-      }
-    : base;
-  const hw: HwTarget =
-    hwKey === "custom"
-      ? {
-          key: "custom",
-          label: `${gpuCount}× RTX 3090`,
-          gb: gpuCount * 24,
-          group: "Local PC & Homelab",
-          memory: `${gpuCount} × 24GB VRAM`,
-          bandwidth: 936,
-          factor: 1.4,
-        }
-      : (HW_TARGETS.find((h) => h.key === hwKey) ?? HW_TARGETS[1]);
-  const kvPerUser = (2 * model.layers * model.hidden * CTX_TOKENS * 2) / 1e9;
-  const kv = kvPerUser * users;
-  const fp16 = model.paramsB * 2 + kv + RUNTIME_GB;
-  const int4 = model.paramsB * 0.5 + kv + RUNTIME_GB;
-  const fp8 = model.paramsB + kv + RUNTIME_GB;
-  const native = fp16 <= hw.gb;
-  const fits = int4 <= hw.gb;
-  const weights = model.paramsB * (native ? 2 : 0.5);
-  const total = weights + kv + RUNTIME_GB;
-  const headroom = Math.max(0, hw.gb - total);
-  const overflow = Math.max(0, total - hw.gb);
-  const scale = Math.max(hw.gb, total);
-  const tier = CLOUD_TIERS.find((t) => fp8 <= t.gb * 0.95) ?? CLOUD_TIERS[2];
-  const cloudFits = fp8 <= tier.gb * 0.95;
-  const speed = Math.max(
-    2,
-    Math.min(
-      65,
-      Math.round((55 / Math.pow(model.paramsB / 8, 0.7)) * hw.factor),
-    ),
-  );
-  const cloudSpeed = Math.round((1600 / model.paramsB) * tier.perf);
-  const costPer1k =
-    (tier.price * TOKENS_PER_QUERY * 1000) / (cloudSpeed * 3600);
-  const ollamaModel = !validSlug
-    ? (
-        { llama70: "llama3.3:70b", gptoss20: "gpt-oss:20b" } as Record<
-          string,
-          string
-        >
-      )[modelId]
-    : undefined;
-  const command =
-    cli === "vLLM"
-      ? `vllm serve ${model.slug} --quantization fp8 --max-model-len ${CTX_TOKENS} --max-num-seqs ${users} --tensor-parallel-size ${tier.tp} --gpu-memory-utilization 0.95`
-      : ollamaModel
-        ? `ollama run ${ollamaModel}`
-        : `# Select a GGUF conversion of ${model.slug}\nollama run hf.co/<owner>/<model-GGUF>:Q4_K_M`;
-  useEffect(() => {
-    setCopyState("");
-  }, [command]);
-  useEffect(() => {
-    if (!copyState) return;
-    const timer = setTimeout(() => setCopyState(""), 2000);
-    return () => clearTimeout(timer);
-  }, [copyState]);
-  const auditHref = `/new?${new URLSearchParams({
-    candidate_model: model.slug,
-    target_gpu: tier.key,
-    hardware: hw.key,
-    tensor_parallel_size: String(tier.tp),
-    concurrency: String(users),
-    context_len: String(CTX_TOKENS),
+    name: "DeepSeek V4 Flash 38B",
+    hardware: "L40S 48GB Ada",
+    capacityGb: 48,
+    weightsGb: 19.0,
     precision: "FP8",
-  })}`;
-  const allocations = [
-    { label: "Weights", value: weights, color: "bg-ink" },
-    { label: "KV-cache", value: kv, color: "bg-[#C88B38]" },
-    { label: "Runtime", value: RUNTIME_GB, color: "bg-[#A49D91]" },
-    { label: "Headroom", value: headroom, color: "bg-[#81A28B]" },
-  ];
-  const hubText = !validSlug
-    ? "Use owner/model format"
-    : hub.slug !== slug || hub.state === "checking"
-      ? "Checking Hub…"
-      : hub.state === "valid"
-        ? "✓ Hub Validated"
-        : hub.state === "missing"
-          ? "Model not found"
-          : "Hub unavailable";
-  const selection = (active: boolean) =>
-    `cursor-pointer rounded-xl border text-left transition-all duration-200 motion-reduce:transition-none motion-safe:hover:-translate-y-0.5 active:scale-[0.98] ${active ? "border-ink bg-ink text-canvas shadow-md" : "border-ink/10 bg-white/50 hover:border-ink/35 hover:bg-white/80"}`;
+    kvGb: 16.2,
+    runtimeGb: 2.0,
+    totalGb: 37.2,
+    tps: 82.1,
+    slug: "deepseek-ai/DeepSeek-V4-Flash",
+  },
+] as const;
+
+const VLLM_COMMAND =
+  "vllm serve Qwen/Qwen3.8-27B --tensor-parallel-size 1 --gpu-memory-utilization 0.92 --max-model-len 8192";
+
+const ECOSYSTEM = [
+  {
+    name: "Nebius AI Cloud",
+    tag: "H100 SXM5 / L40S",
+    badge: "Cloud Hub",
+    logo: "/logos/nebius.svg",
+  },
+  {
+    name: "NVIDIA TensorRT-LLM",
+    tag: "FP8 & INT4 Kernels",
+    badge: "Silicon Engine",
+    logo: "/logos/nvidia.svg",
+  },
+  {
+    name: "vLLM Serving",
+    tag: "PagedAttention v0.6",
+    badge: "High Throughput",
+    logo: "/logos/vllm.svg",
+  },
+  {
+    name: "Apple Silicon MLX",
+    tag: "128GB Unified Memory",
+    badge: "Local Inference",
+    logo: "/logos/apple.svg",
+  },
+  {
+    name: "Hugging Face Hub",
+    tag: "Direct Safetensors",
+    badge: "Weights Pipeline",
+    logo: "/logos/huggingface.svg",
+  },
+  {
+    name: "PyTorch 2.5",
+    tag: "CUDA 12.4 Engine",
+    badge: "Runtime Core",
+    logo: "/logos/pytorch.svg",
+  },
+];
+
+const FAILURE_MODES = [
+  {
+    code: "B1",
+    img: "/cards/failure-b1.png",
+    title: 'The "Batch-1" Illusion',
+    text: "Public benchmarks test a single prompt. Five concurrent users multiply KV-cache until a 24GB card dies with CUDA OOM.",
+    stat: "KV-CACHE x5 AT 5 CONCURRENT USERS",
+    tag: "OOM Trap",
+  },
+  {
+    code: "B2",
+    img: "/cards/failure-b2.png",
+    title: "The Hyperscaler Trap",
+    text: "Most “cheap” GPU instances lock you into long contracts and idle GPU time. Nebius gives you real GPU compute on demand with no lock-in and no wasted cost.",
+    stat: "FLEXIBLE GPU ACCESS WITHOUT THE TRAP",
+    tag: "Trap Avoided",
+  },
+  {
+    code: "ΣM",
+    img: "/cards/failure-sigma.png",
+    title: "Hallucinated Memory Math",
+    text: "ChatGPT estimates miss the PyTorch allocator overhead (1.5-2.0GB) and context sequence lengths, causing production outages.",
+    stat: "13.5 + 2.0 GB ≠ 30.3 GB REAL FOOTPRINT",
+    tag: "Math Error",
+  },
+  {
+    code: "PCI",
+    img: "/cards/failure-pci.png",
+    title: "PCIe Bus Chokepoints",
+    text: "Offloading weights from VRAM to system DDR5 RAM drops token speed from 70 tok/s to 3 tok/s over x8 lanes. Silently.",
+    stat: "70 tok/s → 3 tok/s OVER x8 LANES",
+    tag: "Latency Cliff",
+  },
+  {
+    code: "Q4",
+    img: "/cards/failure-q4.png",
+    title: "Quantization Quality Cliff",
+    text: "Squashing a 70B model to 2-bit to fit one GPU degrades tool-calling accuracy by 40% versus FP8 on an L40S or H100.",
+    stat: "INT2 vs FP8: -40% TOOL ACCURACY",
+    tag: "Accuracy Loss",
+  },
+  {
+    code: "TKT",
+    img: "/cards/failure-tkt.png",
+    title: "Quota Ticket Purgatory",
+    text: "Waiting weeks for AWS GPU limit approvals versus launching high-performance Nebius compute containers in about 30 seconds.",
+    stat: "WEEKS OF TICKETS → 30-SECOND LAUNCH",
+    tag: "Dev Velocity",
+  },
+];
+
+const PIPELINE_MODULES = [
+  {
+    kind: "rig" as const,
+    index: "MODULE 01",
+    title: "Audit Local Feasibility",
+    text: "Sizing against 16-192GB Apple unified memory or multi-RTX PCIe lanes before a single dollar is spent.",
+    spec: "MLX / CUDA TOPOLOGY CHECK",
+    href: "/new",
+    cta: "Audit your rig",
+  },
+  {
+    kind: "blade" as const,
+    index: "MODULE 02",
+    title: "Spin Up the Nebius Sandbox",
+    text: "One-hour hot-swappable H100 containers at $3.20/hr with live tok/s telemetry from 1 to 50+ concurrent users.",
+    spec: "$3.20/HR H100 ON-DEMAND",
+    href: "/new?target_gpu=h100",
+    cta: "Open sandbox",
+  },
+  {
+    kind: "cert" as const,
+    index: "MODULE 03",
+    title: "Mint the Production Blueprint",
+    text: "A SHA-256 fingerprinted certificate with a copy-ready vllm serve command. SHIP or BLOCK, no ambiguity.",
+    spec: "SHA-256 CERTIFIED",
+    href: "/docs",
+    cta: "See a certificate",
+  },
+];
+
+const SHOWDOWN_ROWS = [
+  { metric: "Memory bandwidth", nebius: "3.35 TB/s HBM3", aws: "Variable topology" },
+  { metric: "Interconnect", nebius: "900 GB/s NVLink", aws: "Legacy network hops" },
+  { metric: "Provisioning", nebius: "On-demand in seconds", aws: "Quota approval tickets" },
+  { metric: "Billing", nebius: "Per-second, zero lock-in", aws: "Annual reserved lock-ins" },
+];
+
+
+const SUPPORTED_MODELS = [
+  { name: "Qwen3.8", params: "27B", slug: "Qwen/Qwen3.8-27B" },
+  { name: "Llama 3.3", params: "70B", slug: "meta-llama/Llama-3.3-70B-Instruct" },
+  { name: "DeepSeek V4 Flash", params: "38B", slug: "deepseek-ai/DeepSeek-V4-Flash" },
+  { name: "GLM-5", params: "32B", slug: "THUDM/glm-5-32b" },
+  { name: "gpt-oss", params: "20B", slug: "openai/gpt-oss-20b" },
+  { name: "Codestral", params: "22B", slug: "mistralai/Codestral-22B-v0.1" },
+  { name: "Gemma 4", params: "31B", slug: "google/gemma-4-31b-it" },
+];
+
+const fmtUsd = (n: number) =>
+  n % 1 === 0 ? `$${n.toLocaleString("en-US")}` : `$${n.toFixed(2)}`;
+
+/* ————————————————————————————————————————————————
+   Hero: isometric hardware telemetry plane
+   Local rig node → animated conduit → Nebius H100 hub
+   ———————————————————————————————————————————————— */
+
+function HeroScene() {
+  const U = 24;
+  const extent = 5;
+  const gridAxis = Array.from({ length: extent * 2 + 1 }, (_, k) => k - extent);
+  const crossPts = [-4, -2, 0, 2, 4];
+
+  const rig = isoBox(-3, 1.6, 0, 1.8, 1.8, 0.42, U);
+  const rigTop = isoBox(-3, 1.6, 0.42, 1.15, 1.15, 0.5, U);
+  const hub = isoBox(0.8, -0.8, 0, 2.7, 2.7, 0.4, U);
+  const die = isoBox(0.8, -0.8, 0.4, 1.6, 1.6, 0.3, U);
+  const ghost1 = isoBox(3.0, 2.1, 1.8, 0.9, 0.9, 0.9, U);
+  const ghost2 = isoBox(-4.4, -3.0, 1.4, 0.8, 0.8, 0.8, U);
+
+  const rigTl = rig.anchors.tl;
+  const hubRight = isoPt(2.15, -0.8, 0.3, U);
 
   return (
-    <div
-      id="sizing"
-      className="scroll-mt-8 overflow-hidden rounded-2xl border border-ink/15 bg-[#F8F6F1] text-left shadow-[0_16px_48px_-20px_#5c514b50,0_2px_6px_#5c514b08]"
+    <svg
+      viewBox="0 0 640 460"
+      className="block w-full"
+      role="img"
+      aria-label="Isometric schematic: a local Apple Silicon rig streams a model through an animated data conduit into a Nebius H100 accelerator hub, which returns a certified production blueprint."
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/10 px-5 py-3 text-[11px] sm:px-6">
-        <span className="font-bold">
-          GPUProof <span className="mx-2 font-normal text-ink/30">/</span>{" "}
-          Hardware workbench
-        </span>
-        <span className="flex items-center gap-2 text-muted">
-          <span className="h-1.5 w-1.5 rounded-full bg-ship" />
-          Live estimates · no sign-up
-        </span>
-      </div>
-      <div className="grid lg:grid-cols-[1.05fr_1fr]">
-        <div className="min-w-0 space-y-6 p-5 sm:p-6">
-          <section aria-labelledby="model-heading">
-            <h2
-              id="model-heading"
-              className="flex items-center gap-2 text-sm font-bold"
-            >
-              <span className="text-[11px] text-muted">01 /</span> Choose your
-              model
-            </h2>
-            <div
-              className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3"
-              aria-label="Model selection"
-            >
-              {WIDGET_MODELS.slice(0, 5).map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  aria-pressed={!slug && m.id === modelId}
-                  onClick={() => {
-                    setModelId(m.id);
-                    setCustomSlug("");
-                  }}
-                  className={`${selection(!slug && m.id === modelId)} min-h-[65px] px-3 py-2.5`}
-                  title={m.blurb}
-                >
-                  <span className="block text-[11px] font-bold">
-                    {m.label.replace(/ (Flash )?\d+B$/, "")}
-                  </span>
-                  <span
-                    className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] ${!slug && m.id === modelId ? "bg-white/15 text-canvas" : "bg-ink/5 text-muted"}`}
-                  >
-                    {m.paramsB}B parameters
-                  </span>
-                </button>
-              ))}
-              <a
-                href="#hf-slug"
-                className="flex min-h-[65px] items-center justify-center rounded-xl border border-dashed border-ink/20 px-3 text-[11px] text-muted transition-colors hover:border-ink hover:text-ink"
-              >
-                + Custom model
-              </a>
-            </div>
-            <label
-              htmlFor="hf-slug"
-              className="mb-1.5 mt-3 flex flex-wrap justify-between gap-1 text-[10px] text-muted"
-            >
-              Hugging Face repository{" "}
-              {slug && (
-                <span
-                  role="status"
-                  className={
-                    hubText.includes("Validated") ? "text-ship" : "text-muted"
-                  }
-                >
-                  {hubText}
-                </span>
-              )}
-            </label>
-            <input
-              id="hf-slug"
-              value={customSlug}
-              onChange={(e) => setCustomSlug(e.target.value)}
-              placeholder="owner/model-name"
-              spellCheck={false}
-              autoComplete="off"
-              aria-describedby="model-help"
-              className="min-h-[42px] w-full rounded-lg border border-ink/15 bg-[#EDEAE3]/70 px-3 text-xs shadow-inner placeholder:text-muted focus:border-ink"
-            />
-            <p
-              id="model-help"
-              className="mt-1.5 text-[10px] leading-relaxed text-muted"
-            >
-              {slug
-                ? "Custom architecture is estimated from the name (30B default). Hub validation confirms repository existence only."
-                : "Pick a preset or size any public Hub repository."}
-            </p>
-          </section>
-          <section aria-labelledby="hardware-heading">
-            <h2
-              id="hardware-heading"
-              className="flex items-center gap-2 text-sm font-bold"
-            >
-              <span className="text-[11px] text-muted">02 /</span> Set your
-              hardware target
-            </h2>
-            <div
-              className="mt-3 flex rounded-lg bg-[#E8E4DC] p-1"
-              aria-label="Hardware families"
-            >
-              {HW_GROUPS.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  aria-pressed={group === g}
-                  onClick={() => {
-                    setGroup(g);
-                    setHwKey(HW_TARGETS.find((h) => h.group === g)!.key);
-                  }}
-                  className={`min-h-[40px] min-w-0 flex-1 cursor-pointer rounded-md px-1 text-[10px] font-bold transition-all motion-reduce:transition-none ${group === g ? "bg-[#FFFEFA] text-ink shadow-sm" : "text-muted hover:text-ink"}`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {HW_TARGETS.filter((h) => h.group === group).map((h) => (
-                <button
-                  key={h.key}
-                  type="button"
-                  aria-pressed={h.key === hwKey}
-                  onClick={() => setHwKey(h.key)}
-                  className={`${selection(h.key === hwKey)} px-3 py-2.5`}
-                >
-                  <span className="flex items-start justify-between gap-1 text-[11px] font-bold">
-                    {h.label}
-                    <span
-                      aria-hidden="true"
-                      className={
-                        h.key === hwKey ? "text-[#A9C8AC]" : "text-ink/20"
-                      }
-                    >
-                      {h.key === hwKey ? "●" : "○"}
-                    </span>
-                  </span>
-                  <span
-                    className={`mt-1.5 block text-[9px] ${h.key === hwKey ? "text-canvas/80" : "text-muted"}`}
-                  >
-                    {h.memory}
-                  </span>
-                  <span
-                    className={`mt-1 block text-[9px] ${h.key === hwKey ? "text-canvas/80" : "text-muted"}`}
-                  >
-                    {h.bandwidth.toLocaleString()} GB/s
-                    {h.memory.includes("×") ? " / GPU" : ""}
-                  </span>
-                </button>
-              ))}
-            </div>
-            {group === "Local PC & Homelab" && (
-              <div
-                className={`mt-2 rounded-xl border p-3 ${hwKey === "custom" ? "border-ink/40 bg-white/80" : "border-ink/10"}`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    aria-pressed={hwKey === "custom"}
-                    onClick={() => setHwKey("custom")}
-                    className="min-h-10 cursor-pointer text-left text-[11px] font-bold"
-                  >
-                    {hwKey === "custom" ? "● " : "+ "}Custom Multi-GPU
-                    <span className="mt-1 block text-[10px] font-normal text-muted">
-                      RTX 3090 · 24GB per GPU
-                    </span>
-                  </button>
-                  <div className="flex items-center rounded-lg border border-ink/15 bg-white/70">
-                    <button
-                      type="button"
-                      aria-label="Remove GPU"
-                      disabled={gpuCount <= 2}
-                      onClick={() => {
-                        setGpuCount(gpuCount - 1);
-                        setHwKey("custom");
-                      }}
-                      className="h-10 w-9 cursor-pointer disabled:opacity-30"
-                    >
-                      −
-                    </button>
-                    <input
-                      aria-label="Custom GPU count"
-                      type="number"
-                      min={2}
-                      max={64}
-                      value={gpuCount}
-                      onChange={(e) => {
-                        setGpuCount(
-                          Math.min(
-                            64,
-                            Math.max(
-                              2,
-                              Math.trunc(Number(e.target.value) || 2),
-                            ),
-                          ),
-                        );
-                        setHwKey("custom");
-                      }}
-                      className="h-10 w-12 bg-transparent text-center text-xs"
-                    />
-                    <button
-                      type="button"
-                      aria-label="Add GPU"
-                      disabled={gpuCount >= 64}
-                      onClick={() => {
-                        setGpuCount(gpuCount + 1);
-                        setHwKey("custom");
-                      }}
-                      className="h-10 w-9 cursor-pointer disabled:opacity-30"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-                <p className="mt-2 text-[10px] text-muted">
-                  {gpuCount * 24} GB pooled · TP={gpuCount} · 936 GB/s per GPU
-                </p>
-                <p className="mt-1 text-[9px] leading-relaxed text-muted">
-                  Capacity estimate. Tensor parallelism requires compatible
-                  model head counts and GPU interconnects.
-                </p>
-              </div>
-            )}
-          </section>
-          <section
-            aria-labelledby="traffic-heading"
-            className="border-t border-ink/10 pt-4"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <h2 id="traffic-heading" className="text-sm font-bold">
-                <span className="mr-2 text-[11px] text-muted">03 /</span>Dial in
-                traffic
-              </h2>
-              <output
-                htmlFor="active-users"
-                className="rounded-md bg-ink px-2.5 py-1 text-xs tabular-nums text-canvas"
-              >
-                {users} {users === 1 ? "user" : "users"}
-              </output>
-            </div>
-            <input
-              id="active-users"
-              aria-label="Active users"
-              type="range"
-              min={1}
-              max={50}
-              value={users}
-              onChange={(e) => setUsers(Number(e.target.value))}
-              className="mt-4 h-5 w-full cursor-pointer accent-[#1F1F1F]"
-            />
-            <div className="mt-1 grid grid-cols-3 gap-2">
-              {[
-                { n: 1, title: "1 User", text: "Local dev" },
-                { n: 5, title: "5 Users", text: "Small team" },
-                { n: 25, title: "25+ Users", text: "Production API" },
-              ].map((u) => (
-                <button
-                  key={u.n}
-                  type="button"
-                  onClick={() => setUsers(u.n)}
-                  className={`min-h-11 cursor-pointer text-left text-[10px] transition-colors hover:text-ink ${users === u.n ? "text-ink" : "text-muted"}`}
-                >
-                  <span className="block font-bold">{u.title}</span>
-                  <span className="block text-[9px]">{u.text}</span>
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 flex items-center gap-2 rounded-lg bg-[#EDE9E0] px-3 py-2 text-[10px] text-muted">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#C88B38]" />
-              {CTX_TOKENS.toLocaleString()} cached tokens / user · ~
-              {r1(kvPerUser)} GB each
-            </p>
-          </section>
-        </div>
-        <aside
-          aria-label="Hardware feasibility board"
-          className="min-w-0 border-t border-ink/10 bg-[#F0EEE7] p-5 sm:p-6 lg:border-l lg:border-t-0"
+      <defs>
+        <marker
+          id="gp-arrow"
+          markerWidth="7"
+          markerHeight="7"
+          refX="5.5"
+          refY="3.5"
+          orient="auto"
         >
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold">Hardware feasibility</h2>
-            <span className="rounded-full border border-ship/20 bg-ship/5 px-2 py-1 text-[9px] text-ship">
-              ● LIVE
-            </span>
-          </div>
-          <p
-            className="mt-2 truncate text-[11px] text-muted"
-            title={model.slug}
-          >
-            {model.label} <span className="text-ink/30">/</span> {hw.label}
-          </p>
-          <div className="mt-6 flex items-end justify-between gap-2">
-            <div>
-              <p className="text-[10px] text-muted">
-                Estimated memory footprint
-              </p>
-              <p className="mt-1 text-3xl font-semibold tracking-tighter tabular-nums">
-                {r1(total)}
-                <span className="ml-1 text-sm font-normal text-muted">
-                  / {hw.gb} GB
-                </span>
-              </p>
-            </div>
-            <span className="mb-1 rounded-md border border-ink/15 px-2 py-1 text-[10px]">
-              {native ? "FP16" : "INT4"}
-            </span>
-          </div>
-          <div
-            className="relative mt-4"
-            role="img"
-            aria-label={`Memory allocation: ${allocations.map((a) => `${a.label} ${r1(a.value)} GB`).join(", ")}. ${r1(overflow)} GB over capacity.`}
-          >
-            <div className="flex h-9 overflow-hidden rounded-lg bg-ink/5 shadow-inner">
-              {allocations.map((a) => (
-                <div
-                  key={a.label}
-                  title={`${a.label}: ${r1(a.value)} GB`}
-                  className={`${a.color} h-full shrink-0 border-r border-white/30 last:border-0 transition-[width] duration-500 ease-out motion-reduce:transition-none`}
-                  style={{ width: `${(a.value / scale) * 100}%` }}
-                />
-              ))}
-            </div>
-            {overflow > 0 && (
-              <div
-                className="pointer-events-none absolute inset-y-0 right-0 rounded-r-lg border-l-2 border-[#AD3B36] bg-red-700/25 transition-[width] duration-500 motion-reduce:transition-none"
-                style={{
-                  width: `${(overflow / scale) * 100}%`,
-                  backgroundImage:
-                    "repeating-linear-gradient(135deg, transparent, transparent 4px, #ad3b3640 4px, #ad3b3640 6px)",
-                }}
+          <path d="M0 0.5 L6 3.5 L0 6.5 Z" fill="#1F1F1F" fillOpacity="0.55" />
+        </marker>
+      </defs>
+
+      <g transform="translate(320 250)">
+        {/* perspective grid floor */}
+        {gridAxis.map((i) => (
+          <g key={i}>
+            <line
+              x1={isoPt(i, -extent, 0, U)[0]}
+              y1={isoPt(i, -extent, 0, U)[1]}
+              x2={isoPt(i, extent, 0, U)[0]}
+              y2={isoPt(i, extent, 0, U)[1]}
+              stroke="#1F1F1F"
+              strokeOpacity={Math.abs(i) === extent ? 0.3 : 0.13}
+              strokeWidth="1"
+              strokeDasharray="3 3"
+            />
+            <line
+              x1={isoPt(-extent, i, 0, U)[0]}
+              y1={isoPt(-extent, i, 0, U)[1]}
+              x2={isoPt(extent, i, 0, U)[0]}
+              y2={isoPt(extent, i, 0, U)[1]}
+              stroke="#1F1F1F"
+              strokeOpacity={Math.abs(i) === extent ? 0.3 : 0.13}
+              strokeWidth="1"
+              strokeDasharray="3 3"
+            />
+          </g>
+        ))}
+        {/* CAD coordinate crosses at grid intersections */}
+        {crossPts.map((i) =>
+          crossPts.map((j) => {
+            const [px, py] = isoPt(i, j, 0, U);
+            return (
+              <path
+                key={`${i}:${j}`}
+                d={`M ${px - 3.5} ${py} H ${px + 3.5} M ${px} ${py - 3.5} V ${py + 3.5}`}
+                stroke="#1F1F1F"
+                strokeOpacity="0.32"
+                strokeWidth="1"
               />
-            )}
-          </div>
-          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
-            {allocations.map((a) => (
-              <div key={a.label}>
-                <dt className="flex items-center gap-1.5 text-[9px] text-muted">
-                  <span className={`h-1.5 w-1.5 rounded-sm ${a.color}`} />
-                  {a.label}
-                </dt>
-                <dd className="mt-1 text-xs font-bold tabular-nums">
-                  {r1(a.value)}{" "}
-                  <span className="font-normal text-muted">GB</span>
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <div
-            aria-live="polite"
-            className={`mt-5 rounded-xl border p-3.5 ${native ? "border-ship/20 bg-[#E4ECE2]" : fits ? "border-[#BD8933]/25 bg-[#F3E9D5]" : "border-red-800/20 bg-[#F3DFDC]"}`}
-          >
-            <p
-              className={`text-[12px] font-bold ${native ? "text-ship" : fits ? "text-[#775010]" : "text-[#A1322C]"}`}
-            >
-              {native
-                ? "● RUNS NATIVELY (FP16)"
-                : fits
-                  ? "● RUNS QUANTIZED (INT4)"
-                  : "● REQUIRES CLOUD (OOM)"}
-            </p>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-ink/80">
-              {native
-                ? "Full precision. No weight compression needed."
-                : fits
-                  ? `Fits in 4-bit at ~${speed} tok/s. Quality impact depends on the model.`
-                  : "Exceeds device memory. Loading may fail or offload to slower CPU RAM."}
-            </p>
-            {overflow > 0 && (
-              <p className="mt-2 text-[10px] font-bold text-[#A1322C] motion-safe:animate-[pulse_1s_ease-in-out_2]">
-                ⚠ +{r1(overflow)} GB Over Capacity
-                {group === "Apple Silicon" ? " (OOM)" : " (CUDA OOM)"}
-              </p>
-            )}
-          </div>
-          <div className="mb-3 mt-6 flex items-center gap-3 text-[10px] text-muted">
-            <span>Your hardware vs. Nebius Cloud</span>
-            <span className="h-px flex-1 bg-ink/10" />
-          </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="min-w-0 rounded-xl border border-ink/10 bg-white/40 p-3">
-              <p className="text-[10px] font-bold">Your Setup</p>
-              <p className="mt-1 min-h-8 text-[9px] text-muted">{hw.label}</p>
-              <p className="mt-2 text-xl font-semibold tracking-tight tabular-nums">
-                {fits ? `~${speed}` : "—"}
-                <span className="ml-1 text-[9px] font-normal text-muted">
-                  tok/s
-                </span>
-              </p>
-              <p
-                className={`mt-1 text-[9px] ${fits ? "text-ship" : "text-[#A1322C]"}`}
-              >
-                {fits
-                  ? `${r1(headroom)} GB headroom`
-                  : `${r1(overflow)} GB short`}
-              </p>
-              <p className="mt-3 border-t border-ink/10 pt-2 text-[10px] font-bold">
-                {hw.priceHr
-                  ? `$${hw.priceHr.toFixed(2)}/hr`
-                  : "$0.00/hr (Free)"}
-              </p>
-              <p className="mt-1 text-[9px] text-muted">
-                {hw.priceHr
-                  ? "Illustrative GPU rate"
-                  : "Hardware & electricity excluded"}
-              </p>
-            </div>
-            <div className="min-w-0 rounded-xl border border-ship/25 bg-[#E8EEE4] p-3">
-              <p className="text-[10px] font-bold text-ship">
-                Nebius Cloud Upgrade
-              </p>
-              <p className="mt-1 min-h-8 text-[9px] text-muted">
-                {cloudFits ? tier.label : "Larger cluster needed"}
-              </p>
-              <p className="mt-2 text-xl font-semibold tracking-tight tabular-nums">
-                {cloudFits ? `~${cloudSpeed}` : "—"}
-                <span className="ml-1 text-[9px] font-normal text-muted">
-                  tok/s FP8
-                </span>
-              </p>
-              <p className="mt-1 text-[9px] text-ship">
-                {cloudFits
-                  ? `${r1(tier.gb - fp8)} GB headroom`
-                  : "Exceeds listed cloud tiers"}
-              </p>
-              <p className="mt-3 border-t border-ship/15 pt-2 text-[10px] font-bold">
-                {cloudFits ? `$${tier.price.toFixed(2)}/hr` : "Custom sizing"}
-              </p>
-              <p className="mt-1 text-[9px] text-muted">
-                {cloudFits
-                  ? `~$${costPer1k.toFixed(2)} / 1k queries`
-                  : "Reduce concurrency to fit"}
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 overflow-hidden rounded-xl bg-ink text-canvas">
-            <div className="flex items-center justify-between border-b border-white/10 px-3">
-              <div className="flex gap-3" aria-label="CLI runtime">
-                {(["vLLM", "Ollama"] as const).map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    aria-pressed={cli === name}
-                    onClick={() => setCli(name)}
-                    className={`min-h-10 cursor-pointer border-b-2 text-[10px] ${cli === name ? "border-[#A9C8AC] text-canvas" : "border-transparent text-canvas/60 hover:text-canvas"}`}
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(command);
-                    setCopyState("✓ Copied");
-                  } catch {
-                    setCopyState("Select to copy");
-                  }
-                }}
-                className="min-h-10 cursor-pointer text-[10px] text-canvas/80 hover:text-white"
-                aria-live="polite"
-              >
-                {copyState || "Copy"}
-              </button>
-            </div>
-            <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-all p-3 text-[10px] leading-relaxed">
-              <code>{command}</code>
-            </pre>
-          </div>
-          <p className="mt-2 text-[9px] leading-relaxed text-muted">
-            {cli === "vLLM"
-              ? "Cloud launch template. Requires a supported model and FP8-capable runtime."
-              : ollamaModel
-                ? "Runs the Ollama catalog build locally; precision and context may differ from this estimate."
-                : "Ollama needs a compatible GGUF repository. Replace placeholders before running."}
-          </p>
-          <Link
-            href={auditHref}
-            className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-ink px-3 py-3 text-center text-[11px] font-bold text-canvas shadow-sm transition-all motion-safe:hover:-translate-y-0.5 hover:bg-[#33332E] active:scale-[0.98] motion-reduce:transition-none"
-          >
-            Test Run on Nebius Cloud GPU <span aria-hidden="true">→</span>
-          </Link>
-          <p className="mt-3 text-[9px] leading-relaxed text-muted">
-            Estimates, not benchmarks. KV-cache uses a conservative attention
-            approximation. Bandwidth varies by hardware generation. Cost assumes{" "}
-            {TOKENS_PER_QUERY} output tokens/query; listed rates are
-            illustrative.
-          </p>
-        </aside>
-      </div>
+            );
+          })
+        )}
+
+        {/* radar ring around the hub */}
+        <ellipse
+          cx={isoPt(0.8, -0.8, 0, U)[0]}
+          cy={isoPt(0.8, -0.8, 0, U)[1]}
+          rx="118"
+          ry="56"
+          fill="none"
+          stroke="#1F1F1F"
+          strokeOpacity="0.22"
+          strokeWidth="1"
+          strokeDasharray="4 6"
+          className="gp-dash-slow"
+        />
+
+        {/* floating ghost planes */}
+        <polygon points={ghost1.top} fill="none" stroke="#1F1F1F" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="3 3" />
+        <polygon points={ghost1.right} fill="#FFFFFF" fillOpacity="0.5" stroke="#1F1F1F" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="3 3" />
+        <polygon points={ghost1.front} fill="#E7E1D7" fillOpacity="0.6" stroke="#1F1F1F" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="3 3" />
+        <polygon points={ghost2.top} fill="none" stroke="#1F1F1F" strokeOpacity="0.25" strokeWidth="1" strokeDasharray="3 3" />
+        <polygon points={ghost2.right} fill="#FFFFFF" fillOpacity="0.4" stroke="#1F1F1F" strokeOpacity="0.25" strokeWidth="1" strokeDasharray="3 3" />
+        <polygon points={ghost2.front} fill="#E7E1D7" fillOpacity="0.5" stroke="#1F1F1F" strokeOpacity="0.25" strokeWidth="1" strokeDasharray="3 3" />
+
+        {/* uplink conduit: local rig → hub */}
+        <path
+          d="M -96 -39 C -58 -80, -16 -64, 5 -29"
+          fill="none"
+          stroke="#1F1F1F"
+          strokeOpacity="0.18"
+          strokeWidth="4"
+          markerEnd="url(#gp-arrow)"
+        />
+        <path
+          d="M -96 -39 C -58 -80, -16 -64, 5 -29"
+          fill="none"
+          stroke="#3B82F6"
+          strokeWidth="1.75"
+          className="gp-conduit"
+        />
+
+        {/* return conduit: hub → blueprint terminal */}
+        <path
+          d={`M ${hubRight[0]} ${hubRight[1]} C 112 18, 158 44, 152 92`}
+          fill="none"
+          stroke="#1F1F1F"
+          strokeOpacity="0.16"
+          strokeWidth="4"
+          markerEnd="url(#gp-arrow)"
+        />
+        <path
+          d={`M ${hubRight[0]} ${hubRight[1]} C 112 18, 158 44, 152 92`}
+          fill="none"
+          stroke="#3B82F6"
+          strokeWidth="1.75"
+          className="gp-conduit"
+        />
+
+        {/* local rig node */}
+        <g>
+          <polygon points={rig.top} fill="#FFFFFF" fillOpacity="0.92" stroke="#1F1F1F" strokeWidth="1.5" />
+          <polygon points={rig.right} fill="#E7E1D7" stroke="#1F1F1F" strokeWidth="1.5" />
+          <polygon points={rig.front} fill="#E7E1D7" stroke="#1F1F1F" strokeWidth="1.5" />
+          <polygon points={rigTop.top} fill="#FFFFFF" fillOpacity="0.95" stroke="#1F1F1F" strokeWidth="1.5" />
+          <polygon points={rigTop.right} fill="#E7E1D7" stroke="#1F1F1F" strokeWidth="1.5" />
+          <polygon points={rigTop.front} fill="#E7E1D7" stroke="#1F1F1F" strokeWidth="1.5" />
+          <circle cx={rig.anchors.top[0] + 14} cy={rig.anchors.top[1] - 6} r="3" fill="#1E6B3A" />
+          {/* leader stub toward the rig status chip */}
+          <circle cx={rigTl[0]} cy={rigTl[1]} r="2.5" fill="#1F1F1F" />
+          <line
+            x1={rigTl[0]}
+            y1={rigTl[1]}
+            x2={rigTl[0] - 34}
+            y2={rigTl[1] - 44}
+            stroke="#1F1F1F"
+            strokeOpacity="0.45"
+            strokeWidth="1"
+            strokeDasharray="3 3"
+          />
+          <circle cx={rigTl[0] - 34} cy={rigTl[1] - 44} r="2.5" fill="#1F1F1F" fillOpacity="0.55" />
+        </g>
+
+        {/* Nebius accelerator hub */}
+        <g>
+          <polygon points={hub.top} fill="#1F1F1F" stroke="#1F1F1F" strokeWidth="1.5" />
+          <polygon points={hub.right} fill="#141414" stroke="#1F1F1F" strokeWidth="1.5" />
+          <polygon points={hub.front} fill="#161616" stroke="#1F1F1F" strokeWidth="1.5" />
+          {/* HBM channel traces on the substrate */}
+          {[-1.35, -0.8, -0.25].map((gy) => (
+            <line
+              key={gy}
+              x1={isoPt(-0.3, gy, 0.4, U)[0]}
+              y1={isoPt(-0.3, gy, 0.4, U)[1]}
+              x2={isoPt(1.9, gy, 0.4, U)[0]}
+              y2={isoPt(1.9, gy, 0.4, U)[1]}
+              stroke="#EFEBE4"
+              strokeOpacity="0.35"
+              strokeWidth="1"
+            />
+          ))}
+          <polygon points={die.top} fill="#3B82F6" fillOpacity="0.26" stroke="#3B82F6" strokeWidth="1.5" />
+          <polygon points={die.right} fill="#3B82F6" fillOpacity="0.14" stroke="#3B82F6" strokeWidth="1.5" />
+          <polygon points={die.front} fill="#3B82F6" fillOpacity="0.18" stroke="#3B82F6" strokeWidth="1.5" />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+function RigStatusChip() {
+  return (
+    <div className="absolute left-2 top-2 hidden rounded-xl border border-ink/15 bg-white/90 px-3.5 py-2.5 shadow-[0_10px_28px_rgba(31,31,31,0.10)] backdrop-blur-sm lg:block">
+      <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted">Local rig</p>
+      <p className="mt-1 text-[11px] font-bold leading-tight">APPLE M4 MAX / RTX 4090</p>
+      <p className="text-[10px] text-muted">128GB unified memory</p>
+      <p className="mt-1 text-[10px] font-bold text-ship">FITS @ 4-BIT ✓</p>
     </div>
   );
 }
 
-const USE_CASES = [
-  {
-    glyph: "🍎",
-    title: "The Mac Mini & Solo Dev",
-    problem: "You want to run Qwen or gpt-oss locally without spending money.",
-    solution:
-      "Find the precision that fits your unified memory before downloading the weights.",
-  },
-  {
-    glyph: "🖥️",
-    title: "The Homelab & Multi-GPU Builder",
-    problem: "You have 2 to 10+ consumer GPUs and want to run 70B+ models.",
-    solution:
-      "Explore pooled VRAM, tensor parallelism, and context limits before you buy the next GPU.",
-  },
-  {
-    glyph: "🏭",
-    title: "The Production Engineering Team",
-    problem:
-      "Internal tools or customer APIs need guaranteed P95 latency (<2,000ms) under concurrent load.",
-    solution:
-      "Compare cloud capacity and estimated costs, then benchmark your workload on Nebius GPUs.",
-  },
+function HubTelemetryChip() {
+  return (
+    <div className="hidden sm:block absolute right-2 top-2 rounded-xl border border-canvas/10 bg-ink px-4 py-3 text-canvas shadow-[0_14px_36px_rgba(31,31,31,0.28)]">
+      <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.18em] text-canvas/70">
+        <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 motion-safe:animate-ping" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        </span>
+        Nebius H100 SXM5
+      </div>
+      <p className="mt-1.5 text-sm font-bold">30.3 GB / 80 GB</p>
+      <p className="mt-0.5 text-[10px] text-canvas/70">
+        94.2 tok/s&nbsp;&nbsp;&nbsp;$3.20/hr
+      </p>
+    </div>
+  );
+}
+
+function BlueprintTerminal({
+  command,
+  copied,
+  onCopy,
+}: {
+  command: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-canvas/10 bg-[#161616] text-canvas shadow-[0_18px_44px_rgba(31,31,31,0.32)]">
+      <div className="flex items-center justify-between border-b border-canvas/10 px-4 py-2 text-[9px] font-bold uppercase tracking-[0.18em] text-canvas/60">
+        <span>Production blueprint</span>
+        <button
+          type="button"
+          onClick={onCopy}
+          className={`${transition} cursor-pointer rounded border border-canvas/20 px-2 py-0.5 text-[9px] font-bold tracking-normal text-canvas/90 hover:border-canvas/50 hover:text-canvas`}
+        >
+          {copied ? "✓ Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="overflow-x-auto px-4 py-3 text-[10px] leading-relaxed text-canvas/90">
+        <code>
+          {command.split(" --").map((segment, i, all) => (
+            <span key={i}>
+              {i === 0 ? (
+                <>
+                  <span className="text-emerald-400">$</span> {segment}{" "}
+                </>
+              ) : (
+                <>{"\n"}  {segment}</>
+              )}
+              {i < all.length - 1 ? "\\" : ""}
+            </span>
+          ))}
+        </code>
+      </pre>
+    </div>
+  );
+}
+
+/* ————————————————————————————————————————————————
+   Section 2: exploded isometric memory stack
+   ———————————————————————————————————————————————— */
+
+interface StackLayer {
+  id: string;
+  name: string;
+}
+
+const STACK_LAYERS: StackLayer[] = [
+  { id: "weights", name: "MODEL WEIGHTS" },
+  { id: "kv", name: "PAGEDATTENTION KV-CACHE" },
+  { id: "compute", name: "CUDA + TENSOR CORES" },
+  { id: "bus", name: "HBM3 BUS + NVLINK" },
 ];
 
-const CLOUD_ROWS = [
-  {
-    gpu: "1× L40S 48GB",
-    vram: "48GB",
-    hr: "$1.35/hr",
-    best: "27–38B models · best value",
-    per1k: "≈$3.18 / 1k queries",
-  },
-  {
-    gpu: "1× H100 80GB",
-    vram: "80GB",
-    hr: "$3.20/hr",
-    best: "70B models · fastest single GPU",
-    per1k: "≈$2.90 / 1k queries",
-  },
-  {
-    gpu: "8× H100 640GB",
-    vram: "640GB",
-    hr: "$25.60/hr",
-    best: "70B+ at 25-user concurrency",
-    per1k: "Priced per cluster audit",
-  },
-];
+function ExplodedStack({
+  model,
+  hover,
+  onHover,
+}: {
+  model: (typeof STACK_MODELS)[number];
+  hover: string | null;
+  onHover: (id: string | null) => void;
+}) {
+  const U = 34;
+  const gap = 0.5 + model.kvGb / 42; // separation grows with KV pressure
+  const kvH = 0.28 + model.kvGb / 34; // KV slab thickness
+  const wW = 2.4 + model.weightsGb / 14; // weights footprint
 
-const FAQS = [
-  {
-    q: "How is this different from asking ChatGPT what GPU I need?",
-    a: "Chatbots guess from training data and routinely suggest GPUs that OOM on your workload. GPUProof computes exact memory math — weights per precision plus KV-cache for your user count plus runtime overhead — then verifies it with a real benchmark run on Nebius Cloud GPUs.",
-  },
-  {
-    q: "Why does adding users increase memory so much?",
-    a: "Every active user holds their own KV-cache (roughly layers × hidden size × context length). Weights stay fixed, but 25 concurrent users can add 50–250GB of cache on a 70B model. That is why a setup that fits one user OOMs in production.",
-  },
-  {
-    q: "When should I move from local hardware to Nebius Cloud?",
-    a: "When even 4-bit weights plus your KV-cache exceed local VRAM, or when you need guaranteed P95 latency under 2,000ms for other people. The widget above names the cheapest Nebius GPU that holds your FP8 footprint.",
-  },
-  {
-    q: "What does the full cloud audit do?",
-    a: "It replays 200+ realistic production queries against your model on a real Nebius GPU, measures P95 latency, output accuracy, and error rate, and mints a SHIP or BLOCK certificate with the exact numbers — so deploys stop being guesses.",
-  },
-];
+  const z2 = 0.5 + gap;
+  const z3 = z2 + 0.45 + gap;
+  const z4 = z3 + kvH + gap;
 
-function FaqSection() {
-  const [open, setOpen] = useState<number | null>(0);
+  const base = isoBox(0, 0, 0, 4.4, 4.4, 0.5, U);
+  const compute = isoBox(0, 0, z2, 3.7, 3.7, 0.45, U);
+  const kv = isoBox(0, 0, z3, 3.05, 3.05, kvH, U);
+  const weights = isoBox(0, 0, z4, wW, wW, 0.42, U);
+
+  const labelX = 218;
+
+  const layerGeom = [
+    {
+      id: "weights",
+      faces: weights,
+      value: `${model.weightsGb.toFixed(1)} GB ${model.precision}`,
+      hot: hover === "weights",
+      topFill: "#FFFFFF",
+      topOpacity: 0.96,
+      sideFill: "#E7E1D7",
+    },
+    {
+      id: "kv",
+      faces: kv,
+      value: `${model.kvGb.toFixed(1)} GB @ 10 USERS`,
+      hot: hover === "kv",
+      topFill: "#3B82F6",
+      topOpacity: 0.2,
+      sideFill: "#3B82F6",
+    },
+    {
+      id: "compute",
+      faces: compute,
+      value: `${model.tps} tok/s`,
+      hot: hover === "compute",
+      topFill: "url(#gp-compute-cells)",
+      topOpacity: 1,
+      sideFill: "#E7E1D7",
+    },
+    {
+      id: "bus",
+      faces: base,
+      value: "3.35 TB/s",
+      hot: hover === "bus",
+      topFill: "#1F1F1F",
+      topOpacity: 1,
+      sideFill: "#141414",
+    },
+  ];
+
+  return (
+    <svg
+      viewBox="0 0 740 620"
+      className="block w-full"
+      role="img"
+      aria-label={`Exploded isometric stack of an inference run on ${model.hardware}: model weights, KV-cache pool, compute layer, and HBM3 memory bus.`}
+    >
+      <defs>
+        <pattern id="gp-compute-cells" width="10" height="10" patternUnits="userSpaceOnUse">
+          <rect width="10" height="10" fill="#FFFFFF" />
+          <path d="M0 0 H10 V10" fill="none" stroke="#1F1F1F" strokeOpacity="0.28" strokeWidth="1" />
+        </pattern>
+      </defs>
+
+      <g transform="translate(320 380)">
+        {/* floor reference ring */}
+        <ellipse
+          cx="0"
+          cy="0"
+          rx="168"
+          ry="80"
+          fill="none"
+          stroke="#1F1F1F"
+          strokeOpacity="0.18"
+          strokeWidth="1"
+          strokeDasharray="3 4"
+        />
+
+        {/* key={model.id} replays the recompile animation on model switch */}
+        <g key={model.id}>
+          {layerGeom.map((layer, i) => {
+            const dim = hover !== null && !layer.hot;
+            const strokeColor = layer.hot ? "#3B82F6" : "#1F1F1F";
+            const [ax, ay] = layer.faces.anchors.tr;
+            return (
+              <g
+                key={layer.id}
+                className="gp-stack-in"
+                style={{ animationDelay: `${i * 70}ms` }}
+                onMouseEnter={() => onHover(layer.id)}
+                onMouseLeave={() => onHover(null)}
+              >
+                <g style={{ opacity: dim ? 0.38 : 1 }} className={stackEase}>
+                  <polygon
+                    points={layer.faces.top}
+                    fill={layer.topFill}
+                    fillOpacity={layer.topOpacity}
+                    stroke={strokeColor}
+                    strokeWidth="1.5"
+                  />
+                  <polygon
+                    points={layer.faces.right}
+                    fill={layer.sideFill}
+                    fillOpacity={layer.id === "kv" ? 0.14 : layer.id === "bus" ? 1 : 0.9}
+                    stroke={strokeColor}
+                    strokeWidth="1.5"
+                  />
+                  <polygon
+                    points={layer.faces.front}
+                    fill={layer.sideFill}
+                    fillOpacity={layer.id === "kv" ? 0.18 : layer.id === "bus" ? 1 : 0.9}
+                    stroke={strokeColor}
+                    strokeWidth="1.5"
+                  />
+                  {layer.id === "bus" &&
+                    [-1.6, -0.9, -0.2].map((gy) => (
+                      <line
+                        key={gy}
+                        x1={isoPt(-1.7, gy, 0.5, U)[0]}
+                        y1={isoPt(-1.7, gy, 0.5, U)[1]}
+                        x2={isoPt(1.7, gy, 0.5, U)[0]}
+                        y2={isoPt(1.7, gy, 0.5, U)[1]}
+                        stroke="#EFEBE4"
+                        strokeOpacity="0.4"
+                        strokeWidth="1"
+                      />
+                    ))}
+                </g>
+                {/* leader line + technical annotation */}
+                <circle cx={ax} cy={ay} r="2.5" fill={layer.hot ? "#3B82F6" : "#1F1F1F"} />
+                <line
+                  x1={ax}
+                  y1={ay}
+                  x2={labelX}
+                  y2={ay}
+                  stroke={layer.hot ? "#3B82F6" : "#1F1F1F"}
+                  strokeOpacity={layer.hot ? 0.9 : 0.4}
+                  strokeWidth="1"
+                  strokeDasharray="3 3"
+                />
+                <text x={labelX + 8} y={ay - 6} className="fill-muted text-[9px] tracking-wide">
+                  {STACK_LAYERS.find((l) => l.id === layer.id)?.name}
+                </text>
+                <text
+                  x={labelX + 8}
+                  y={ay + 12}
+                  className={`text-[13px] font-bold ${layer.hot ? "fill-[#1F1F1F]" : "fill-ink"}`}
+                >
+                  {layer.value}
+                </text>
+              </g>
+            );
+          })}
+        </g>
+
+        {/* ground tick */}
+        <path d="M -6 74 H 6 M 0 68 V 80" stroke="#1F1F1F" strokeOpacity="0.4" strokeWidth="1" />
+        <text x="10" y="78" className="fill-ink/45 text-[9px]">
+          {model.hardware}
+        </text>
+      </g>
+    </svg>
+  );
+}
+
+/* ————————————————————————————————————————————————
+   Section 4: isometric module icons
+   ———————————————————————————————————————————————— */
+
+function ModuleIcon({ kind }: { kind: "rig" | "blade" | "cert" }) {
+  const U = 20;
+  return (
+    <svg viewBox="0 0 160 120" className="h-24 w-auto" aria-hidden="true">
+      <g transform="translate(80 66)">
+        {kind === "rig" && (() => {
+          const box = isoBox(0, 0, 0, 2.6, 2.6, 0.5, U);
+          const [lx, ly] = isoPt(1.3, 0, 0.2, U);
+          return (
+            <g>
+              <polygon points={box.top} fill="#FFFFFF" stroke="#1F1F1F" strokeWidth="1.5" />
+              <polygon points={box.right} fill="#E7E1D7" stroke="#1F1F1F" strokeWidth="1.5" />
+              <polygon points={box.front} fill="#E7E1D7" stroke="#1F1F1F" strokeWidth="1.5" />
+              <circle cx={box.anchors.top[0]} cy={box.anchors.top[1]} r="3" fill="#1E6B3A" />
+              <path
+                d={`M ${lx} ${ly} q 18 4 26 22`}
+                fill="none"
+                stroke="#1F1F1F"
+                strokeOpacity="0.5"
+                strokeWidth="1.5"
+              />
+            </g>
+          );
+        })()}
+
+        {kind === "blade" && (() => {
+          const box = isoBox(0, 0, 0, 1.7, 1.7, 1.9, U);
+          return (
+            <g>
+              <polygon points={box.top} fill="#FFFFFF" stroke="#1F1F1F" strokeWidth="1.5" />
+              <polygon points={box.right} fill="#E7E1D7" stroke="#1F1F1F" strokeWidth="1.5" />
+              <polygon points={box.front} fill="#E7E1D7" stroke="#1F1F1F" strokeWidth="1.5" />
+              {[0.5, 0.95, 1.4].map((gz, i) => {
+                const a = isoPt(-0.55, 0.85, gz, U);
+                const b = isoPt(0.55, 0.85, gz, U);
+                const led = isoPt(0.38, 0.85, gz + 0.06, U);
+                return (
+                  <g key={gz}>
+                    <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#1F1F1F" strokeOpacity="0.45" strokeWidth="1.2" />
+                    <circle cx={led[0]} cy={led[1]} r="1.7" fill={i === 0 ? "#3B82F6" : "#1F1F1F"} fillOpacity={i === 0 ? 1 : 0.35} />
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })()}
+
+        {kind === "cert" && (() => {
+          const box = isoBox(0, 0, 0, 2.7, 2.0, 0.1, U);
+          const [ccx, ccy] = isoPt(0.85, 0.62, 0.1, U);
+          return (
+            <g>
+              <polygon points={box.top} fill="#FFFFFF" stroke="#1F1F1F" strokeWidth="1.5" />
+              <polygon points={box.right} fill="#E7E1D7" stroke="#1F1F1F" strokeWidth="1.5" />
+              <polygon points={box.front} fill="#E7E1D7" stroke="#1F1F1F" strokeWidth="1.5" />
+              {[-0.45, -0.1, 0.25].map((gy) => {
+                const a = isoPt(-0.95, gy, 0.1, U);
+                const b = isoPt(0.55, gy, 0.1, U);
+                return <line key={gy} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#1F1F1F" strokeOpacity="0.4" strokeWidth="1.2" />;
+              })}
+              <circle cx={ccx} cy={ccy} r="9" fill="#FFFFFF" stroke="#1E6B3A" strokeWidth="1.5" />
+              <path
+                d={`M ${ccx - 4} ${ccy + 0.5} l 3 3 l 5.5 -6.5`}
+                fill="none"
+                stroke="#1E6B3A"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </g>
+          );
+        })()}
+      </g>
+    </svg>
+  );
+}
+
+/* ————————————————————————————————————————————————
+   Failure-mode isometric scenes (#dilemma chapters)
+   Each scene is a small blueprint drawn for exactly
+   one failure mode, reusing the axonometric helpers.
+   ———————————————————————————————————————————————— */
+
+function SceneFrame({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <svg
+      viewBox="0 0 460 340"
+      className="block w-full max-h-[180px] sm:max-h-[200px] mx-auto"
+      role="img"
+      aria-label={label}
+    >
+      <g transform="translate(230 186)">
+        <ellipse
+          cx="0"
+          cy="0"
+          rx="150"
+          ry="70"
+          fill="none"
+          stroke="#1F1F1F"
+          strokeOpacity="0.16"
+          strokeWidth="1"
+          strokeDasharray="3 4"
+        />
+        {children}
+      </g>
+    </svg>
+  );
+}
+
+function LeaderLabel({
+  x,
+  y,
+  anchor = "start",
+  lines,
+}: {
+  x: number;
+  y: number;
+  anchor?: "start" | "end";
+  lines: { text: string; className: string }[];
+}) {
+  return (
+    <text x={x} y={y} textAnchor={anchor}>
+      {lines.map((l, i) => (
+        <tspan key={i} x={x} dy={i === 0 ? 0 : 13} className={l.className}>
+          {l.text}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
+/* ————————————————————————————————————————————————
+   Page
+   ———————————————————————————————————————————————— */
+
+type CrashEntry = {
+  slug: string;
+  label: string;
+  paramsB: number;
+  precision: string;
+  gpu: string;
+  gpu_vram_gb: number;
+  concurrency: number;
+  context_len: number;
+  footprint_gb: number;
+  usable_gb: number;
+  verdict: "SHIP" | "BLOCK";
+  one_line: string;
+  surprise?: string;
+};
+
+function CrashWall() {
+  const entries = (crashwall as { entries: CrashEntry[] }).entries;
   return (
     <section
-      aria-label="Frequently asked questions"
-      className="border-t border-ink/20 px-4 py-6 sm:px-6 sm:py-8"
+      id="crash-wall"
+      aria-label="Crash wall of famous model verdicts"
+      className="scroll-mt-16 border-b border-ink/10 px-4 py-8 sm:px-6 sm:py-10"
     >
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-6xl">
         <p className="text-center font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
-          FAQ
+          Shipped or stopped
         </p>
-        <h2 className="mt-1 text-center text-xl tracking-tight sm:text-2xl">
-          Straight answers, no hype
+        <h2 className="mx-auto mt-1 max-w-xl text-center text-xl tracking-tight sm:text-2xl">
+          The Crash Wall.
         </h2>
-        <div className="mt-4 space-y-2">
-          {FAQS.map((f, i) => {
-            const isOpen = open === i;
+        <p className="mx-auto mt-2 max-w-2xl text-center text-[12px] leading-relaxed text-muted">
+          Famous open models, sized with the same math as the widget above —
+          weights + KV-cache + 1.8 GB runtime vs 95% of VRAM. Green ships, red
+          blocks. Click any card to audit it yourself.
+        </p>
+        <div className="mt-4 grid gap-3 text-left sm:grid-cols-2 lg:grid-cols-4">
+          {entries.map((e) => {
+            const ship = e.verdict === "SHIP";
+            const pct = Math.min(100, (e.footprint_gb / e.usable_gb) * 100);
             return (
-              <div
-                key={i}
-                className="overflow-hidden rounded-xl border border-ink/15 bg-[#F8F6F1]"
+              <Link
+                key={e.slug}
+                href={`/new?candidate_model=${encodeURIComponent(e.slug)}`}
+                className="flex min-h-[44px] flex-col rounded-xl border border-ink/15 bg-[#F8F6F1] p-4 transition-all motion-safe:hover:-translate-y-0.5 hover:border-ink/40 active:scale-[0.98] motion-reduce:transition-none"
               >
-                <button
-                  type="button"
-                  onClick={() => setOpen(isOpen ? null : i)}
-                  className="flex w-full cursor-pointer items-center justify-between p-3 text-left text-sm font-bold"
-                  aria-expanded={isOpen}
+                <span
+                  className={`inline-block w-fit rounded px-2 py-1 font-mono text-[11px] font-bold text-white ${ship ? "bg-ship" : "bg-block"}`}
                 >
-                  <span className="pr-3">{f.q}</span>
-                  <span className="shrink-0 font-mono">
-                    {isOpen ? "−" : "+"}
+                  {e.verdict}
+                </span>
+                <span className="mt-2 text-sm font-bold leading-snug">
+                  {e.label}
+                </span>
+                <span className="mt-1 font-mono text-[11px] text-muted">
+                  {e.gpu} · {e.precision}
+                </span>
+                <span className="mt-1 font-mono text-[11px] tabular-nums">
+                  {e.footprint_gb.toFixed(1)} / {e.usable_gb.toFixed(1)} GB
+                </span>
+                <span
+                  className="mt-2 h-2 overflow-hidden rounded bg-ink/10"
+                  role="img"
+                  aria-label={`${e.footprint_gb.toFixed(1)} GB of ${e.usable_gb.toFixed(1)} GB usable`}
+                >
+                  <span
+                    className={`block h-full rounded ${ship ? "bg-ship" : "bg-block"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </span>
+                <span className="mt-2 text-[12px] leading-relaxed">
+                  {e.one_line}
+                </span>
+                {e.surprise && (
+                  <span className="mt-1.5 border-t border-ink/10 pt-1.5 text-[11px] leading-relaxed text-muted">
+                    {e.surprise}
                   </span>
-                </button>
-                {isOpen && (
-                  <p className="border-t border-ink/15 px-3 py-2.5 text-[12px] leading-relaxed text-muted">
-                    {f.a}
-                  </p>
                 )}
-              </div>
+                <span className="mt-2 font-mono text-[11px] text-muted">
+                  {e.concurrency} user{e.concurrency === 1 ? "" : "s"} ·{" "}
+                  {e.context_len.toLocaleString()} ctx →
+                </span>
+              </Link>
             );
           })}
         </div>
+        <p className="mt-3 text-center font-mono text-[11px] text-muted">
+          weights = P × bytes (+0.35 if INT4) · KV = 2 × L × H × ctx × conc ×
+          bytes / 1e9 · +1.8 runtime · usable = VRAM × 0.95 — full arithmetic in
+          apps/web/data/crashwall.json
+        </p>
       </div>
     </section>
   );
 }
 
 export default function Home() {
+  const [stackModelId, setStackModelId] = useState<string>("qwen27");
+  const [stackHover, setStackHover] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [hours, setHours] = useState(160);
+
+  const stackModel = STACK_MODELS.find((m) => m.id === stackModelId) || STACK_MODELS[0];
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(VLLM_COMMAND);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard unavailable: keep the command selectable instead */
+    }
+  };
+
+  const nebiusCost = hours * 3.2;
+  const awsCost = hours * 12.24;
+  const savings = awsCost - nebiusCost;
+  const savingsPct = Math.round((1 - 3.2 / 12.24) * 100);
+
+  const layerRows = [
+    {
+      id: "weights",
+      code: "L4",
+      name: "Model Weights",
+      value: `${stackModel.weightsGb.toFixed(1)} GB ${stackModel.precision}`,
+      pct: (stackModel.weightsGb / stackModel.capacityGb) * 100,
+      bar: "bg-ink",
+    },
+    {
+      id: "kv",
+      code: "L3",
+      name: "PagedAttention KV-Cache",
+      value: `${stackModel.kvGb.toFixed(1)} GB @ 10 users`,
+      pct: (stackModel.kvGb / stackModel.capacityGb) * 100,
+      bar: "bg-[#3B82F6]",
+    },
+    { id: "compute", code: "L2", name: "CUDA + Tensor Cores", value: `${stackModel.tps} tok/s` },
+    { id: "bus", code: "L1", name: "HBM3 Bus + NVLink", value: "3.35 TB/s" },
+  ];
+
+  const weightsSeg = (stackModel.weightsGb / stackModel.capacityGb) * 100;
+  const kvSeg = (stackModel.kvGb / stackModel.capacityGb) * 100;
+  const runtimeSeg = (stackModel.runtimeGb / stackModel.capacityGb) * 100;
+  const headroomSeg = Math.max(0, 100 - weightsSeg - kvSeg - runtimeSeg);
+
   return (
-    <main>
+    <main className="bg-canvas font-mono text-ink">
       <TopNav />
 
-      {/* Hero */}
-      <section className="border-b border-ink/10 px-4 py-8 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="inline-block rounded-full border border-ink/15 bg-white/30 px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-widest">
-            Hardware Sizing & Cloud Audit Engine
-          </p>
-          <h1 className="mt-3 text-3xl font-extrabold leading-[1.1] tracking-tight sm:text-4xl lg:text-5xl">
-            Your model. Your hardware. Know what fits.
-          </h1>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-[15px]">
-            Size memory, explore concurrency, and compare local hardware with
-            cloud GPUs. Get a working plan before your first deployment.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/new"
-              className="rounded bg-ink px-6 py-3 text-xs font-bold uppercase tracking-widest text-canvas shadow-sm transition-all hover:-translate-y-px hover:bg-black"
-            >
-              Start Hardware Audit →
-            </Link>
-            <Link
-              href="/docs"
-              className="rounded border border-ink px-6 py-3 text-xs font-bold uppercase tracking-widest transition-all hover:-translate-y-px hover:shadow-sm"
-            >
-              Explore Documentation →
-            </Link>
-          </div>
-        </div>
+      {/* ————————————————————————————————————————————————
+          1. HERO: isometric hardware telemetry plane
+          ———————————————————————————————————————————————— */}
+      <section className="relative overflow-hidden px-4 pb-14 pt-10 sm:px-6 sm:pb-20 sm:pt-14 lg:pb-24">
+        <div className="mx-auto max-w-7xl">
+          {/* asymmetric split: message left, enlarged isometric telemetry plane right */}
+          <div className="grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:gap-12">
+            <div className="text-left">
+              <div className="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-white/70 px-4 py-1.5 text-[11px] font-bold tracking-tight text-ink/80 shadow-[0_2px_10px_rgba(0,0,0,0.03)] backdrop-blur-sm">
+                <span className="relative flex h-2 w-2" aria-hidden="true">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 motion-safe:animate-ping" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
+                </span>
+                Nebius AI Cloud · Autonomous Sizing &amp; Benchmarking Engine
+              </div>
 
-        {/* Widget, directly in the flow */}
-        <div className="mx-auto mt-8 max-w-6xl">
-          <SizingWidget />
-          <p className="mt-2 text-center font-mono text-[11px] text-muted">
-            Weights + per-user KV-cache + 2 GB runtime. Actual memory depends on
-            architecture, quantization, and system usage.
-          </p>
+              <h1 className="mt-7 text-4xl font-bold leading-[1.04] tracking-tight sm:text-5xl lg:text-[3.35rem]">
+                The Holy Grail
+                <br />
+                for AI Hardware.
+                <span className="mt-4 block text-lg font-bold leading-snug tracking-tight text-muted lg:text-[1.35rem]">
+                  From Mac Mini to 10-GPU Clusters.
+                </span>
+              </h1>
+
+              <p className="mt-5 max-w-md text-xs leading-relaxed text-muted sm:text-sm">
+                Stop guessing with vague ChatGPT answers. Know the exact memory,
+                token speed, and production cost for any open-source model on your
+                local rig and Nebius Cloud before committing budget.
+              </p>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/new"
+                  className={`${transition} inline-flex min-h-12 cursor-pointer items-center justify-center whitespace-nowrap rounded-xl bg-ink px-6 py-3 text-xs font-bold text-canvas shadow-[0_8px_30px_rgb(0,0,0,0.1)] hover:-translate-y-0.5 hover:shadow-[0_12px_36px_rgb(0,0,0,0.16)] active:translate-y-0`}
+                >
+                  🚀 Launch Hardware Workbench
+                  <span className="ml-2" aria-hidden="true">
+                    →
+                  </span>
+                </Link>
+                <Link
+                  href="/docs"
+                  className={`${transition} inline-flex min-h-12 cursor-pointer items-center justify-center whitespace-nowrap rounded-xl border border-ink/15 bg-white/75 px-6 py-3 text-xs font-bold text-ink hover:-translate-y-0.5 hover:border-ink/40 hover:bg-white active:translate-y-0`}
+                >
+                  📖 Read Homelab &amp; GPU Guide
+                </Link>
+              </div>
+            </div>
+
+            {/* Hero Isometric Hardware & Cloud Architecture Graphic (Enlarged) */}
+            <div className="relative flex items-center justify-center lg:scale-105 xl:scale-110 transition-transform duration-300">
+              <Image
+                src="/hero-isometric.png"
+                alt="GPUProof Architecture: Apple M4 Max and NVIDIA RTX 4090 local rig connecting to Nebius H100 SXM5 cloud node with production blueprint"
+                width={1920}
+                height={1080}
+                className="h-auto w-full object-contain"
+                priority
+              />
+            </div>
+          </div>
+
+          {/* partnership line + ecosystem strip */}
+          <div className="mt-14 border-t border-ink/15 pt-8 sm:mt-16">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted">
+                  Certified Production Runtimes
+                </p>
+                <p className="mt-1 text-xs text-muted sm:text-[13px]">
+                  GPUProof certifies and benchmarks against{" "}
+                  <span className="font-bold text-ink">native hardware execution engines.</span>
+                </p>
+              </div>
+              <div className="hidden sm:inline-flex items-center gap-2 rounded-full border border-ink/15 bg-white/70 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-ship backdrop-blur-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Hardware-Native Verified
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6 sm:gap-3">
+              {ECOSYSTEM.map((item) => (
+                <div
+                  key={item.name}
+                  className={`${transition} group flex flex-col justify-between rounded-xl border border-ink/10 bg-white/70 p-3 text-left shadow-[0_1px_4px_rgba(0,0,0,0.02)] hover:-translate-y-0.5 hover:border-ink/30 hover:bg-white hover:shadow-[0_8px_20px_rgba(31,31,31,0.06)]`}
+                >
+                  <div className="flex items-center justify-between">
+                    <img src={item.logo} alt={`${item.name} logo`} loading="lazy" className="h-5 w-5 shrink-0 object-contain" />
+                    <span className="rounded bg-ink/5 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-muted group-hover:text-ink/80">
+                      {item.badge}
+                    </span>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-xs font-bold leading-tight text-ink group-hover:text-black">
+                      {item.name}
+                    </p>
+                    <p className="mt-1 text-[9px] font-medium text-muted/80">
+                      {item.tag}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* 3 plain-English use cases */}
+      {/* ————————————————————————————————————————————————
+          2. EXPLODED ARCHITECTURE (#sizing)
+          ———————————————————————————————————————————————— */}
       <section
-        aria-label="Who GPUProof is for"
-        className="border-b border-ink/10 px-4 py-8 sm:px-6 sm:py-10"
+        id="sizing"
+        className="scroll-mt-24 border-t border-ink/15 px-4 py-16 sm:px-6 sm:py-24"
       >
-        <div className="mx-auto max-w-6xl">
-          <p className="text-center font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
-            Who it&apos;s for
+        <div className="mx-auto max-w-6xl gp-reveal">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted">
+            Physical memory hierarchy
           </p>
-          <h2 className="mx-auto mt-1 max-w-xl text-center text-xl tracking-tight sm:text-2xl">
-            Built for the way you deploy
+          <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
+            The Architecture Behind Deterministic Sizing.
           </h2>
-          <div className="mt-4 grid gap-3 text-left md:grid-cols-3">
-            {USE_CASES.map((c, i) => (
-              <article
-                key={c.title}
-                className="flex flex-col border-t border-ink/20 px-1 py-4"
-              >
-                <span className="text-[11px] text-muted">0{i + 1} /</span>
-                <h3 className="mt-2 text-sm font-bold leading-snug">
-                  {c.title}
-                </h3>
-                <p className="mt-2 text-[12px] leading-relaxed">{c.problem}</p>
-                <p className="mt-1.5 border-t border-ink/15 pt-2 text-[12px] leading-relaxed">
-                  {c.solution}
+          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted sm:text-sm">
+            Memory is not a single number. This is where every gigabyte lives in
+            physical silicon, from layer weights down to the HBM3 bus. Hover a
+            layer to inspect it.
+          </p>
+
+          <div className="mt-10 grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:gap-10">
+            {/* exploded isometric diagram */}
+            <div className="rounded-3xl border border-ink/15 bg-[#F7F4EE] p-3 sm:p-4">
+              <ExplodedStack model={stackModel} hover={stackHover} onHover={setStackHover} />
+            </div>
+
+            {/* interactive control panel */}
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
+                  Explode a workload
                 </p>
-              </article>
+                <div
+                  role="group"
+                  aria-label="Select a model to explode"
+                  className="mt-3 flex flex-wrap gap-2"
+                >
+                  {STACK_MODELS.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      aria-pressed={m.id === stackModelId}
+                      onClick={() => setStackModelId(m.id)}
+                      className={`${transition} cursor-pointer rounded-full border px-3.5 py-1.5 text-xs font-bold ${
+                        m.id === stackModelId
+                          ? "border-ink bg-ink text-canvas shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
+                          : "border-ink/20 bg-white/70 text-ink/80 hover:bg-white"
+                      }`}
+                    >
+                      {m.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col divide-y divide-ink/10 rounded-2xl border border-ink/15 bg-white">
+                {layerRows.map((row) => (
+                  <div
+                    key={row.id}
+                    onMouseEnter={() => setStackHover(row.id)}
+                    onMouseLeave={() => setStackHover(null)}
+                    onFocus={() => setStackHover(row.id)}
+                    onBlur={() => setStackHover(null)}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`${row.name}: ${row.value}`}
+                    className={`${transition} cursor-default px-4 py-3 ${
+                      stackHover === row.id ? "bg-[#F7F4EE]" : "bg-transparent"
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="flex items-center gap-2 text-xs font-bold">
+                        <span className="inline-flex h-5 w-7 items-center justify-center rounded border border-ink/20 bg-canvas text-[9px]">
+                          {row.code}
+                        </span>
+                        {row.name}
+                      </p>
+                      <p className="text-xs font-bold">{row.value}</p>
+                    </div>
+                    {row.pct !== undefined && (
+                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ink/10">
+                        <div
+                          className={`h-full rounded-full ${row.bar} transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]`}
+                          style={{ width: `${row.pct}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* total allocation */}
+              <div className="rounded-2xl border border-ink/15 bg-white p-4">
+                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
+                  <span>Total allocation</span>
+                  <span className="rounded-full border border-ship/30 bg-ship/10 px-2 py-0.5 text-[9px] tracking-normal text-ship">
+                    VERDICT: SHIP
+                  </span>
+                </div>
+                <p className="mt-2 text-lg font-bold">
+                  {stackModel.totalGb.toFixed(1)} GB{" "}
+                  <span className="text-xs font-normal text-muted">
+                    / {stackModel.capacityGb} GB {stackModel.hardware}
+                  </span>
+                </p>
+                <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full border border-ink/20">
+                  <div
+                    className="h-full bg-ink transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                    style={{ width: `${weightsSeg}%` }}
+                    title={`Weights: ${stackModel.weightsGb} GB`}
+                  />
+                  <div
+                    className="h-full bg-[#3B82F6] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                    style={{ width: `${kvSeg}%` }}
+                    title={`KV-Cache: ${stackModel.kvGb} GB`}
+                  />
+                  <div
+                    className="h-full bg-amber-500 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                    style={{ width: `${runtimeSeg}%` }}
+                    title={`Runtime allocator: ${stackModel.runtimeGb} GB`}
+                  />
+                  <div className="h-full bg-white" style={{ width: `${headroomSeg}%` }} />
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[9px] text-muted">
+                  <span>WEIGHTS {stackModel.weightsGb} GB</span>
+                  <span>KV {stackModel.kvGb} GB</span>
+                  <span>RUNTIME {stackModel.runtimeGb} GB</span>
+                  <span>HEADROOM {(stackModel.capacityGb - stackModel.totalGb).toFixed(1)} GB</span>
+                </div>
+              </div>
+
+              <Link
+                href={`/new?candidate_model=${encodeURIComponent(stackModel.slug)}`}
+                className={`${transition} inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-ink text-xs font-bold text-canvas hover:bg-black`}
+              >
+                Deep-Audit {stackModel.name} →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ————————————————————————————————————————————————
+          3. FAILURE MODES (#dilemma) — ScrollStack deck: cards pin
+          at a fixed position and scale/dim in perfect alignment
+          ———————————————————————————————————————————————— */}
+      <section id="dilemma" className="scroll-mt-24 border-t border-ink/15 bg-white/30">
+        <div className="mx-auto max-w-5xl px-4 pb-6 pt-16 sm:px-6 sm:pt-20">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            The AI Hardware Reality Check.
+          </h2>
+          <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted">
+            Leaderboards benchmark one prompt. Production serves dozens of
+            users. Six failure modes that crash deployments and burn five-figure
+            budgets.
+          </p>
+        </div>
+
+        <div className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">
+          <ScrollStack
+            className="mx-auto max-w-5xl"
+            useWindowScroll
+            smoothScroll={false}
+            stackPosition={84}
+            itemDistance={85}
+            itemStackDistance={0}
+            itemScale={0}
+            baseScale={1}
+            dimAmount={0}
+            holdDistance={200}
+          >
+            {FAILURE_MODES.map((mode) => (
+              <ScrollStackItem
+                key={mode.code}
+                itemClassName="overflow-hidden rounded-2xl border border-ink/15 bg-white shadow-[0_18px_45px_rgba(31,31,31,0.12)]"
+              >
+                <img
+                  src={mode.img}
+                  alt={`${mode.title} — ${mode.tag}`}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-auto w-full"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+                {mode.code === "PCI" && (
+                  <div className="border-t border-ink/10 p-5 sm:p-6">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/25 bg-canvas font-mono text-[11px] font-bold">
+                        {mode.code}
+                      </span>
+                      <span className="rounded-full border border-ink/15 bg-canvas px-2 py-0.5 font-mono text-[9px] font-bold uppercase text-muted">
+                        {mode.tag}
+                      </span>
+                    </div>
+                    <h3 className="mt-2.5 font-mono text-lg font-bold tracking-tight sm:text-xl">
+                      {mode.title}
+                    </h3>
+                    <p className="mt-1.5 font-mono text-xs leading-relaxed text-muted">
+                      {mode.text}
+                    </p>
+                    <p className="mt-3 inline-block border-l-2 border-[#3B82F6] pl-2.5 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-ink/70">
+                      {mode.stat}
+                    </p>
+                  </div>
+                )}
+              </ScrollStackItem>
+            ))}
+          </ScrollStack>
+        </div>
+      </section>
+
+      <CrashWall />
+
+      {/* ————————————————————————————————————————————————
+          4. HOW GPUPROOF WORKS (#how-it-works)
+          ———————————————————————————————————————————————— */}
+      <section
+        id="how-it-works"
+        className="scroll-mt-24 border-t border-ink/15 px-4 py-16 sm:px-6 sm:py-24"
+      >
+        <div className="mx-auto max-w-5xl gp-reveal">
+          <h2 className="max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
+            From Local Rig to Certified Blueprint.
+          </h2>
+          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted sm:text-sm">
+            Three modules, one deterministic pipeline: size locally, verify on
+            Nebius, ship with cryptographic proof.
+          </p>
+
+          <div className="mt-10 grid gap-5 text-left md:grid-cols-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch lg:gap-3">
+            {PIPELINE_MODULES.map((mod, i) => (
+              <div key={mod.index} className="contents">
+                <div
+                  className={`${transition} flex flex-col rounded-2xl border border-ink/15 bg-white p-6 hover:-translate-y-1 hover:shadow-[0_14px_36px_rgba(31,31,31,0.07)]`}
+                >
+                  <ModuleIcon kind={mod.kind} />
+                  <p className="mt-4 text-[9px] font-bold uppercase tracking-[0.22em] text-ink/45">
+                    {mod.index}
+                  </p>
+                  <h3 className="mt-2 text-base font-bold tracking-tight">{mod.title}</h3>
+                  <p className="mt-2 text-xs leading-relaxed text-muted">{mod.text}</p>
+                  <div className="mt-auto flex items-center justify-between gap-3 border-t border-ink/10 pt-4">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted">
+                      {mod.spec}
+                    </span>
+                    <Link
+                      href={mod.href}
+                      className={`${transition} shrink-0 text-[11px] font-bold underline-offset-4 hover:underline`}
+                    >
+                      {mod.cta} →
+                    </Link>
+                  </div>
+                </div>
+                {i < PIPELINE_MODULES.length - 1 && (
+                  <div
+                    aria-hidden="true"
+                    className="hidden items-center justify-center text-2xl font-bold text-ink/35 lg:flex"
+                  >
+                    →
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* How it works — compact */}
-      <section
-        aria-label="How GPUProof works"
-        className="border-b border-ink/10 px-4 py-8 sm:px-6 sm:py-10"
-      >
-        <div className="mx-auto max-w-6xl">
-          <p className="text-center font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
-            How it works
-          </p>
-          <h2 className="mx-auto mt-1 max-w-xl text-center text-xl tracking-tight sm:text-2xl">
-            Guesswork to proof in three steps
-          </h2>
-          <div className="mt-4 grid gap-3 text-left md:grid-cols-3">
-            <article className="rounded-xl border border-ink/15 bg-[#F8F6F1] p-4">
-              <p className="font-mono text-[11px] font-bold text-muted">
-                STEP 01
-              </p>
-              <h3 className="mt-1 text-sm font-bold">Size it</h3>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted">
-                Pick any model and hardware above. Weights, KV-cache, and
-                runtime overhead are computed instantly.
-              </p>
-            </article>
-            <article className="rounded-xl border border-ink/15 bg-[#F8F6F1] p-4">
-              <p className="font-mono text-[11px] font-bold text-muted">
-                STEP 02
-              </p>
-              <h3 className="mt-1 text-sm font-bold">Load it</h3>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted">
-                Dial users from 1 to 25 and watch KV-cache grow. See exactly
-                where local VRAM runs out.
-              </p>
-            </article>
-            <article className="rounded-xl border border-ink/15 bg-[#F8F6F1] p-4">
-              <p className="font-mono text-[11px] font-bold text-muted">
-                STEP 03
-              </p>
-              <h3 className="mt-1 text-sm font-bold">Ship it</h3>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted">
-                Run the full audit on Nebius Cloud GPUs. P95 under 2,000ms earns
-                a SHIP certificate with receipts.
-              </p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      {/* Cloud benchmarks — compact table */}
+      {/* ————————————————————————————————————————————————
+          5. SHOWDOWN: NEBIUS VS HYPERSCALERS (#cloud)
+          ———————————————————————————————————————————————— */}
       <section
         id="cloud"
-        aria-label="Nebius cloud benchmarks and pricing"
-        className="scroll-mt-16 border-b border-ink/10 px-4 py-8 sm:px-6 sm:py-10"
+        className="scroll-mt-24 border-t border-ink/15 bg-white/30 px-4 py-16 sm:px-6 sm:py-24"
       >
-        <div className="mx-auto max-w-6xl">
-          <p className="text-center font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
-            Cloud benchmarks
+        <div className="mx-auto max-w-5xl gp-reveal">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted">
+            Engineering &amp; economic showdown
           </p>
-          <h2 className="mx-auto mt-1 max-w-xl text-center text-xl tracking-tight sm:text-2xl">
-            Which Nebius GPU for production?
+          <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
+            Nebius vs. The Hyperscaler Markup.
           </h2>
-          <div className="mx-auto mt-4 max-w-4xl overflow-hidden rounded-xl border border-ink/15 bg-[#F8F6F1]">
-            <table className="w-full text-left text-[12px]">
-              <thead>
-                <tr className="border-b border-ink font-mono text-[11px] uppercase tracking-wider text-muted">
-                  <th scope="col" className="px-3 py-2">
-                    GPU
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-right">
-                    VRAM
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-right">
-                    $/hr
-                  </th>
-                  <th scope="col" className="hidden px-3 py-2 sm:table-cell">
-                    Best for
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="font-mono">
-                {CLOUD_ROWS.map((r) => (
-                  <tr
-                    key={r.gpu}
-                    className="border-b border-ink/15 last:border-0"
-                  >
-                    <td className="px-3 py-2 font-bold">
-                      {r.gpu}
-                      <span className="block font-sans text-[11px] font-normal text-muted sm:hidden">
-                        {r.best}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-right">{r.vram}</td>
-                    <td className="px-3 py-2 text-right font-bold">{r.hr}</td>
-                    <td className="hidden px-3 py-2 font-sans text-muted sm:table-cell">
-                      {r.best} · {r.per1k}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-2 text-center text-[12px] text-muted">
-            Every audit replays 200+ production queries and gates on P95 &lt;
-            2,000ms · accuracy ≥ 85% · error rate ≤ 5%.{" "}
-            <Link
-              href="/dashboard"
-              className="underline underline-offset-4 hover:text-ink"
-            >
-              See certified results →
-            </Link>
+          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted sm:text-sm">
+            Drag the slider to your monthly inference load. The math is not subtle.
           </p>
+
+          <div className="mt-10 rounded-3xl border border-ink/15 bg-white p-6 shadow-[0_14px_40px_rgba(31,31,31,0.06)] sm:p-8">
+            {/* workload slider */}
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <label
+                  htmlFor="hours-slider"
+                  className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted"
+                >
+                  Monthly inference hours
+                </label>
+                <p className="mt-1 text-4xl font-bold tracking-tight">
+                  {hours}
+                  <span className="ml-1 text-sm font-normal text-muted">hrs/mo</span>
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[40, 160, 320, 500].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setHours(preset)}
+                    className={`${transition} cursor-pointer rounded-full border px-3 py-1 text-[11px] font-bold ${
+                      hours === preset
+                        ? "border-ink bg-ink text-canvas"
+                        : "border-ink/20 bg-canvas/60 text-ink/80 hover:bg-white"
+                    }`}
+                  >
+                    {preset} hrs
+                  </button>
+                ))}
+              </div>
+            </div>
+            <input
+              id="hours-slider"
+              type="range"
+              min={10}
+              max={500}
+              step={5}
+              value={hours}
+              onChange={(e) => setHours(Number(e.target.value))}
+              aria-valuetext={`${hours} hours per month`}
+              className="mt-4 h-2 w-full cursor-pointer accent-[#1F1F1F]"
+            />
+
+            {/* cost tiles */}
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl border border-ink/15 bg-canvas/60 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
+                  Nebius H100
+                </p>
+                <p className="mt-1 text-2xl font-bold tracking-tight">{fmtUsd(nebiusCost)}</p>
+                <p className="mt-0.5 text-[10px] text-muted">$3.20/hr, billed by the second</p>
+              </div>
+              <div className="rounded-2xl border border-ink/15 bg-canvas/60 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
+                  AWS p5 equivalent
+                </p>
+                <p className="mt-1 text-2xl font-bold tracking-tight text-block">
+                  {fmtUsd(awsCost)}
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted">~$12.24/hr, quota-gated</p>
+              </div>
+              <div className="rounded-2xl border border-ship/30 bg-ship/10 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ship">
+                  Net savings
+                </p>
+                <p className="mt-1 text-2xl font-bold tracking-tight text-ship">
+                  {fmtUsd(savings)}
+                </p>
+                <p className="mt-0.5 text-[10px] text-ship/80">{savingsPct}% cheaper, same class</p>
+              </div>
+            </div>
+
+            {/* technical comparison table */}
+            <div className="mt-8 overflow-x-auto">
+              <table className="w-full min-w-[560px] border-collapse text-left text-xs">
+                <thead>
+                  <tr className="border-b-2 border-ink text-[10px] uppercase tracking-[0.18em] text-muted">
+                    <th scope="col" className="py-2.5 pr-4 font-bold">
+                      Metric
+                    </th>
+                    <th scope="col" className="py-2.5 pr-4 font-bold text-ink">
+                      Nebius AI Cloud
+                    </th>
+                    <th scope="col" className="py-2.5 font-bold">
+                      Legacy hyperscaler
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SHOWDOWN_ROWS.map((row) => (
+                    <tr key={row.metric} className="border-b border-ink/10 last:border-b-0">
+                      <td className="py-3 pr-4 text-muted">{row.metric}</td>
+                      <td className="py-3 pr-4 font-bold">{row.nebius}</td>
+                      <td className="py-3 text-muted">{row.aws}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 text-[10px] leading-relaxed text-muted">
+              Model: one H100 SXM5 on-demand versus a p5.48xlarge-class reservation
+              (~$12.24/hr effective). No annual commitments required on Nebius.
+            </p>
+          </div>
         </div>
       </section>
 
-      <FaqSection />
 
-      {/* Final CTA — compact */}
+      {/* ————————————————————————————————————————————————
+          7. SUPPORTED MODELS (#models)
+          ———————————————————————————————————————————————— */}
       <section
-        aria-label="Final call to action"
-        className="bg-ink px-4 py-6 text-center text-canvas sm:px-6 sm:py-8"
+        id="models"
+        className="border-t border-ink/15 bg-white/30 px-4 py-16 sm:px-6 sm:py-20"
       >
-        <div className="mx-auto max-w-2xl">
-          <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-canvas/60">
-            Stop guessing VRAM
-          </p>
-          <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
-            Size it in seconds. Certify it in minutes.
+        <div className="mx-auto max-w-5xl gp-reveal text-center">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            Start With the Model You Want.
           </h2>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href="/new"
-              className="min-h-[44px] rounded bg-canvas px-6 py-3 text-sm font-bold text-ink transition-all hover:bg-white"
+          <p className="mx-auto mt-2 max-w-xl text-xs text-muted">
+            Click any chip to pre-fill the Hardware Workbench with a verified
+            architecture.
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            {SUPPORTED_MODELS.map((m) => (
+              <Link
+                key={m.slug}
+                href={`/new?candidate_model=${encodeURIComponent(m.slug)}`}
+                className={`${transition} group inline-flex items-center gap-2.5 rounded-full border border-ink/20 bg-white px-4 py-2 text-xs font-bold hover:-translate-y-0.5 hover:border-ink hover:shadow-sm`}
+              >
+                <span>{m.name}</span>
+                <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold text-canvas">
+                  {m.params}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="text-ink/40 transition-transform duration-300 group-hover:translate-x-0.5"
+                >
+                  →
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ————————————————————————————————————————————————
+          8. HIGH-CONTRAST CTA BANNER
+          ———————————————————————————————————————————————— */}
+      <section className="px-4 pb-16 sm:px-6 sm:pb-24">
+        <div className="mx-auto max-w-5xl">
+          <div className="relative overflow-hidden rounded-3xl bg-ink p-8 text-canvas shadow-[0_24px_70px_rgba(31,31,31,0.28)] sm:p-14">
+            {/* isometric coordinate grid */}
+            <svg
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              viewBox="0 0 800 400"
+              preserveAspectRatio="xMidYMid slice"
             >
-              Start Hardware Audit →
-            </Link>
-            <Link
-              href="/dashboard"
-              className="min-h-[44px] rounded border border-canvas/40 px-6 py-3 text-sm font-bold text-canvas transition-colors hover:border-canvas"
-            >
-              View Audit Portfolio
-            </Link>
+              <defs>
+                <pattern id="gp-iso-grid" width="56" height="32" patternUnits="userSpaceOnUse">
+                  <path
+                    d="M0 16 L28 0 L56 16 L28 32 Z"
+                    fill="none"
+                    stroke="#EFEBE4"
+                    strokeOpacity="0.1"
+                    strokeWidth="1"
+                  />
+                </pattern>
+              </defs>
+              <rect width="800" height="400" fill="url(#gp-iso-grid)" />
+            </svg>
+
+            <div className="relative lg:grid lg:grid-cols-[1.35fr_0.65fr] lg:items-center lg:gap-8">
+              <div>
+                <h2 className="text-2xl font-bold leading-tight tracking-tight sm:text-4xl">
+                  Size Your Hardware. Benchmark in the Cloud. Deploy with Proof.
+                </h2>
+                <p className="mt-3 max-w-xl text-xs leading-relaxed text-canvas/70 sm:text-sm">
+                  Stop overpaying legacy hyperscalers and eliminate out-of-memory
+                  surprises forever.
+                </p>
+              </div>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:mt-0 lg:flex-col lg:items-end">
+                <Link
+                  href="/new"
+                  className={`${transition} inline-flex min-h-12 w-full cursor-pointer items-center justify-center whitespace-nowrap rounded-xl bg-canvas px-6 py-3 text-xs font-bold text-ink hover:-translate-y-0.5 hover:bg-white active:translate-y-0 sm:w-auto`}
+                >
+                  🚀 Launch Hardware Workbench →
+                </Link>
+                <Link
+                  href="/docs"
+                  className={`${transition} inline-flex min-h-12 w-full cursor-pointer items-center justify-center whitespace-nowrap rounded-xl border border-canvas/30 bg-transparent px-6 py-3 text-xs font-bold text-canvas hover:border-canvas hover:bg-canvas/10 active:translate-y-0 sm:w-auto`}
+                >
+                  📖 Read Homelab Handbook
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>

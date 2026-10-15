@@ -381,6 +381,79 @@ def inspect_model_post(payload: dict):
     )
 
 
+@app.get("/matrix")
+def quality_matrix():
+    """Precision x task quality matrix aggregated from all stored audits.
+
+    Empirical (model, precision) scores — compounds with every audit run.
+    Survives restarts (reads SQLite, not just memory).
+    """
+    groups: dict = {}
+    for c in store.list_certs():
+        try:
+            row = store.get_cert_row(c["id"])
+            if not row:
+                continue
+            cfg = row.get("config") or {}
+            model = str(cfg.get("candidate_model") or "unknown-model")
+            for e in store.list_experiments(c["id"]):
+                plan = e.get("plan") or {}
+                prec = str(plan.get("precision") or cfg.get("precision") or "FP8").upper()
+                m = e.get("metrics") or {}
+                q = m.get("quality_score")
+                if not isinstance(q, (int, float)):
+                    continue
+                g = groups.setdefault((model, prec), {
+                    "model": model, "precision": prec, "scores": [],
+                    "verdicts": [], "simulated": [], "cert_ids": [],
+                })
+                g["scores"].append(float(q))
+                g["verdicts"].append(e.get("verdict"))
+                g["simulated"].append(bool(e.get("simulated")))
+                if c["id"] not in g["cert_ids"]:
+                    g["cert_ids"].append(c["id"])
+        except Exception:
+            continue
+    out = []
+    for (model, prec), g in groups.items():
+        n = len(g["scores"])
+        if n == 0:
+            continue
+        out.append({
+            "model": model,
+            "precision": prec,
+            "n": n,
+            "avg_quality": round(sum(g["scores"]) / n, 4),
+            "last_verdict": next((v for v in reversed(g["verdicts"]) if v), None),
+            "simulated": all(g["simulated"]) if g["simulated"] else None,
+            "cert_id": g["cert_ids"][-1] if g["cert_ids"] else None,
+        })
+    out.sort(key=lambda r: (-r["n"], r["model"]))
+    return {"groups": out, "count": len(out)}
+
+
+@app.get("/radar")
+def release_radar():
+    """New-release radar (Tavily live, file cache fallback)."""
+    try:
+        from services import tavily_pricing as tp
+        items = tp.release_radar()
+        try:
+            tp.save_radar(items)
+        except Exception:
+            pass
+        return {"items": items, "source": "tavily-live"}
+    except Exception as e:
+        try:
+            from services import tavily_pricing as tp2
+            cached = tp2.load_cached_radar()
+            if cached:
+                return {"items": cached, "source": "cache"}
+        except Exception:
+            pass
+        raise HTTPException(status_code=502, detail=f"release radar unavailable: {e}")
+
+
 @app.get("/certifications")
 def list_all():
     mem = [{"id": cid, "status": c["status"], "spend": c["spend"],

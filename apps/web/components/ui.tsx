@@ -105,6 +105,7 @@ export function TopNav() {
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/new">Hardware</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/sandbox">Sandbox</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/usage">Usage</Link>
+      <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/matrix">Matrix</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/docs">Docs</Link>
       <Link className="cursor-pointer uppercase tracking-widest text-muted transition-colors hover:text-ink" href="/dashboard">Portfolio</Link>
     </div>

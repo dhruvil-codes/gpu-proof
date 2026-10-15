@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SiteFooter, TopNav } from "@/components/ui";
 import { ScrollStack, ScrollStackItem } from "@/components/ScrollStack";
 import crashwall from "@/data/crashwall.json";
@@ -933,6 +933,137 @@ function CrashWall() {
   );
 }
 
+const SHOWDOWN_STATIC = { H100: 4.5, AWS_P5_REF: 55.04 };
+
+function LiveShowdown() {
+  const [hours, setHours] = useState(160);
+  const [rates, setRates] = useState<Record<string, number> | null>(null);
+  const [provenance, setProvenance] = useState("static Oct 2026 reference");
+  const [evidence, setEvidence] = useState<Array<{ title: string; url: string }>>([]);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/pricing", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!alive || !j?.rates?.H100) return;
+        setRates(j.rates);
+        setProvenance(j.source === "cache" ? `cached ${j.fetched_at ?? "earlier"}` : `live via Tavily · ${j.fetched_at ?? "today"}`);
+        if (Array.isArray(j.evidence)) setEvidence(j.evidence.slice(0, 3));
+      })
+      .catch(() => {
+        /* static reference below stays, honestly labeled */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const h100 = rates?.H100 ?? SHOWDOWN_STATIC.H100;
+  const live = !!rates?.H100;
+  const nebiusCost = hours * h100;
+  const awsCost = hours * SHOWDOWN_STATIC.AWS_P5_REF;
+  const savings = awsCost - nebiusCost;
+  const savingsPct = Math.round((1 - h100 / SHOWDOWN_STATIC.AWS_P5_REF) * 100);
+  const fmt = (n: number) => (n % 1 === 0 ? `$${n.toLocaleString("en-US")}` : `$${n.toFixed(2)}`);
+  return (
+    <div className="mt-10 rounded-3xl border border-ink/15 bg-white p-6 shadow-[0_14px_40px_rgba(31,31,31,0.06)] sm:p-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <label htmlFor="hours-slider" className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
+            Monthly inference hours
+          </label>
+          <p className="mt-1 text-4xl font-bold tracking-tight">
+            {hours}
+            <span className="ml-1 text-sm font-normal text-muted">hrs/mo</span>
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[40, 160, 320, 500].map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => setHours(preset)}
+              className={`${transition} cursor-pointer rounded-full border px-3 py-1 text-[11px] font-bold ${
+                hours === preset
+                  ? "border-ink bg-ink text-canvas"
+                  : "border-ink/20 bg-canvas/60 text-ink/80 hover:bg-white"
+              }`}
+            >
+              {preset} hrs
+            </button>
+          ))}
+        </div>
+      </div>
+      <input
+        id="hours-slider"
+        type="range"
+        min={10}
+        max={500}
+        step={5}
+        value={hours}
+        onChange={(e) => setHours(Number(e.target.value))}
+        aria-valuetext={`${hours} hours per month`}
+        className="mt-4 h-2 w-full cursor-pointer accent-[#1F1F1F]"
+      />
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-ink/15 bg-canvas/60 p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">Nebius H100</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight">{fmt(nebiusCost)}</p>
+          <p className="mt-0.5 text-[10px] text-muted">${h100.toFixed(2)}/hr{live ? " · live" : " · static ref"}, billed by the second</p>
+        </div>
+        <div className="rounded-2xl border border-ink/15 bg-canvas/60 p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">AWS p5 equivalent</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-block">{fmt(awsCost)}</p>
+          <p className="mt-0.5 text-[10px] text-muted">~$55.04/hr public reference, quota-gated</p>
+        </div>
+        <div className="rounded-2xl border border-ship/30 bg-ship/10 p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ship">Net savings</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-ship">{fmt(savings)}</p>
+          <p className="mt-0.5 text-[10px] text-ship/80">{savingsPct}% cheaper, same class</p>
+        </div>
+      </div>
+      <div className="mt-8 overflow-x-auto">
+        <table className="w-full min-w-[560px] border-collapse text-left text-xs">
+          <thead>
+            <tr className="border-b-2 border-ink text-[10px] uppercase tracking-[0.18em] text-muted">
+              <th scope="col" className="py-2.5 pr-4 font-bold">Metric</th>
+              <th scope="col" className="py-2.5 pr-4 font-bold text-ink">Nebius AI Cloud</th>
+              <th scope="col" className="py-2.5 font-bold">Legacy hyperscaler</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              { metric: "Memory bandwidth", nebius: "3.35 TB/s HBM3", aws: "Variable topology" },
+              { metric: "Interconnect", nebius: "900 GB/s NVLink", aws: "Legacy network hops" },
+              { metric: "Provisioning", nebius: "On-demand in seconds", aws: "Quota approval tickets" },
+              { metric: "Billing", nebius: "Per-second, zero lock-in", aws: "Annual reserved lock-ins" },
+            ].map((row) => (
+              <tr key={row.metric} className="border-b border-ink/10 last:border-b-0">
+                <td className="py-3 pr-4 text-muted">{row.metric}</td>
+                <td className="py-3 pr-4 font-bold">{row.nebius}</td>
+                <td className="py-3 text-muted">{row.aws}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-4 text-[10px] leading-relaxed text-muted">
+        Nebius H100: {provenance}. AWS figure is a public on-demand reference — re-query before procurement.
+        {evidence.length > 0 && (
+          <>
+            {" "}Sources:{" "}
+            {evidence.map((e, i) => (
+              <span key={e.url}>
+                {i > 0 && " · "}
+                <a href={e.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">{e.title.slice(0, 42)}</a>
+              </span>
+            ))}
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
   const [stackModelId, setStackModelId] = useState<string>("qwen27");
   const [stackHover, setStackHover] = useState<string | null>(null);
@@ -1347,6 +1478,29 @@ export default function Home() {
       </section>
 
 
+
+      {/* ————————————————————————————————————————————————
+          LIVE SHOWDOWN: live market rates, never frozen slides (#cloud)
+          ———————————————————————————————————————————————— */}
+      <section
+        id="cloud"
+        className="scroll-mt-24 border-t border-ink/15 bg-white/30 px-4 py-16 sm:px-6 sm:py-24"
+      >
+        <div className="mx-auto max-w-5xl gp-reveal">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted">
+            Engineering &amp; economic showdown · live market data
+          </p>
+          <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
+            Nebius vs. The Hyperscaler Markup.
+          </h2>
+          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted sm:text-sm">
+            Drag the slider to your monthly inference load. Nebius rates refresh
+            from the live market — the AWS figure is a labeled public reference.
+          </p>
+
+          <LiveShowdown />
+        </div>
+      </section>
 
       {/* ————————————————————————————————————————————————
           7. SUPPORTED MODELS (#models)

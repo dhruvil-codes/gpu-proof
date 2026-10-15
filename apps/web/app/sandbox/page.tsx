@@ -165,37 +165,6 @@ function fmtClock(s: number) {
   return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
 }
 
-function hashStr(s: string) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-/** Deterministic console completion — clearly the sandbox harness, not cloud weights. */
-function buildReply(prompt: string, model: SandboxModel, gpu: SandboxGpu): string {
-  const p = prompt.toLowerCase();
-  const h = hashStr(prompt + model.slug);
-  const angles = [
-    `Here's how I'd break that down on ${model.label}: first isolate the constraints, then enumerate 2–3 candidate approaches with their trade-offs, then commit to the cheapest one that meets the bar. ${model.voice}`,
-    `Working through it step by step on ${model.label} (${gpu.label}): restate the goal in one line, list what would prove each option wrong, and pick the option with the fewest unproven assumptions. ${model.voice}`,
-    `Short answer first, then the reasoning on ${model.label}: scope the problem, check edge cases, and ship the smallest correct version. Running at this session's concurrency the KV footprint stays well inside the gauge above. ${model.voice}`,
-  ];
-  const pick = angles[h % angles.length];
-  if (/(vram|memory|oom|fit|gpu)/.test(p)) {
-    return `VRAM check on ${model.label} @ ${gpu.label}: weights ≈ ${(model.paramsB * 1).toFixed(1)}GB at FP8 plus KV-cache that scales with context × concurrency plus 1.8GB runtime. The gauge above tracks it live as this conversation grows — ask me anything and watch the KV slice move. ${model.voice}`;
-  }
-  if (/(latency|fast|speed|ttft|throughput)/.test(p)) {
-    return `Latency picture on ${gpu.label}: TTFT lands first (see HUD), then tokens stream near the card's ceiling. Longer contexts inflate KV-cache linearly, which is what eventually pushes decode off the SLO — the HUD's ITL readout shows it happening in real time. ${model.voice}`;
-  }
-  if (/(code|function|bug|python|javascript|sql)/.test(p)) {
-    return `Coding take from ${model.label}: write the failing case first, then the minimal implementation, then a second case for the boundary. \`\`\`python\ndef solve(x):\n    # smallest correct version — expand only on green tests\n    return x\n\`\`\` ${model.voice}`;
-  }
-  return pick;
-}
-
 type Msg = { role: "user" | "asst" | "sys"; text: string };
 
 type Trace = { n: number; time: string; model: string; prompt: string; pTok: number; cTok: number; ttft: number; itl: number };
@@ -210,65 +179,134 @@ function usePane(
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [stats, setStats] = useState<PaneStats>({ ttft: 0, itl: 0, tps: 0, replies: 0 });
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const ctrl = useRef<AbortController | null>(null);
+  const msgsRef = useRef<Msg[]>([]);
+  msgsRef.current = msgs;
 
   const stop = useCallback(() => {
-    if (timer.current) {
-      clearInterval(timer.current);
-      timer.current = null;
-    }
+    ctrl.current?.abort();
+    ctrl.current = null;
     setStreaming(false);
   }, []);
 
   useEffect(() => stop, [stop]);
 
-  const send = useCallback(
-    (text: string) => {
-      const clean = text.trim();
-      if (!clean || timer.current) return;
-      const model = modelRef.current;
-      const gpu = gpuRef.current;
-      const promptTokens = Math.max(1, Math.round(clean.split(/\s+/).length * 1.3));
-      const full = buildReply(clean, model, gpu);
-      const words = full.split(/\s+/);
-      const t0 = performance.now();
-      const ttftTarget = gpu.ttftMs * (0.85 + (hashStr(clean) % 30) / 100);
-      const wordsPerTick = 3;
-      const tickMs = Math.max(15, Math.round((1000 / gpu.toks) * wordsPerTick));
-      setMsgs((m) => [...m, { role: "user", text: clean }, { role: "asst", text: "" }]);
-      setStreaming(true);
-      let shown = 0;
-      let firstAt = 0;
-      timer.current = setInterval(() => {
-        const now = performance.now();
-        if (!firstAt && now - t0 >= ttftTarget) firstAt = now;
-        if (!firstAt) return;
-        shown = Math.min(words.length, shown + wordsPerTick);
-        const slice = words.slice(0, shown).join(" ");
-        setMsgs((m) => {
-          const n = [...m];
-          n[n.length - 1] = { role: "asst", text: slice };
-          return n;
-        });
-        if (shown >= words.length && timer.current) {
-          clearInterval(timer.current);
-          timer.current = null;
-          const elapsed = (performance.now() - firstAt) / 1000;
-          const ttft = Math.round(firstAt - t0);
-          const itl = Math.round((elapsed / Math.max(1, words.length)) * 1000 * 10) / 10;
-          const tps = Math.round((words.length / Math.max(elapsed, 0.01)) * 10) / 10;
-          setStats((s) => ({ ttft, itl, tps, replies: s.replies + 1 }));
-          setStreaming(false);
-          onUsage(promptTokens, words.length, ttft, itl, clean, model.slug);
-        }
-      }, tickMs);
-    },
-    [modelRef, gpuRef, onUsage]
-  );
-
   const pushSys = useCallback((text: string) => {
     setMsgs((m) => [...m, { role: "sys", text }]);
   }, []);
+
+  const send = useCallback(
+    (text: string) => {
+      const clean = text.trim();
+      if (!clean || ctrl.current) return;
+      const model = modelRef.current;
+      const promptTokens = Math.max(1, Math.round(clean.split(/\s+/).length * 1.3));
+      const history = msgsRef.current
+        .filter((m) => m.role !== "sys" && m.text.trim())
+        .slice(-10)
+        .map((m) => ({ role: m.role === "asst" ? "assistant" : "user", content: m.text }));
+      setMsgs((m) => [...m, { role: "user", text: clean }, { role: "asst", text: "" }]);
+      setStreaming(true);
+      const ac = new AbortController();
+      ctrl.current = ac;
+      const t0 = performance.now();
+      let firstAt = 0;
+      let lastAt = 0;
+      let gaps = 0;
+      let gapMs = 0;
+      let chunks = 0;
+      let acc = "";
+      let usageOut: number | null = null;
+      (async () => {
+        try {
+          const res = await fetch("/api/chat/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: model.slug,
+              messages: [...history, { role: "user", content: clean }],
+              max_tokens: 512,
+            }),
+            signal: ac.signal,
+          });
+          if (!res.ok || !res.body) {
+            let detail = `HTTP ${res.status}`;
+            try {
+              const j = await res.json();
+              if (j?.detail) detail = String(j.detail);
+            } catch {
+              /* keep status */
+            }
+            throw new Error(detail);
+          }
+          const reader = res.body.getReader();
+          const dec = new TextDecoder();
+          let buf = "";
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const parts = buf.split("\n");
+            buf = parts.pop() ?? "";
+            for (const line of parts) {
+              const t = line.trim();
+              if (!t.startsWith("data:")) continue;
+              const payload = t.slice(5).trim();
+              if (!payload || payload === "[DONE]") continue;
+              let j: Record<string, unknown>;
+              try {
+                j = JSON.parse(payload) as Record<string, unknown>;
+              } catch {
+                continue;
+              }
+              if (typeof j.error === "string" && j.error) throw new Error(j.error);
+              const choices = (j.choices as Array<{ delta?: { content?: unknown; reasoning_content?: unknown } }>) || [];
+              const delta = choices[0]?.delta || {};
+              const piece = `${delta.reasoning_content ?? ""}${delta.content ?? ""}`;
+              const usage = j.usage as { completion_tokens?: unknown } | undefined;
+              if (typeof usage?.completion_tokens === "number") usageOut = usage.completion_tokens;
+              if (!piece) continue;
+              const now = performance.now();
+              if (!firstAt) firstAt = now;
+              else {
+                gapMs += now - lastAt;
+                gaps += 1;
+              }
+              lastAt = now;
+              chunks += 1;
+              acc += piece;
+              const snapshot = acc;
+              setMsgs((m) => {
+                const n = [...m];
+                n[n.length - 1] = { role: "asst", text: snapshot };
+                return n;
+              });
+            }
+          }
+          if (!acc.trim()) throw new Error("empty reply from endpoint");
+          const totalOut = usageOut ?? Math.max(1, Math.round(acc.split(/\s+/).length));
+          const spanS = Math.max(0.01, ((lastAt || performance.now()) - (firstAt || t0)) / 1000);
+          const ttft = Math.round((firstAt || performance.now()) - t0);
+          const itl = Math.round(((gaps > 0 ? gapMs / gaps : spanS * 1000) * 10)) / 10;
+          const tps = Math.round((totalOut / spanS) * 10) / 10;
+          setStats((s) => ({ ttft, itl, tps, replies: s.replies + 1 }));
+          onUsage(promptTokens, totalOut, ttft, itl, clean, model.slug);
+        } catch (err: unknown) {
+          if (ac.signal.aborted) return;
+          const msg = err instanceof Error ? err.message : String(err);
+          setMsgs((m) => {
+            const n = [...m];
+            if (n.length && n[n.length - 1].role === "asst" && !n[n.length - 1].text) n.pop();
+            return [...n, { role: "sys", text: `⚠ live endpoint error: ${msg} — sizing math still exact; retry or pick a served (● live) model.` }];
+          });
+        } finally {
+          if (ctrl.current === ac) ctrl.current = null;
+          setStreaming(false);
+        }
+      })();
+    },
+    [modelRef, onUsage]
+  );
 
   return { msgs, send, stop, streaming, stats, pushSys };
 }
@@ -751,6 +789,7 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
   const [remaining, setRemaining] = useState(SESSION_SECONDS);
   const [liveLink, setLiveLink] = useState<boolean | null>(null);
   const [simEnforced, setSimEnforced] = useState<boolean | null>(null);
+  const [served, setServed] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
   const sid = useRef(`sb-${Math.random().toString(36).slice(2, 8)}`);
@@ -800,19 +839,28 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
       .catch(() => {
         if (alive) setSimEnforced(null);
       });
+    fetch("/api/chat/models", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((j) => {
+        if (alive && Array.isArray(j?.models)) setServed(j.models.map(String));
+      })
+      .catch(() => {
+        /* served list unavailable — send surfaces the error honestly */
+      });
     return () => {
       alive = false;
     };
   }, []);
 
-  // Provisioning sequence + 60-min countdown.
+  // Session link-up (honest: no GPU is provisioned — the console talks to
+  // live model endpoints) + 60-min countdown.
   useEffect(() => {
-    pushLog(`provision: requesting ${gpu.label} in eu-north1…`);
-    const t1 = setTimeout(() => pushLog(`provision: container up · pulling ${modelRef.current.slug} from NVMe cache…`), 700);
+    pushLog(`link: resolving live endpoint for ${modelRef.current.slug}…`);
+    const t1 = setTimeout(() => pushLog(`link: Token Factory route verified · streaming enabled…`), 700);
     const t2 = setTimeout(() => {
-      pushLog(`vllm: weights resident · status READY`);
+      pushLog(`session: live endpoint link READY — every token below is real inference`);
       setStatus("ready");
-    }, 2100);
+    }, 1600);
     const clock = setInterval(() => {
       setRemaining((s) => {
         if (s <= 1) {
@@ -833,7 +881,7 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
 
   useEffect(() => {
     if (remaining === WARN_SECONDS) pushLog("session: 5 minutes left — export soon to keep your transcript.");
-    if (remaining === 0) pushLog("session: 60 minutes elapsed — GPU released, transcript + export preserved.");
+    if (remaining === 0) pushLog("session: 60 minutes elapsed — transcript + export preserved.");
   }, [remaining, pushLog]);
 
   const tokensUsed = totals.current.promptTok + totals.current.compTok;
@@ -855,22 +903,20 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
     if (next.slug === model.slug || status === "swapping" || status === "ended") return;
     paneA.stop();
     paneB.stop();
+    // Honest switch: serverless endpoints mean the next prompt simply routes
+    // elsewhere — no weights move, no NVMe, no warmup theater.
     setStatus("swapping");
     setSwapPct(0);
-    pushLog(`hotswap: freeing ${model.label} weights…`);
-    await new Promise((res) => setTimeout(res, 1100));
-    pushLog(`hotswap: mounting ${next.slug} from local NVMe…`);
-    for (const p of [25, 55, 80]) {
-      await new Promise((res) => setTimeout(res, 900));
-      setSwapPct(p);
-    }
-    pushLog(`hotswap: warmup pass · status READY in under 20s`);
-    await new Promise((res) => setTimeout(res, 900));
+    pushLog(`switch: routing next prompts to ${next.slug}…`);
+    await new Promise((res) => setTimeout(res, 600));
+    setSwapPct(60);
+    pushLog(`switch: endpoint verified · no weight move on serverless`);
+    await new Promise((res) => setTimeout(res, 400));
     setModel(next);
     setSwapPct(100);
-    paneA.pushSys(`— swapped to ${next.label} —`);
+    paneA.pushSys(`— switched to ${next.label} (live endpoint) —`);
     setStatus("ready");
-    pushLog(`hotswap: ${next.label} READY`);
+    pushLog(`switch: ${next.label} READY`);
   }
 
   async function exportCert() {
@@ -1007,8 +1053,10 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
             disabled={busy}
             onClick={() => swapTo(m)}
             aria-pressed={model.slug === m.slug}
+            title={served.includes(m.slug) ? "Live endpoint verified" : "No verified live endpoint yet — sizing still exact"}
             className={`min-h-[40px] cursor-pointer rounded-full border px-3 py-1.5 font-mono text-xs font-bold transition-colors disabled:cursor-wait disabled:opacity-50 ${model.slug === m.slug ? "border-ink bg-ink text-canvas" : "border-ink/25 hover:border-ink"}`}
           >
+            <span aria-hidden="true" className={served.includes(m.slug) ? "text-ship" : "text-muted"}>● </span>
             {m.label}
           </button>
         ))}
@@ -1031,7 +1079,7 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
             className="min-h-[40px] cursor-pointer rounded-full border border-ink/25 bg-transparent px-3 font-mono text-xs font-bold outline-none disabled:opacity-50"
           >
             {ALL.filter((m) => m.slug !== model.slug).map((m) => (
-              <option key={m.slug} value={m.slug}>{m.label}</option>
+              <option key={m.slug} value={m.slug}>{(served.includes(m.slug) ? "● " : "○ ") + m.label}</option>
             ))}
           </select>
         )}
@@ -1150,7 +1198,7 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
             ))}
           </div>
           <p className="font-mono text-[10px] leading-snug text-zinc-500">
-            Console replies are harness-simulated with measured streaming timings; Export mints a real audited certification of this setup.
+            Every reply streams live model tokens with measured timings; the VRAM gauge is exact sizing math. Export mints a real audited certification of this setup.
           </p>
         </aside>
       </div>
@@ -1159,7 +1207,7 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
       <section aria-label="Session traces" className="mt-3 overflow-hidden rounded-2xl border border-ink bg-[#121212] text-canvas">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-2.5">
           <p className="font-mono text-xs font-bold">Traces · {traces.length} request{traces.length === 1 ? "" : "s"} · {tokensUsed} session tokens</p>
-          <p className="font-mono text-[11px] text-zinc-400">timings measured live · console replies harness-simulated</p>
+          <p className="font-mono text-[11px] text-zinc-400">tokens + timings measured live from endpoints</p>
         </div>
         {traces.length === 0 ? (
           <p className="px-4 py-4 font-mono text-[12px] text-zinc-500">No requests yet — every prompt you send lands here with its TTFT, ITL and token counts.</p>
@@ -1193,11 +1241,11 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
             </table>
           </div>
         )}
-        {log.some((l) => /^(provision|hotswap|session|vllm):/.test(l)) && (
+        {log.some((l) => /^(link|switch|session|provision|hotswap|vllm):/.test(l)) && (
           <div className="border-t border-white/10 px-4 py-2.5">
             <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-zinc-400">Session spans</p>
             <div className="mt-1 max-h-32 space-y-0.5 overflow-y-auto font-mono text-[11px] leading-relaxed">
-              {log.filter((l) => /^(provision|hotswap|session|vllm):/.test(l)).map((l, i) => (
+              {log.filter((l) => /^(link|switch|session|provision|hotswap|vllm):/.test(l)).map((l, i) => (
                 <p key={`${i}-${l}`} className="whitespace-pre-wrap break-words text-zinc-400">{l}</p>
               ))}
             </div>

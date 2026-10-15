@@ -454,6 +454,102 @@ def release_radar():
         raise HTTPException(status_code=502, detail=f"release radar unavailable: {e}")
 
 
+@app.get("/pricing")
+def live_pricing():
+    """Live GPU market rates (Tavily), cached fallback, honest 502 otherwise."""
+    try:
+        from services import tavily_pricing as tp
+        p = tp.fetch_gpu_prices()
+        try:
+            tp.save_prices(p)
+        except Exception:
+            pass
+        return {"rates": p.get("rates", {}), "evidence": p.get("evidence", [])[:10],
+                "fetched_at": p.get("fetched_at"), "source": "tavily-live"}
+    except Exception as e:
+        try:
+            from services import tavily_pricing as tp2
+            cached = tp2.load_cached_prices()
+            if cached and isinstance(cached, dict) and cached.get("rates"):
+                return {"rates": cached["rates"], "evidence": cached.get("evidence", [])[:10],
+                        "fetched_at": cached.get("fetched_at"), "source": "cache"}
+        except Exception:
+            pass
+        raise HTTPException(status_code=502, detail=f"live pricing unavailable: {e}")
+
+
+# HF slug -> live servable endpoint (verified IDs only; never guessed).
+# Token Factory first (account balance), NIM free tier fallback.
+MODEL_ENDPOINTS: dict[str, dict[str, str]] = {
+    "Qwen/Qwen3.8-27B": {"provider": "tokenfactory", "model": "Qwen/Qwen3.8-27B"},
+    "openai/gpt-oss-120b": {"provider": "tokenfactory", "model": "openai/gpt-oss-120b"},
+    "Qwen/Qwen3-30B-A3B": {"provider": "tokenfactory", "model": "Qwen/Qwen3-30B-A3B-Instruct-2507"},
+    "google/gemma-3-27b-it": {"provider": "tokenfactory", "model": "google/gemma-3-27b-it"},
+}
+
+
+@app.get("/chat/models")
+def chat_models():
+    """HF slugs with a verified live endpoint (chat works only for these)."""
+    return {"models": sorted(MODEL_ENDPOINTS.keys())}
+
+
+@app.post("/chat/stream")
+def chat_stream(payload: dict):
+    """Live chat completion streamed as SSE. Real tokens only — 502 when
+    the model has no verified live endpoint (never simulated, never faked)."""
+    from fastapi.responses import StreamingResponse as _SR
+    import urllib.request
+
+    slug = str(payload.get("model") or "").strip()
+    route = MODEL_ENDPOINTS.get(slug)
+    if route is None:
+        raise HTTPException(
+            status_code=502,
+            detail=f"no verified live endpoint for {slug or 'unknown model'} yet — sizing math still applies, chat needs a pinned model",
+        )
+    messages = payload.get("messages") or []
+    try:
+        max_tokens = max(1, min(int(payload.get("max_tokens") or 512), 2048))
+    except (TypeError, ValueError):
+        max_tokens = 512
+    if route["provider"] == "tokenfactory":
+        key = (os.environ.get("NEBIUS_TF_KEY", "") or os.environ.get("NEBIUS_API_KEY", "")).strip()
+        if not key:
+            raise HTTPException(status_code=502, detail="Token Factory key not configured on backend")
+        url: str = os.environ.get("TOKENFACTORY_URL", "https://api.tokenfactory.nebius.com/v1").rstrip("/") + "/chat/completions"
+    else:
+        key = os.environ.get("NVIDIA_NIM_KEY", "").strip()
+        if not key:
+            raise HTTPException(status_code=502, detail="NIM key not configured on backend")
+        url = "https://integrate.api.nvidia.com/v1/chat/completions"
+    body = json.dumps({
+        "model": route["model"],
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": 0,
+        "stream": True,
+        "stream_options": {"include_usage": True},
+    }).encode()
+
+    def gen():
+        req = urllib.request.Request(
+            url, data=body, method="POST",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                     "Accept": "text/event-stream"})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                for raw in r:
+                    line = raw.decode("utf-8", "replace")
+                    if line.startswith("data:"):
+                        yield line
+        except Exception as e:
+            yield f'data: {json.dumps({"error": str(e)[:200]})}\n\n'
+
+    return _SR(gen(), media_type="text/event-stream",
+               headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 @app.get("/certifications")
 def list_all():
     mem = [{"id": cid, "status": c["status"], "spend": c["spend"],

@@ -119,6 +119,17 @@ def test_extract_rates_rejects_below_floor_hourly():
         tp.extract_rates_from_results(results)
 
 
+def test_extract_rates_rejects_above_ceiling_hourly():
+    # $6.50/hr for an L40S is not a plannable rate (PAYG is $1.35) —
+    # reject rather than certify an outlier.
+    results = [
+        {"title": "L40S roundup", "url": "https://example.com/a",
+         "content": "One broker lists L40S at $6.50/hr this quarter."},
+    ]
+    with pytest.raises(RuntimeError):
+        tp.extract_rates_from_results(results)
+
+
 def test_evidence_extraction_skips_bad_urls_and_caps():
     ev = tp.extract_evidence(RADAR_RESULTS, limit=2)
     assert len(ev) == 2

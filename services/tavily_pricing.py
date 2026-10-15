@@ -123,9 +123,10 @@ _DAYS_AGO_RE = re.compile(r"(\d{1,3})\s+days?\s+ago", re.IGNORECASE)
 # Hour-unit guard: a bare "$X" only counts when hourly billing is explicit
 # nearby (rejects per-token $/1M inference prices that slip through prose).
 _HOUR_RE = re.compile(r"(?:/\s*(?:gpu\s*[-–]?\s*)?h(?:r|our)?\b|per\s+(?:gpu\s*[-–]?\s*)?h(?:ou)?r\b|hourly|gpu[\s-]?h\b)", re.IGNORECASE)
-# Per-tier sanity floors (Oct 2026 Nebius PAYG minus a generous discount).
-# Anything below is a confused token-rate or stale figure, not a GPU hour.
+# Per-tier sanity floors AND ceilings (Oct 2026 Nebius PAYG ± sane band).
+# Anything outside is a confused token-rate, spot anomaly, or stale figure.
 RATE_FLOOR_USD = {"L40S": 0.80, "H100": 2.50, "H200": 3.00, "B200": 5.00}
+RATE_CEIL_USD = {"L40S": 3.00, "H100": 8.00, "H200": 10.00, "B200": 15.00}
 
 
 def _num(s: str) -> float | None:
@@ -195,7 +196,9 @@ def extract_rates_from_results(results: list[dict],
                 d = abs(pos - gpos)
                 if d <= 500 and (best_dist is None or d < best_dist):
                     best_gpu, best_dist = gpu, d
-            if best_gpu is not None and best_gpu in buckets and val >= RATE_FLOOR_USD.get(best_gpu, 0.0):
+            if best_gpu is not None and best_gpu in buckets \
+                    and val >= RATE_FLOOR_USD.get(best_gpu, 0.0) \
+                    and val <= RATE_CEIL_USD.get(best_gpu, 25.0):
                 buckets[best_gpu].append(val)
     rates: dict[str, float] = {}
     for gpu, vals in buckets.items():

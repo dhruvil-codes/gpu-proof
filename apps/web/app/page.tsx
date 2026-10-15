@@ -108,13 +108,10 @@ const STACK_MODELS = [
   },
 ] as const;
 
-const VLLM_COMMAND =
-  "vllm serve Qwen/Qwen3.8-27B --tensor-parallel-size 1 --gpu-memory-utilization 0.92 --max-model-len 8192";
-
 const ECOSYSTEM = [
   {
-    name: "Nebius AI Cloud",
-    tag: "H100 SXM5 / L40S",
+    name: "Nebius Token Factory",
+    tag: "Serverless endpoints · judge",
     badge: "Cloud Hub",
     logo: "/logos/nebius.svg",
   },
@@ -215,8 +212,8 @@ const PIPELINE_MODULES = [
     kind: "blade" as const,
     index: "MODULE 02",
     title: "Spin Up the Nebius Sandbox",
-    text: "One-hour hot-swappable H100 containers at $3.20/hr with live tok/s telemetry from 1 to 50+ concurrent users.",
-    spec: "$3.20/HR H100 ON-DEMAND",
+    text: "One-hour hot-swappable H100 containers at $4.50/hr with live tok/s telemetry from 1 to 50+ concurrent users.",
+    spec: "$4.50/HR H100 ON-DEMAND",
     href: "/new?target_gpu=h100",
     cta: "Open sandbox",
   },
@@ -231,14 +228,6 @@ const PIPELINE_MODULES = [
   },
 ];
 
-const SHOWDOWN_ROWS = [
-  { metric: "Memory bandwidth", nebius: "3.35 TB/s HBM3", aws: "Variable topology" },
-  { metric: "Interconnect", nebius: "900 GB/s NVLink", aws: "Legacy network hops" },
-  { metric: "Provisioning", nebius: "On-demand in seconds", aws: "Quota approval tickets" },
-  { metric: "Billing", nebius: "Per-second, zero lock-in", aws: "Annual reserved lock-ins" },
-];
-
-
 const SUPPORTED_MODELS = [
   { name: "Qwen3.8", params: "27B", slug: "Qwen/Qwen3.8-27B" },
   { name: "Llama 3.3", params: "70B", slug: "meta-llama/Llama-3.3-70B-Instruct" },
@@ -248,9 +237,6 @@ const SUPPORTED_MODELS = [
   { name: "Codestral", params: "22B", slug: "mistralai/Codestral-22B-v0.1" },
   { name: "Gemma 4", params: "31B", slug: "google/gemma-4-31b-it" },
 ];
-
-const fmtUsd = (n: number) =>
-  n % 1 === 0 ? `$${n.toLocaleString("en-US")}` : `$${n.toFixed(2)}`;
 
 /* ————————————————————————————————————————————————
    Hero: isometric hardware telemetry plane
@@ -465,7 +451,7 @@ function HubTelemetryChip() {
       </div>
       <p className="mt-1.5 text-sm font-bold">30.3 GB / 80 GB</p>
       <p className="mt-0.5 text-[10px] text-canvas/70">
-        94.2 tok/s&nbsp;&nbsp;&nbsp;$3.20/hr
+        94.2 tok/s&nbsp;&nbsp;&nbsp;$4.50/hr
       </p>
     </div>
   );
@@ -950,25 +936,8 @@ function CrashWall() {
 export default function Home() {
   const [stackModelId, setStackModelId] = useState<string>("qwen27");
   const [stackHover, setStackHover] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [hours, setHours] = useState(160);
 
   const stackModel = STACK_MODELS.find((m) => m.id === stackModelId) || STACK_MODELS[0];
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(VLLM_COMMAND);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* clipboard unavailable: keep the command selectable instead */
-    }
-  };
-
-  const nebiusCost = hours * 3.2;
-  const awsCost = hours * 12.24;
-  const savings = awsCost - nebiusCost;
-  const savingsPct = Math.round((1 - 3.2 / 12.24) * 100);
 
   const layerRows = [
     {
@@ -1013,7 +982,7 @@ export default function Home() {
                   <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 motion-safe:animate-ping" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
                 </span>
-                Nebius AI Cloud · Autonomous Sizing &amp; Benchmarking Engine
+                Nebius Token Factory · Nemotron judge · Tavily live pricing
               </div>
 
               <h1 className="mt-7 text-4xl font-bold leading-[1.04] tracking-tight sm:text-5xl lg:text-[3.35rem]">
@@ -1027,8 +996,8 @@ export default function Home() {
 
               <p className="mt-5 max-w-md text-xs leading-relaxed text-muted sm:text-sm">
                 Stop guessing with vague ChatGPT answers. Know the exact memory,
-                token speed, and production cost for any open-source model on your
-                local rig and Nebius Cloud before committing budget.
+                token speed, and production cost for any open-source model —
+                measured live, before you commit budget.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -1377,131 +1346,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ————————————————————————————————————————————————
-          5. SHOWDOWN: NEBIUS VS HYPERSCALERS (#cloud)
-          ———————————————————————————————————————————————— */}
-      <section
-        id="cloud"
-        className="scroll-mt-24 border-t border-ink/15 bg-white/30 px-4 py-16 sm:px-6 sm:py-24"
-      >
-        <div className="mx-auto max-w-5xl gp-reveal">
-          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-muted">
-            Engineering &amp; economic showdown
-          </p>
-          <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
-            Nebius vs. The Hyperscaler Markup.
-          </h2>
-          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted sm:text-sm">
-            Drag the slider to your monthly inference load. The math is not subtle.
-          </p>
-
-          <div className="mt-10 rounded-3xl border border-ink/15 bg-white p-6 shadow-[0_14px_40px_rgba(31,31,31,0.06)] sm:p-8">
-            {/* workload slider */}
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <label
-                  htmlFor="hours-slider"
-                  className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted"
-                >
-                  Monthly inference hours
-                </label>
-                <p className="mt-1 text-4xl font-bold tracking-tight">
-                  {hours}
-                  <span className="ml-1 text-sm font-normal text-muted">hrs/mo</span>
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {[40, 160, 320, 500].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setHours(preset)}
-                    className={`${transition} cursor-pointer rounded-full border px-3 py-1 text-[11px] font-bold ${
-                      hours === preset
-                        ? "border-ink bg-ink text-canvas"
-                        : "border-ink/20 bg-canvas/60 text-ink/80 hover:bg-white"
-                    }`}
-                  >
-                    {preset} hrs
-                  </button>
-                ))}
-              </div>
-            </div>
-            <input
-              id="hours-slider"
-              type="range"
-              min={10}
-              max={500}
-              step={5}
-              value={hours}
-              onChange={(e) => setHours(Number(e.target.value))}
-              aria-valuetext={`${hours} hours per month`}
-              className="mt-4 h-2 w-full cursor-pointer accent-[#1F1F1F]"
-            />
-
-            {/* cost tiles */}
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-2xl border border-ink/15 bg-canvas/60 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
-                  Nebius H100
-                </p>
-                <p className="mt-1 text-2xl font-bold tracking-tight">{fmtUsd(nebiusCost)}</p>
-                <p className="mt-0.5 text-[10px] text-muted">$3.20/hr, billed by the second</p>
-              </div>
-              <div className="rounded-2xl border border-ink/15 bg-canvas/60 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
-                  AWS p5 equivalent
-                </p>
-                <p className="mt-1 text-2xl font-bold tracking-tight text-block">
-                  {fmtUsd(awsCost)}
-                </p>
-                <p className="mt-0.5 text-[10px] text-muted">~$12.24/hr, quota-gated</p>
-              </div>
-              <div className="rounded-2xl border border-ship/30 bg-ship/10 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ship">
-                  Net savings
-                </p>
-                <p className="mt-1 text-2xl font-bold tracking-tight text-ship">
-                  {fmtUsd(savings)}
-                </p>
-                <p className="mt-0.5 text-[10px] text-ship/80">{savingsPct}% cheaper, same class</p>
-              </div>
-            </div>
-
-            {/* technical comparison table */}
-            <div className="mt-8 overflow-x-auto">
-              <table className="w-full min-w-[560px] border-collapse text-left text-xs">
-                <thead>
-                  <tr className="border-b-2 border-ink text-[10px] uppercase tracking-[0.18em] text-muted">
-                    <th scope="col" className="py-2.5 pr-4 font-bold">
-                      Metric
-                    </th>
-                    <th scope="col" className="py-2.5 pr-4 font-bold text-ink">
-                      Nebius AI Cloud
-                    </th>
-                    <th scope="col" className="py-2.5 font-bold">
-                      Legacy hyperscaler
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SHOWDOWN_ROWS.map((row) => (
-                    <tr key={row.metric} className="border-b border-ink/10 last:border-b-0">
-                      <td className="py-3 pr-4 text-muted">{row.metric}</td>
-                      <td className="py-3 pr-4 font-bold">{row.nebius}</td>
-                      <td className="py-3 text-muted">{row.aws}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-4 text-[10px] leading-relaxed text-muted">
-              Model: one H100 SXM5 on-demand versus a p5.48xlarge-class reservation
-              (~$12.24/hr effective). No annual commitments required on Nebius.
-            </p>
-          </div>
-        </div>
-      </section>
 
 
       {/* ————————————————————————————————————————————————

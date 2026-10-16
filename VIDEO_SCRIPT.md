@@ -1,4 +1,4 @@
-# VIDEO_SCRIPT.md — GPUProof 180-second demo (shoot script)
+# VIDEO_SCRIPT.md — SandboxProof 180-second demo (shoot script)
 
 > Uses ONLY the verified repo path: Nano-30B candidate, L40S OOM → H100 FP8 SHIP
 > (`docs/DEMO_SCRIPT.md`, PRD §10, `services/nebius_runner.py:SimulatedRunner`).
@@ -24,7 +24,7 @@
 
 **SAY:** "Teams swap models and pray. Leaderboards run batch-one and miss the thing
 that kills you in production — memory, tail latency, broken tool calls.
-GPUProof crash-tests open-weight models — SHIP or BLOCK with receipts."
+SandboxProof crash-tests open-weight models — SHIP or BLOCK with receipts."
 
 ### 0:15–1:45 — ONE live golden path (BLOCK evidence → flips to SHIP)
 
@@ -65,7 +65,7 @@ vLLM experiment; Hugging Face for model identity and architecture truth."
 **ON SCREEN:** `/dashboard` portfolio + `/docs`. Text overlay: *"Don't ask. Prove it."*
 
 **SAY:** "Next: more GPU tiers, longer soak presets, policy-checked multi-step migrations.
-GPUProof is CI/CD for inference — don't ask whether a deployment should work.
+SandboxProof is CI/CD for inference — don't ask whether a deployment should work.
 Make it prove it."
 
 ## Filming notes

@@ -813,7 +813,7 @@ def fetch_hf_metadata(repo_id: str) -> dict | None:
     if repo_id in _HF_CACHE:
         return _HF_CACHE[repo_id]
 
-    headers = {"User-Agent": "GPUProof-Hardware-Fit/1.0"}
+    headers = {"User-Agent": "SandboxProof-Hardware-Fit/1.0"}
     token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
     if token:
         headers["Authorization"] = f"Bearer {token}"

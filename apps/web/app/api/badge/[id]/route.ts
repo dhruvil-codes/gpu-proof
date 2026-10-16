@@ -31,12 +31,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const color = verdict === "SHIP" ? "#1E6B3A" : verdict === "BLOCK" ? "#B3261E" : verdict === "SIMULATED" ? "#666666" : "#1F1F1F";
   const mark = verdict === "SHIP" ? "✓" : verdict === "BLOCK" ? "✗" : "◌";
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="340" height="92" role="img" aria-label="GPUProof ${esc(verdict)}: ${esc(model)}">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="340" height="92" role="img" aria-label="SandboxProof ${esc(verdict)}: ${esc(model)}">` +
     `<rect x="0.5" y="0.5" width="339" height="91" rx="14" fill="#EFEBE4" stroke="#1F1F1F" stroke-width="1.5"/>` +
     `<rect x="14" y="14" width="86" height="26" rx="13" fill="${color}"/>` +
     `<text x="57" y="31" text-anchor="middle" font-family="monospace" font-size="13" font-weight="bold" fill="#ffffff">${mark} ${esc(verdict)}</text>` +
     `<text x="14" y="60" font-family="monospace" font-size="14" font-weight="bold" fill="#1F1F1F">${esc(model.slice(0, 30))}</text>` +
-    `<text x="14" y="78" font-family="monospace" font-size="11" fill="#666666">GPUProof certified${hw ? ` · ${esc(hw)}` : ""}</text>` +
+    `<text x="14" y="78" font-family="monospace" font-size="11" fill="#666666">SandboxProof certified${hw ? ` · ${esc(hw)}` : ""}</text>` +
     `</svg>`;
   return new NextResponse(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=300" } });
 }

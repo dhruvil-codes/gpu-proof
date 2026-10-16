@@ -5,7 +5,7 @@ import "./globals.css";
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "GPUProof — Autonomous GPU Inference Certification | Nebius x NVIDIA Hackathon",
+  title: "SandboxProof — Autonomous GPU Inference Certification | Nebius x NVIDIA Hackathon",
   description:
     "Stop guessing if open-source models will fit in VRAM or break tool calls. Autonomously stress-test on Nebius Cloud GPUs and mint deterministic SHIP/BLOCK certificates.",
   keywords: [
@@ -19,14 +19,14 @@ export const metadata: Metadata = {
     "SHIP BLOCK certificate",
   ],
   openGraph: {
-    title: "GPUProof — Autonomous GPU Inference Certification | Nebius x NVIDIA Hackathon",
+    title: "SandboxProof — Autonomous GPU Inference Certification | Nebius x NVIDIA Hackathon",
     description:
       "Stop guessing if open-source models will fit in VRAM or break tool calls. Autonomously stress-test on Nebius Cloud GPUs and mint deterministic SHIP/BLOCK certificates.",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "GPUProof — Autonomous GPU Inference Certification | Nebius x NVIDIA Hackathon",
+    title: "SandboxProof — Autonomous GPU Inference Certification | Nebius x NVIDIA Hackathon",
     description:
       "Stop guessing if open-source models will fit in VRAM or break tool calls. Autonomously stress-test on Nebius Cloud GPUs and mint deterministic SHIP/BLOCK certificates.",
   },

@@ -1,4 +1,4 @@
-# GPUProof Metrics & SLA Specification — Breakscale Load-to-Failure
+# SandboxProof Metrics & SLA Specification — Breakscale Load-to-Failure
 
 > **Audience:** hackathon judges, DevOps / ML-infra engineers certifying a migration.
 > **Principle:** *AI proposes. Policy approves. Nebius executes. Metrics decide.*
@@ -181,7 +181,7 @@ concurrency + context + budget + replay volume atomically.
 2. **No tool-call grounding.** MMLU never tests `stripe.create_charge` arg
    fidelity, enum constraints, or idempotency keys — the #1 production breaker.
 3. **No schema strictness.** A leaderboard accepts prose; a downstream parser
-   rejects one hallucinated JSON key. GPUProof fails that request outright.
+   rejects one hallucinated JSON key. SandboxProof fails that request outright.
 4. **No memory accounting.** Theoretical `params × bytes` formulas miss runtime
    reality: KV growth during batched concurrency, CUDA fragmentation, and vLLM
    PagedAttention overhead. Breakscale measures on isolated Nebius containers.
@@ -317,4 +317,4 @@ vllm serve <candidate-model> --dtype fp8 \
 | Docs hub (this spec, human edition) | `apps/web/app/docs/page.tsx` |
 | Certificate verification UI | `apps/web/app/certificate/[id]/page.tsx` |
 
-*GPUProof Docs · Deterministic · Audit-grade · Nebius x NVIDIA Hackathon*
+*SandboxProof Docs · Deterministic · Audit-grade · Nebius x NVIDIA Hackathon*

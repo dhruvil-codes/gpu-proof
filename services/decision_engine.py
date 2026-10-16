@@ -75,7 +75,7 @@ def propose_experiment(context: dict, api_key: str | None = None) -> dict:
     # api_key is the per-run BYOK override (in-memory only); falls back to .env.
     if os.environ.get("USE_SIMULATOR", "true").lower() == "true":
         return _simulated_plan(context)
-    sys = ("You are GPUProof planner. Return ONLY JSON with keys gpu_type (L40S|H100), "
+    sys = ("You are SandboxProof planner. Return ONLY JSON with keys gpu_type (L40S|H100), "
            "gpu_count (1), precision (FP8|INT4|FP16|BF16), engine (vLLM), batch_config (1-64), reason. "
            "Prefer cheapest config likely to fit. After MEMORY failure, move up GPU/precision.")
     try:

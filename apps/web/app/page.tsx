@@ -1154,7 +1154,7 @@ export default function Home() {
             <div className="relative flex items-center justify-center lg:scale-105 xl:scale-110 transition-transform duration-300">
               <Image
                 src="/hero-isometric.png"
-                alt="GPUProof Architecture: Apple M4 Max and NVIDIA RTX 4090 local rig connecting to Nebius H100 SXM5 cloud node with production blueprint"
+                alt="SandboxProof Architecture: local rig running isolated Nebius Token Factory Sandbox microVMs with production blueprint"
                 width={1920}
                 height={1080}
                 className="h-auto w-full object-contain"
@@ -1171,8 +1171,8 @@ export default function Home() {
                   Certified Production Runtimes
                 </p>
                 <p className="mt-1 text-xs text-muted sm:text-[13px]">
-                  GPUProof certifies and benchmarks against{" "}
-                  <span className="font-bold text-ink">native hardware execution engines.</span>
+                  SandboxProof certifies and benchmarks inside{" "}
+                  <span className="font-bold text-ink">isolated sandbox execution engines.</span>
                 </p>
               </div>
               <div className="hidden sm:inline-flex items-center gap-2 rounded-full border border-ink/15 bg-white/70 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-ship backdrop-blur-sm">
@@ -1424,7 +1424,7 @@ export default function Home() {
       <CrashWall />
 
       {/* ————————————————————————————————————————————————
-          4. HOW GPUPROOF WORKS (#how-it-works)
+          4. HOW SANDBOXPROOF WORKS (#how-it-works)
           ———————————————————————————————————————————————— */}
       <section
         id="how-it-works"

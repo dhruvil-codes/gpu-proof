@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 export type ExecutionMode = "real" | "sim";
 
-export const EXECUTION_MODE_KEY = "gpuproof_execution_mode";
-export const EXECUTION_MODE_EVENT = "gpuproof:execution-mode-changed";
+export const EXECUTION_MODE_KEY = "sandboxproof_execution_mode";
+export const EXECUTION_MODE_EVENT = "sandboxproof:execution-mode-changed";
 
 export function normalizeExecutionMode(v: unknown): ExecutionMode {
   const s = String(v ?? "").trim().toLowerCase();
@@ -39,7 +39,7 @@ export function setExecutionMode(mode: ExecutionMode): void {
 /** Local-only dev bypass for testing mint flows against a simulator backend.
  * Enabled only via ?devsim=1 (sets a localStorage flag). Bypassed runs are
  * always labeled SIMULATED and can never certify production. */
-const DEV_SIM_KEY = "gpuproof-dev-sim";
+const DEV_SIM_KEY = "sandboxproof-dev-sim";
 
 export function isDevSim(): boolean {
   try {
@@ -62,7 +62,7 @@ export function enableDevSimFromQuery(): void {
 /** Headers attached per-request so the API can log the explicit user choice. */
 export function buildExecutionHeaders(mode?: ExecutionMode): Record<string, string> {
   const m = mode ?? getExecutionMode();
-  return { "X-GPUProof-Mode": m, "X-Execution-Mode": m };
+  return { "X-SandboxProof-Mode": m, "X-Execution-Mode": m };
 }
 
 export function useExecutionMode(): [ExecutionMode, (m: ExecutionMode) => void] {

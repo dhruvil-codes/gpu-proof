@@ -1,4 +1,4 @@
-"""GPUProof Security & Robustness Audit Suite.
+"""SandboxProof Security & Robustness Audit Suite.
 
 Verifies:
 1. Zero secret leakage (BYOK keys never returned in GET bodies, events, or stored in SQLite).
@@ -25,8 +25,8 @@ SECRET_KEY_PAYLOAD = "nb-payload-secret-token-abc88"
 class TestSecurityAudit:
     @pytest.fixture(autouse=True)
     def setup_env(self, monkeypatch):
-        monkeypatch.setenv("GPUPROOF_FAST_SIM", "1")
-        monkeypatch.setenv("BENCH_IMAGE", "ghcr.io/gpuproof/benchmark:cpu-sim")
+        monkeypatch.setenv("SANDBOXPROOF_FAST_SIM", "1")
+        monkeypatch.setenv("BENCH_IMAGE", "ghcr.io/sandboxproof/benchmark:cpu-sim")
 
     def test_byok_secret_zero_leakage(self):
         """BYOK secrets must NEVER appear in API responses, event streams, or SQLite store."""
@@ -81,7 +81,7 @@ class TestSecurityAudit:
             assert SECRET_KEY_PAYLOAD not in cert_resp.text
 
         # 7. Check SQLite database directly
-        db_path = _repo_root() / "gpuproof.db"
+        db_path = _repo_root() / "sandboxproof.db"
         if db_path.exists():
             con = sqlite3.connect(db_path)
             cur = con.cursor()

@@ -126,8 +126,11 @@ class LoopHooks:
             c["telemetry"] = c["telemetry"][-500:]
         self.emit(cid, event)
         # Real-time feel in simulated mode: 500-800ms between lines.
-        # GPUPROOF_FAST_SIM=1 skips the sleep for tests/CI.
-        if _is_sim_mode() and os.environ.get("GPUPROOF_FAST_SIM", "") != "1":
+        # SANDBOXPROOF_FAST_SIM=1 skips the sleep for tests/CI.
+        # GPUPROOF_FAST_SIM is accepted as a legacy alias.
+        _fast = (os.environ.get("SANDBOXPROOF_FAST_SIM", "") == "1"
+                 or os.environ.get("GPUPROOF_FAST_SIM", "") == "1")
+        if _is_sim_mode() and not _fast:
             time.sleep(random.uniform(0.5, 0.8))
 
     def one(self, cid: str, idx: int, plan: dict, prev: list, runner) -> bool:

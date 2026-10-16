@@ -13,6 +13,8 @@ type Experiment = {
   plan: { gpu_type: string; precision: string; batch_config: string | number };
   job_id: string;
   simulated?: boolean;
+  provenance?: string;
+  sandbox?: { operation_id?: string; image_uuid?: string | null; provenance?: string };
   reason: string;
   classifier?: { failure: string; action: string; reason: string };
   status: string;
@@ -493,9 +495,9 @@ function StageCard({
             <span className="mt-0.5 block text-[12px] leading-relaxed text-muted">{meta.hypothesis}</span>
             <span className="mt-2 flex flex-wrap items-center gap-1.5">
               <span className={`rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${pill}`}>{o.pill}</span>
-              <span className="rounded border border-ink/25 px-2 py-0.5 font-mono text-[10px] text-muted">
-                {e.plan.gpu_type} · {e.plan.precision} · batch {String(e.plan.batch_config)} · job {e.job_id}
-                {e.simulated ? " · SIM" : ""}
+              <span className="rounded border border-ink/25 px-2 py-0.5 font-mono text-[10px] text-muted" title={e.sandbox?.operation_id ? `sandbox op ${e.sandbox.operation_id} · image ${e.sandbox.image_uuid || "disposable"} · job ${e.job_id}` : `job ${e.job_id}`}>
+                {e.plan.gpu_type} · {e.plan.precision} · batch {String(e.plan.batch_config)} · sandbox {(e.sandbox?.operation_id || e.job_id).slice(0, 12)}
+                {e.provenance === "sandbox-measured" ? " · PROVEN" : e.simulated ? " · SIM" : ""}
               </span>
             </span>
             <span className="mt-1.5 block text-[12px] font-semibold text-ink/80">{o.detail}</span>
@@ -533,7 +535,7 @@ function DiagnosticJourney({ exps }: { exps: Experiment[] }) {
   if (sorted.length === 0) {
     return (
       <div className="panel animate-pulse rounded p-6 text-sm text-muted">
-        Provisioning first experiment… planner → policy → Nebius job.
+        Provisioning first experiment… planner → policy → sandbox run.
       </div>
     );
   }
@@ -736,8 +738,8 @@ export default function Timeline({ params }: { params: { id: string } }) {
           return;
         }
         if (e.type === "experiment_start") {
-          setLive(`Experiment ${e.index + 1} starting: planner → policy → Nebius job.`);
-          pushLine("NEBIUS", "provision", `—— Experiment ${e.index + 1} starting: planner → policy → Nebius job.`, e.index ?? -1);
+          setLive(`Experiment ${e.index + 1} starting: planner → policy → sandbox run.`);
+          pushLine("NEBIUS", "provision", `—— Experiment ${e.index + 1} starting: planner → policy → sandbox run.`, e.index ?? -1);
         }
         if (e.type === "plan") {
           setLive(`Experiment ${e.index + 1} planned: ${e.plan.gpu_type} ${e.plan.precision}. ${e.plan.reason}`);
@@ -819,7 +821,8 @@ export default function Timeline({ params }: { params: { id: string } }) {
     return () => { dead = true; es.close(); };
   }, [params.id]);
   const finished = status !== "RUNNING" && status !== "CREATED";
-  const activeJobId = exps.length > 0 ? sortedExps(exps)[sortedExps(exps).length - 1].job_id : "waiting for job…";
+  const lastExp = exps.length > 0 ? sortedExps(exps)[sortedExps(exps).length - 1] : null;
+  const activeJobId = lastExp ? (lastExp.sandbox?.operation_id || lastExp.job_id) : "waiting for sandbox…";
   return (<main>
     <TopNav />
     <div className="mx-auto max-w-3xl px-6 py-8">
@@ -859,12 +862,12 @@ export default function Timeline({ params }: { params: { id: string } }) {
         <div
           ref={termRef}
           role="log"
-          aria-label="Live GPU engine telemetry"
+          aria-label="Live sandbox telemetry"
           className="h-72 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed"
           style={{ fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" }}
         >
           {teleLines.length === 0 && (
-            <p className="text-zinc-500">$ awaiting GPU engine output… planner → policy → Nebius job.</p>
+            <p className="text-zinc-500">$ awaiting sandbox output… planner → policy → sandbox run.</p>
           )}
           {teleLines.map((l) => (
             <div key={l.key} className="gp-log-line whitespace-pre-wrap break-words">

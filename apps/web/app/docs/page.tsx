@@ -9,12 +9,12 @@ import { SiteFooter, TopNav } from "@/components/ui";
    Language: portfolio dot-grid + full-bleed hairline rules + vertical column
    rules (bydhruvil.in). Text-first: ruled rows and dotted dividers, boxes
    only for formulas/code. Two interactive isometric widgets carry the ideas.
-   Covers: GPUProof flow · VRAM · SGLang/vLLM serving · sandboxing ·
+   Covers: SandboxProof flow · VRAM · SGLang/vLLM serving · sandboxing ·
    economics · best setups for small systems and production.
    ========================================================================== */
 
 const SECTIONS = [
-  { id: "start", num: "01", label: "What GPUProof does" },
+  { id: "start", num: "01", label: "What SandboxProof does" },
   { id: "lab", num: "02", label: "Build your AI lab" },
   { id: "vram", num: "03", label: "VRAM, simply" },
   { id: "serve", num: "04", label: "How serving works" },
@@ -639,7 +639,7 @@ function H2({ n, id, children }: { n: string; id: string; children: React.ReactN
     <div>
       <p className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
         <span className="inline-block rounded-full border border-ink px-2 py-0.5 text-ink">{n}</span>
-        GPUProof guide
+        SandboxProof guide
       </p>
       <h2 id={id} className="mt-2 scroll-mt-24 text-2xl tracking-tight md:text-3xl">
         {children}
@@ -653,7 +653,7 @@ export default function DocsPage() {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    document.title = "Docs — GPUProof in plain language";
+    document.title = "Docs — SandboxProof in plain language";
   }, []);
 
   useEffect(() => {
@@ -697,7 +697,7 @@ export default function DocsPage() {
             Will it run? Will it ship?
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted">
-            Everything GPUProof knows — what it is, what it measures, how serving and sandboxing
+            Everything SandboxProof knows — what it is, what it measures, how serving and sandboxing
             actually work, what things cost, and the best setup for a small laptop or a production
             fleet — in plain words, with pictures you can touch.
           </p>
@@ -753,11 +753,11 @@ export default function DocsPage() {
 
           {/* Article: hairline-ruled sections, text-first */}
           <div className="min-w-0 px-5 py-2 md:px-8">
-            <section aria-label="What GPUProof does" className="border-b border-ink/15 py-8">
-              <H2 n="01" id="start">What GPUProof does</H2>
+            <section aria-label="What SandboxProof does" className="border-b border-ink/15 py-8">
+              <H2 n="01" id="start">What SandboxProof does</H2>
               <p className="mt-4 text-sm leading-relaxed">
                 Picking an open model is guesswork: <em>will 32B fit my GPU? Will tool calls survive
-                quantization? What does a million queries cost?</em> GPUProof replaces guessing with
+                quantization? What does a million queries cost?</em> SandboxProof replaces guessing with
                 measurement — size it, try it, prove it.
               </p>
               <div className="mt-4 font-mono text-[13px]">

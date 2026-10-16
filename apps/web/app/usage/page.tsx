@@ -62,7 +62,7 @@ export default function Usage() {
       const out: SandboxRec[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith("gpuproof-sandbox-")) {
+        if (k && k.startsWith("sandboxproof-sandbox-")) {
           try {
             out.push(JSON.parse(localStorage.getItem(k) || "{}"));
           } catch {

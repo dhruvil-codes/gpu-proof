@@ -10,7 +10,7 @@ import sqlite3
 import threading
 
 _lock = threading.Lock()
-_PATH = os.environ.get("GPUPROOF_DB", os.path.join(os.path.dirname(__file__), "..", "gpuproof.db"))
+_PATH = os.environ.get("SANDBOXPROOF_DB", os.path.join(os.path.dirname(__file__), "..", "sandboxproof.db"))
 _PATH = os.path.abspath(_PATH)
 
 SCHEMA = """

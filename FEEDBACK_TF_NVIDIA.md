@@ -1,12 +1,13 @@
 # FEEDBACK_TF_NVIDIA.md — provider feedback drafts (grounded in verified usage)
 
 > What we verifiably used: Token Factory OpenAI-compatible `POST /v1/chat/completions`
-> with `response_format: json_object` (`services/decision_engine.py`); AI Cloud REST
-> `POST /ai/v1/jobs`, logs, cancel, delete (`services/nebius_runner.py`);
-> Nemotron Ultra `nvidia/Nemotron-3-Ultra-550b-a55b` (planner) + Nano
+> with `response_format: json_object` (`services/decision_engine.py`); Contree
+> Sandboxes via `contree-sdk==0.3.6` (`services/sandbox_runner.py`, QR run verified
+> Oct 16); Tavily Search API (`services/tavily_pricing.py`); Nemotron Ultra
+> `nvidia/Nemotron-3-Ultra-550b-a55b` (planner) + Nano
 > `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (classifier); HF `config.json` + API metadata
-> (`services/advisor.py`). NIM / Tavily / Run:ai are NOT used in this checkout —
-> notes below are requests, not usage reports.
+> (`services/advisor.py`). Legacy AI Cloud REST adapter (`services/nebius_runner.py`)
+> kept for interface compat only — retired Oct 16, no GPU jobs provisioned.
 
 ## 1. Nebius Token Factory — onboarding + endpoint discovery
 
@@ -52,8 +53,29 @@ certification with planner + classifier + advisor calls risks throttle-stalls mi
 delete — clean lifecycle for one-GPU vLLM sandboxes with teardown on every path.
 
 **Pain:** request shape and exact `gpuType` enum values took digging
-(pre-existing `docs/FEEDBACK.md` note); missing `NEBIUS_SUBNET_ID` blocks real runs
-with a terse error.
+(pre-existing `docs/FEEDBACK.md` note). Retired Oct 16: SandboxProof no longer
+provisions GPU jobs (no billing, no subnet) — execution moved to Contree Sandboxes.
+
+## 3b. Contree Sandboxes (Beta) — verified Oct 16, QR run green
+
+**What worked:** `contree-sdk==0.3.6` sync client + `python:3.12-slim`; `run(...,
+disposable=False).wait()` chaining preserved apt state across ops (qrencode
+install exit 0); operation + image UUIDs per run; free beta (no credit burn).
+
+**Pain (real, hit us):** the onboarding email's example is stale for 0.3.6 — it
+calls `sandbox.run(...).wait()` three times on the base image with default
+`disposable=True`, so `apt-get update` + `install` state is discarded and the
+final `python -c` fails with `FileNotFoundError: qrencode`. The persistence
+choice (`disposable=False` + chain from the returned image's UUID) must be made
+before submission, but the email never mentions it.
+
+**Asks:**
+1. Fix the welcome email to the `disposable=False` chaining pattern (or pin the SDK
+   version the snippet targets).
+2. Document the sync `ContreeSync` flow next to the async `Contree` quickstart —
+   the quickstart only shows `await`, the email only shows `.wait()`.
+3. One page on limits that matter for agents: op timeout max, 1–10 MiB stream caps,
+   180-day image retention, 50-concurrent ceiling — all in one table.
 
 **Asks:**
 1. One "Serverless Job with GPU" page: minimal JSON (1× L40S/H100 + vLLM image),

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * GPUProof Local Hardware Auto-Detection & System Profiler.
+ * SandboxProof Local Hardware Auto-Detection & System Profiler.
  *
  * Browser-native fingerprinting — zero permissions, zero downloads, <50ms.
  * Sources: WebGL WEBGL_debug_renderer_info, navigator.deviceMemory,
@@ -126,10 +126,10 @@ export const HARDWARE_TARGETS: HardwareTarget[] = [
   },
 ];
 
-export const DETECTED_KEY = "gpuproof-hw-detected";
-export const TARGET_KEY = "gpuproof-hw-target";
-export const CLI_BRIDGE_KEY = "gpuproof-cli-profile";
-export const RAM_OVERRIDE_KEY = "gpuproof-ram-override";
+export const DETECTED_KEY = "sandboxproof-hw-detected";
+export const TARGET_KEY = "sandboxproof-hw-target";
+export const CLI_BRIDGE_KEY = "sandboxproof-cli-profile";
+export const RAM_OVERRIDE_KEY = "sandboxproof-ram-override";
 
 export function loadRamOverride(): number | null {
   if (typeof window === "undefined") return null;
@@ -406,7 +406,7 @@ export function profileMachine(input: {
   }
   return {
     profileKey: "MAC_MINI_16GB",
-    label: "Unknown Machine (~16GB estimated — run `gpuproof detect` for exact specs)",
+    label: "Unknown Machine (~16GB estimated — run `sandboxproof detect` for exact specs)",
     badge: "Unknown machine · ~16GB est.",
     usableGB: 16,
     confidence: "low",

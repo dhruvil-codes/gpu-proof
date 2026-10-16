@@ -172,10 +172,10 @@ export default function ModelAdvisorDrawer({
                   <Link
                     href={`/new?candidate_model=${encodeURIComponent(m.candidate)}`}
                     onClick={onClose}
-                    aria-label={`Test ${m.candidate} on GPUProof`}
+                    aria-label={`Test ${m.candidate} on SandboxProof`}
                     className="btn-dark inline-block min-h-[44px] cursor-pointer rounded-lg px-4 py-2 text-xs font-bold transition-all hover:-translate-y-px"
                   >
-                    🚀 Test this model on GPUProof →
+                    🚀 Test this model on SandboxProof →
                   </Link>
                   {m.source && (
                     <p className="mt-1 font-mono text-[10px] text-muted">

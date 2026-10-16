@@ -1,4 +1,4 @@
-# docs/ARCHITECTURE.md — GPUProof system architecture (verified against code)
+# docs/ARCHITECTURE.md — SandboxProof system architecture (verified against code)
 
 > Sources of truth: `apps/api/app/main.py`, `services/*.py`, `apps/web/app/*`.
 > Nothing below invents endpoints or URLs — every route/host is quoted from code.
@@ -12,7 +12,8 @@
 | Workload Twin | `services/workload_twin.py:build_twin(seed=42, n, tasks)` | Seeded alternating `tool_calling`/`structured_output` set; SHA-256 digest (first 16 hex) |
 | Decision layer | `services/decision_engine.py` | Nemotron Ultra planner `propose_experiment`, Nano classifier `fast_classify`, strict JSON validation + deterministic fallbacks |
 | Policy engine | `services/experiment_policy.py:validate_proposal` | Deterministic allow/refuse; AI cannot bypass |
-| Runners | `services/nebius_runner.py` | `RealNebiusRunner` (AI Cloud REST) vs `SimulatedRunner` (dev/test, `SIMULATED` only) |
+| Runners | `services/sandbox_runner.py` | `ContreeSandboxRunner` (Token Factory Sandboxes, `SANDBOX-MEASURED`) vs `SimulatedSandboxRunner` (dev/test, `SIMULATED` only, process-wide singleton for unique op IDs). Legacy `services/nebius_runner.py` kept for interface compat only. |
+| Tavily grounding | `services/tavily_pricing.py` | GPU $/hr (`fetch_gpu_prices`), inference $/1M (`fetch_inference_prices`), release radar (`release_radar`); host-side only, cached `artifacts/market/`, `tavily-live` vs `cache` provenance |
 | Replay + metrics | `services/replay.py`, `services/metrics_math.py:summarize` | Per-request TTFT/latency/throughput/VRAM; linear-interpolated percentiles |
 | Quality | `services/quality_checks.py:score_response` | JSON validity + schema keys/types + tool + exact args; per-request `1.0`/`0.0`, mean = `quality_score` |
 | SLA evaluator | `services/sla_evaluator.py:evaluate_gates` + `decision` | SHIP iff ALL gates pass else BLOCK; missing metric = FAIL |

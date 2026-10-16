@@ -1,4 +1,4 @@
-"""GPUProof FastAPI — certifications, experiments, certificate. Policy-gated, ledger-enforced."""
+"""SandboxProof FastAPI — certifications, experiments, certificate. Policy-gated, ledger-enforced."""
 from __future__ import annotations
 
 import json
@@ -51,12 +51,12 @@ from services.certificate_engine import build_certificate
 from services.certification_loop import LoopHooks
 from services.nebius_runner import get_runner, get_runner_for_byok
 
-app = FastAPI(title="GPUProof API")
+app = FastAPI(title="SandboxProof API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 TOTAL_CAP = float(os.environ.get("MAX_BUDGET_USD", "20"))
 CERTS: dict = {}
 TOTAL = {"spend": 0.0}
-BENCH_IMAGE = "ghcr.io/gpuproof/benchmark:cpu-sim"
+BENCH_IMAGE = "ghcr.io/sandboxproof/benchmark:cpu-sim"
 BUS: dict[str, "queue.Queue[str]"] = {}
 _SIM_RUNNER = None  # one simulator per process so sim job IDs stay unique
 
@@ -246,7 +246,7 @@ def advisor(
     try:
         from services.decision_engine import PLANNER_MODEL, _call
         sys_prompt = (
-            "You are the GPUProof Model Migration Advisor, an expert GPU inference "
+            "You are the SandboxProof Model Migration Advisor, an expert GPU inference "
             "engineer. Answer concisely with concrete VRAM math: parameter memory "
             "(params x bytes), KV-cache formula 2 x layers x hidden x seq_len x batch "
             "x bytes / 1e9, plus a recommended single-GPU tier (RTX4090 24GB, L40S 48GB, "
@@ -271,7 +271,7 @@ def advisor(
 
 @app.get("/system/hardware")
 def system_hardware():
-    """Native OS hardware probe for the machine running GPUProof."""
+    """Native OS hardware probe for the machine running SandboxProof."""
     from services.detector import gather_profile
     return gather_profile()
 
@@ -337,7 +337,7 @@ def models_live(
     if expand:
         params["expand"] = expand
     url = "https://huggingface.co/api/models?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={"User-Agent": "GPUProof/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "SandboxProof/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             items = json.loads(r.read().decode() or "[]")
@@ -564,7 +564,7 @@ def create_cert(
     x_nebius_api_key: str | None = Header(default=None, alias="X-Nebius-Api-Key"),
     x_nebius_project_id: str | None = Header(default=None, alias="X-Nebius-Project-Id"),
     x_nebius_subnet_id: str | None = Header(default=None, alias="X-Nebius-Subnet-Id"),
-    x_gpuproof_mode: str | None = Header(default=None, alias="X-GPUProof-Mode"),
+    x_sandboxproof_mode: str | None = Header(default=None, alias="X-SandboxProof-Mode"),
     x_execution_mode: str | None = Header(default=None, alias="X-Execution-Mode"),
 ):
     if c.budget_limit_usd is not None:
@@ -581,7 +581,7 @@ def create_cert(
         x_nebius_project_id if x_nebius_project_id is not None else c.nebius_project_id,
         x_nebius_subnet_id if x_nebius_subnet_id is not None else c.nebius_subnet_id,
     )
-    mode = _normalize_mode(c.mode, x_gpuproof_mode, x_execution_mode)
+    mode = _normalize_mode(c.mode, x_sandboxproof_mode, x_execution_mode)
     cid = f"cert-{uuid.uuid4().hex[:8]}"
     twin = wt.build_twin(42, c.requests, tuple(c.workload_tasks))
     full_config = c.model_dump()

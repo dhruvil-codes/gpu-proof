@@ -977,7 +977,7 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
       }
       try {
         localStorage.setItem(
-          `gpuproof-sandbox-${sid.current}`,
+          `sandboxproof-sandbox-${sid.current}`,
           JSON.stringify({
             id: sid.current,
             cert: j.id,

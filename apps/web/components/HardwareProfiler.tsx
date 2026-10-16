@@ -349,7 +349,7 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
                     }}
                     className="w-full cursor-pointer rounded px-2.5 py-1.5 text-left font-mono text-[11px] text-muted transition-colors duration-200 hover:bg-ink/5 hover:text-ink"
                   >
-                    ⌨ Paste `gpuproof detect` output for exact specs →
+                    ⌨ Paste `sandboxproof detect` output for exact specs →
                   </button>
                 </div>
               </div>
@@ -370,7 +370,7 @@ export default function HardwareProfiler({ modelFit, inspecting, compact, onTarg
             profile, then paste the JSON below. It overrides browser heuristics with exact chip + VRAM.
           </p>
           <label htmlFor="cli-profile" className="sr-only">
-            Paste gpuproof detect JSON output
+            Paste sandboxproof detect JSON output
           </label>
           <textarea
             id="cli-profile"

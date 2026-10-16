@@ -1,9 +1,9 @@
 "use client";
 
-export const BYOK_KEY = "gpuproof_nebius_key";
-export const BYOK_PROJECT = "gpuproof_nebius_project";
-export const BYOK_SUBNET = "gpuproof_nebius_subnet";
-export const BYOK_EVENT = "gpuproof:byok-changed";
+export const BYOK_KEY = "sandboxproof_nebius_key";
+export const BYOK_PROJECT = "sandboxproof_nebius_project";
+export const BYOK_SUBNET = "sandboxproof_nebius_subnet";
+export const BYOK_EVENT = "sandboxproof:byok-changed";
 
 export type ByokCredentials = {
   apiKey: string;

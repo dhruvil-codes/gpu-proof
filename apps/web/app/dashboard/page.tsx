@@ -48,7 +48,7 @@ export default function Dashboard() {
   useEffect(() => {
     let alive = true;
     let base: CertItem[] = [];
-    try { base = JSON.parse(localStorage.getItem("gpuproof-certs") || "[]"); } catch {}
+    try { base = JSON.parse(localStorage.getItem("sandboxproof-certs") || "[]"); } catch {}
     if (alive) setItems(base);
     fetch(`${API}/certifications`).then((r) => r.json()).then((j) => {
       if (!alive) return;
@@ -162,7 +162,7 @@ export default function Dashboard() {
         {items.length === 0 && (
           <div className="panel rounded-lg p-6 text-center lg:col-span-2">
             <p className="text-lg font-bold tracking-tight">No certifications yet — run your first audit in one click.</p>
-            <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted">Pick a scenario template (cost, latency, or accuracy), and GPUProof will stress-test the candidate model on Nebius GPUs and issue a SHIP / BLOCK certificate.</p>
+            <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted">Pick a scenario template (cost, latency, or accuracy), and SandboxProof will stress-test the candidate model in isolated Nebius Sandboxes and issue a SHIP / BLOCK certificate.</p>
             <Link href="/new" className="btn-dark mt-4 inline-block min-h-[44px] cursor-pointer rounded px-6 py-3 text-sm font-bold transition-colors">Run Your First Certification →</Link>
           </div>
         )}

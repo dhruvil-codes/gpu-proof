@@ -54,7 +54,7 @@ body { background: #EFEBE4; }
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #1F1F1F; outline-offset: 2px; }
 
 /* ————————————————————————————————————————————————
-   GPUProof purposeful motion system
+   SandboxProof purposeful motion system
    Inspired by transitions.dev principles (state-change driven,
    no copied visual styles): every animation maps to a system
    state change — expand, morph, stream.

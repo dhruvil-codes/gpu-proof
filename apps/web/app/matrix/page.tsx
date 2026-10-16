@@ -49,7 +49,7 @@ export default function Matrix() {
   }, []);
 
   async function copySnippet(id: string) {
-    const snippet = `<a href="${origin}/certificate/${id}"><img src="${origin}/api/badge/${id}" alt="GPUProof certified" /></a>`;
+    const snippet = `<a href="${origin}/certificate/${id}"><img src="${origin}/api/badge/${id}" alt="SandboxProof certified" /></a>`;
     try {
       await navigator.clipboard.writeText(snippet);
       setCopied(id);
@@ -160,7 +160,7 @@ export default function Matrix() {
                 .slice(0, 6)
                 .map((g) => (
                   <li key={`${g.model}::${g.precision}`} className="rounded-xl border border-ink/15 bg-[#F5F1E9] p-3">
-                    <img src={`/api/badge/${g.cert_id}`} alt={`GPUProof badge for ${g.model}`} loading="lazy" className="h-auto w-full max-w-[340px]" />
+                    <img src={`/api/badge/${g.cert_id}`} alt={`SandboxProof badge for ${g.model}`} loading="lazy" className="h-auto w-full max-w-[340px]" />
                     <button
                       type="button"
                       onClick={() => g.cert_id && copySnippet(g.cert_id)}

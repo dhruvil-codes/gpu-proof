@@ -1,8 +1,8 @@
-"""GPUProof Local Agent Probe — `python -m services.detector`.
+"""SandboxProof Local Agent Probe — `python -m services.detector`.
 
 Queries native OS tools for exact machine specs and emits a JSON hardware
-profile that the web UI imports via the "Paste `gpuproof detect` output"
-bridge (localStorage `gpuproof-cli-profile`, 24h TTL):
+profile that the web UI imports via the "Paste `sandboxproof detect` output"
+bridge (localStorage `sandboxproof-cli-profile`, 24h TTL):
 
     python -m services.detector              # pretty JSON to stdout
     python -m services.detector --json       # compact JSON (for scripting)
@@ -282,8 +282,8 @@ def gather_profile() -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="gpuproof detect",
-                                 description="GPUProof local hardware probe — prints a JSON profile for the web UI bridge.")
+    ap = argparse.ArgumentParser(prog="sandboxproof detect",
+                                 description="SandboxProof local hardware probe — prints a JSON profile for the web UI bridge.")
     ap.add_argument("--json", action="store_true", help="Compact single-line JSON (for scripting).")
     ap.add_argument("--save", metavar="PATH", default=None, help="Write the profile JSON to a file.")
     args = ap.parse_args(argv)
@@ -294,8 +294,8 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.save).write_text(json.dumps(profile, indent=2) + "\n", encoding="utf-8")
         print(f"Saved hardware profile to {args.save}")
     print(text)
-    print("\n# Paste the JSON above into GPUProof: [Evaluate a different machine / server ▾] → "
-          "`gpuproof detect` output.", file=sys.stderr)
+    print("\n# Paste the JSON above into SandboxProof: [Evaluate a different machine / server ▾] → "
+          "`sandboxproof detect` output.", file=sys.stderr)
     return 0
 
 

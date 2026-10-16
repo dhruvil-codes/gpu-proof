@@ -31,7 +31,7 @@ wheels/
 *.egg
 
 # Node / Web
-# Exception: GPUProof frontend browser modules live in apps/web/lib/
+# Exception: SandboxProof frontend browser modules live in apps/web/lib/
 !apps/web/lib/
 !apps/web/lib/**
 node_modules/

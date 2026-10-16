@@ -650,9 +650,9 @@ function Cockpit() {
       }
       if (!s.ok) throw new Error("Benchmark was created but couldn't launch. Please open the timeline and retry.");
       try {
-        const items = JSON.parse(localStorage.getItem("gpuproof-certs") || "[]");
+        const items = JSON.parse(localStorage.getItem("sandboxproof-certs") || "[]");
         items.unshift({ id: j.id, candidate: repoId, status: "RUNNING", spend: 0, experiments: 0, simulated: execMode !== "real", created_at: new Date().toISOString() });
-        localStorage.setItem("gpuproof-certs", JSON.stringify(items.slice(0, 20)));
+        localStorage.setItem("sandboxproof-certs", JSON.stringify(items.slice(0, 20)));
       } catch {
         /* storage unavailable */
       }

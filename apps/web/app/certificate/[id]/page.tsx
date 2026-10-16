@@ -349,7 +349,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
       <div className="text-center">
         <Seal tone={tone} />
         <h1 className="mt-3 text-2xl tracking-tight md:text-3xl">OFFICIAL INFERENCE CERTIFICATE</h1>
-        <p className="mt-1 text-[11px] uppercase tracking-widest text-muted">GPUProof · Nebius AI Cloud · Deterministic audit, never vibes</p>
+        <p className="mt-1 text-[11px] uppercase tracking-widest text-muted">SandboxProof · Nebius Token Factory Sandboxes · Deterministic audit, never vibes</p>
       </div>
 
       {/* Metadata bar */}
@@ -540,7 +540,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
         <dl className="mt-3 grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
           <div>
             <dt className="text-[10px] uppercase tracking-widest text-muted">Issued by</dt>
-            <dd className="mt-0.5 font-bold">GPUProof Policy Engine v1.0</dd>
+            <dd className="mt-0.5 font-bold">SandboxProof Policy Engine v1.0</dd>
           </div>
           <div>
             <dt className="text-[10px] uppercase tracking-widest text-muted">Engine</dt>

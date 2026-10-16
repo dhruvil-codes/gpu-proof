@@ -1,9 +1,10 @@
-# GPUProof — crash-tests for open-weight models — SHIP or BLOCK with receipts.
+# SandboxProof — crash-tests for open-weight models — SHIP or BLOCK with receipts.
 
-GPUProof certifies a candidate model against your production deployment on real Nebius GPUs.
-Give it your current deployment, a candidate model, and production requirements. It runs real
-experiments, learns from failures, and issues a **SHIP / BLOCK** certificate backed by measured
-evidence — never vibes.
+SandboxProof certifies a candidate model against your production requirements inside
+isolated Nebius Token Factory Sandboxes. Give it your current deployment, a candidate
+model, and production requirements. It runs real experiments in fresh microVMs
+(operation ID + image UUID per run), learns from failures, and issues a **SHIP / BLOCK**
+certificate backed by measured evidence — never vibes.
 
 > AI proposes. Policy approves. Nebius executes. Metrics decide.
 
@@ -21,7 +22,7 @@ Copy-Item .env.example .env   # then fill keys (names only — never commit valu
 
 # 2. backend :8000
 pip install -r apps/api/requirements.txt
-$env:USE_SIMULATOR = "true"   # "false" for real Nebius GPU jobs
+$env:USE_SIMULATOR = "true"   # "false" for real Nebius Sandbox runs (needs NEBIUS_API_KEY + NEBIUS_PROJECT_ID)
 python -m uvicorn main:app --app-dir apps/api/app --host 127.0.0.1 --port 8000
 
 # 3. web :3000 (new terminal)
@@ -68,29 +69,32 @@ Health: `GET /health`, `GET /ready`. Full endpoint list: see `docs/ARCHITECTURE.
    |-- services/workload_twin.py   seeded twin (SHA-256 digest, 16 hex chars)
    |-- services/decision_engine.py Nemotron Ultra planner + Nano classifier (Token Factory)
    |-- services/experiment_policy.py  deterministic gates (AI cannot bypass)
-   |-- services/nebius_runner.py   Real (AI Cloud REST) | Simulated (dev/test only)
+   |-- services/sandbox_runner.py Contree Sandboxes (real, isolated) | Simulated (dev/test only)
+   |-- services/nebius_runner.py  legacy AI Cloud adapter (kept for interface compat; not used)
    |-- services/replay.py + metrics_math.py + quality_checks.py  measured metrics
    |-- services/sla_evaluator.py   SHIP iff ALL hard gates pass, else BLOCK
    |-- services/certificate_engine.py  deterministic SHIP/BLOCK + deployment prescription
    +-- services/cost_engine.py     measured-runtime $ math, ledger refusal
 ```
 
-Data flow: inputs → Workload Twin → planner proposes → policy validates →
-Nebius job (vLLM sandbox, teardown always) → replay → evaluator →
+Data flow: inputs → Workload Twin → planner proposes harness → policy validates →
+Sandbox run (fresh microVM, teardown always) → replay vs hosted Token Factory
+endpoints → evaluator →
 fail = classify + adapt (max 5 exps) / pass = SHIP/BLOCK certificate.
-Planner down = "Certification incomplete", never SHIP. Simulator = `SIMULATED`, never a real certificate.
+Planner down = "Certification incomplete", never SHIP. Simulator = `SIMULATED`, never a real
+certificate; sandbox runs are labelled `SANDBOX-MEASURED`.
 
 ## Gates, caps, provenance
 
 - **Hard gates** (`apps/api/app/main.py:NewCert` defaults): `latency_p95_ms <= 2000`,
   `quality_score >= 0.85`, `error_rate <= 0.05`. Missing metric = FAIL = BLOCK.
-- **Caps** (`services/experiment_policy.py` + `main.py`): 1 GPU, L40S/H100 only,
-  vLLM only, 15 min/job, **$2/experiment, $10/certification, $20 total hard cap**,
+- **Caps** (`services/experiment_policy.py` + `main.py`): hosted-tier shortlist,
+  15 min/sandbox op, **$2/experiment, $10/certification, $20 total hard cap**,
   5 experiments max. Ledger refuses over-budget launches before they spend.
-- **Provenance**: MEASURED (replay latencies/quality/errors on the job) →
+- **Provenance**: SANDBOX-MEASURED (isolated sandbox run vs hosted endpoints) →
   COMPUTED (percentiles, KV-cache sizing, `$` from measured runtime) →
-  STATIC-PRICED (`services/cost_engine.py:GPU_HOURLY_USD`, L40S $1.35 / H100 $3.20).
-  No live-price feed exists in this checkout.
+  TAVILY-LIVE (`services/tavily_pricing.py`, GPU $/hr + inference $/1M + release radar,
+  cached fallback) or STATIC-PRICED (`services/cost_engine.py:GPU_HOURLY_USD`).
 
 ## Integrations (only what exists in code)
 
@@ -103,17 +107,20 @@ Planner down = "Certification incomplete", never SHIP. Simulator = `SIMULATED`, 
   (MEMORY/LATENCY/QUALITY/RELIABILITY/INFRASTRUCTURE/UNKNOWN) with deterministic
   fallback (`services/failure_classifier.py`). Subject under test:
   Nemotron-3-Nano-30B; cached baseline Qwen3-8B on H100 FP8.
-- **Nebius AI Cloud Serverless Jobs** — carries isolated GPU execution.
-  `services/nebius_runner.py:API_BASE=https://api.nebius.cloud/ai/v1`:
-  `POST /jobs`, `GET /jobs/{id}/logs`, `POST /jobs/cancel`, `DELETE /jobs/{id}`.
-  One fresh vLLM container per experiment, teardown on every path.
+- **Nebius Token Factory Sandboxes** — carries isolated execution.
+  `services/sandbox_runner.py` (Contree SDK): fresh microVM per op, `disposable=False`
+  chaining for prepared images, operation ID + image UUID per run, 1 MiB stream caps,
+  secrets never enter the sandbox. Simulator fallback for dev/test only.
 - **Hugging Face** — carries model identity + architecture truth.
   `services/advisor.py:fetch_hf_metadata` reads
   `https://huggingface.co/{repo}/raw/main/config.json` and
   `https://huggingface.co/api/models/{repo}` (optional `HF_TOKEN`);
   web widget validates `https://huggingface.co/api/models/{slug}` client-side.
-- **Tavily: not integrated in this checkout.** No import, call, or env key found
-  (searched `services/`, `apps/`). Any bonus targeting needs new work — see `DISCLOSURE.md`.
+- **Tavily** — carries live market grounding (host-side only; key never enters sandboxes).
+  `services/tavily_pricing.py`: GPU $/hr (`fetch_gpu_prices`), inference $/1M
+  (`fetch_inference_prices`), new-release radar (`release_radar`), cached to
+  `artifacts/market/` with honest `tavily-live` vs `cache` provenance. Targets the
+  Best-Use-of-Tavily bonus — see `DISCLOSURE.md`.
 
 ## Tests
 

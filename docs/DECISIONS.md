@@ -1,4 +1,4 @@
-# DECISIONS.md — GPUProof autonomous build log
+# DECISIONS.md — SandboxProof autonomous build log
 
 Rule: every autonomous decision gets one line + reason. PRD is frozen; user overrides win on conflict.
 

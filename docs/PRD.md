@@ -1,10 +1,10 @@
-# GPUProof PRD (Hackathon Edition)
+# SandboxProof PRD (Hackathon Edition)
 
 > **For the implementing agent:** This is the source of truth for the build. Follow the scope in Section 6, respect the hard limits in Section 7, and never expand into the "Out" list. When a requirement is ambiguous, choose the simplest option that still satisfies the demo story in Section 10.
 
 ## 1. One-liner
 
-GPUProof is CI/CD for AI inference. Give it your current deployment, a candidate model, and your production requirements. It runs real experiments on Nebius GPUs, learns from failures, and issues a **SHIP / BLOCK** certificate backed by measured evidence.
+SandboxProof is CI/CD for AI inference. Give it your current deployment, a candidate model, and your production requirements. It runs real experiments on Nebius GPUs, learns from failures, and issues a **SHIP / BLOCK** certificate backed by measured evidence.
 
 **Core principle:** AI proposes. Policy approves. Nebius executes. Metrics decide.
 
@@ -24,7 +24,7 @@ AI engineers, ML infra engineers, and startup CTOs running open-source models wh
 - **Mandatory:** must run on Nebius (Token Factory and/or AI Cloud) and use at least one NVIDIA open-source model
 - **Judging criteria:** Technological Implementation, Design (complete product, not a PoC), Potential Impact, Quality of Idea
 
-| Requirement                         | How GPUProof meets it                                                            |
+| Requirement                         | How SandboxProof meets it                                                            |
 | ----------------------------------- | -------------------------------------------------------------------------------- |
 | Nemotron on Token Factory           | Planner (deep reasoning) and fast classifier                                     |
 | Nebius Serverless Jobs (encouraged) | Each experiment is an isolated GPU job                                           |
@@ -176,7 +176,7 @@ QUEUED -> VALIDATING -> PROVISIONING -> MODEL_LOADING -> WARMUP
 
 Each experiment runs in a fresh container with: approved base image, CUDA runtime, vLLM, the model, benchmark runner, and metrics agent.
 
-Security: fresh environment, temporary identity, no production DB or write access, no unrestricted Nebius credentials, minimal network (allow model registry, GPUProof controller, metrics service, required Nebius services; deny everything else), isolated storage, automatic teardown, **secrets never written to logs**.
+Security: fresh environment, temporary identity, no production DB or write access, no unrestricted Nebius credentials, minimal network (allow model registry, SandboxProof controller, metrics service, required Nebius services; deny everything else), isolated storage, automatic teardown, **secrets never written to logs**.
 
 ### 7.8 Benchmark Runner and Metrics
 
@@ -342,4 +342,4 @@ The MVP is complete when:
 
 A fully autonomous, budget-safe certification loop runs on real Nebius infrastructure, a failed experiment changes the agent's next experiment, and the result is a trustworthy SHIP / BLOCK decision based on measured evidence.
 
-**Pitch:** _GPUProof is CI/CD for AI inference. Don't ask whether a new AI deployment should work. Make it prove that it works._
+**Pitch:** _SandboxProof is CI/CD for AI inference. Don't ask whether a new AI deployment should work. Make it prove that it works._

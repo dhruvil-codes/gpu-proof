@@ -98,7 +98,7 @@ export function TopNav() {
   const connected = useByokStatus();
   return (<nav className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b border-ink bg-canvas px-4 py-3 sm:px-6" aria-label="Main">
     <div className="flex min-w-0 items-center gap-2">
-      <Link href="/" className="shrink-0 cursor-pointer text-sm font-bold tracking-tight">GPUProof</Link>
+      <Link href="/" className="shrink-0 cursor-pointer text-sm font-bold tracking-tight">SandboxProof</Link>
       <span className="shrink-0 rounded border border-ink px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest">Audit Engine</span>
     </div>
     <div className="hidden items-center gap-6 text-xs md:flex">
@@ -130,7 +130,7 @@ export function SiteFooter() {
   return (<footer className="border-t border-ink bg-canvas" aria-label="Footer">
     <div className="mx-auto grid max-w-5xl gap-8 px-6 py-12 text-left md:grid-cols-3">
       <div>
-        <p className="text-sm font-bold tracking-tight">◉ GPUProof</p>
+        <p className="text-sm font-bold tracking-tight">◉ SandboxProof</p>
         <p className="mt-3 text-[12px] leading-relaxed text-muted">Deterministic GPU sizing and cloud certification for open-weight models. Exact memory math, multi-GPU planning, and production economics.</p>
         <p className="mt-3 inline-block border border-ink px-2 py-1 text-[11px] uppercase tracking-widest">Deterministic · Audit-grade</p>
       </div>
@@ -159,7 +159,7 @@ export function SiteFooter() {
     </div>
     <div className="border-t border-ink px-6 py-4">
       <div className="mx-auto flex max-w-5xl flex-col gap-2 text-[11px] leading-relaxed text-muted sm:flex-row sm:items-center sm:justify-between">
-        <p>SLA policy: SHIP requires P95 &lt; 2000ms · accuracy ≥ 85% · error rate ≤ 5%. © 2026 GPUProof.</p>
+        <p>SLA policy: SHIP requires P95 &lt; 2000ms · accuracy ≥ 85% · error rate ≤ 5%. © 2026 SandboxProof.</p>
         <a href="https://github.com" target="_blank" rel="noreferrer" className="cursor-pointer underline underline-offset-4 hover:text-ink">GitHub →</a>
       </div>
     </div>
@@ -191,13 +191,13 @@ export function LiveRegion({ message }: { message: string }) {
 export function useApi() { return API; }
 export function useLocalCerts() {
   const [items, setItems] = useState<any[]>(() => {
-    try { return typeof window !== "undefined" ? JSON.parse(localStorage.getItem("gpuproof-certs") || "[]") : []; }
+    try { return typeof window !== "undefined" ? JSON.parse(localStorage.getItem("sandboxproof-certs") || "[]") : []; }
     catch { return []; }
   });
   function push(entry: any) {
     setItems((prev) => {
       const next = [entry, ...prev.filter((x) => x.id !== entry.id)].slice(0, 20);
-      try { localStorage.setItem("gpuproof-certs", JSON.stringify(next)); } catch {}
+      try { localStorage.setItem("sandboxproof-certs", JSON.stringify(next)); } catch {}
       return next;
     });
   }

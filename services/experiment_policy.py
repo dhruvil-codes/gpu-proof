@@ -1,4 +1,4 @@
-"""GPUProof policy engine — deterministic, AI cannot bypass.
+"""SandboxProof policy engine — deterministic, AI cannot bypass.
 
 Hard limits (PRD 7.5, tightened by user $20 total / $10 per-cert):
 MAX_GPU_COUNT=1, MAX_PARALLEL=2, MAX_RUNTIME=15min, MAX_EXP_COST=$2,

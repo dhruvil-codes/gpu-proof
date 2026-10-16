@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("USE_SIMULATOR", "true")
 
-spec = importlib.util.spec_from_file_location("gpuproof_api_main", str(ROOT / "apps" / "api" / "app" / "main.py"))
+spec = importlib.util.spec_from_file_location("sandboxproof_api_main", str(ROOT / "apps" / "api" / "app" / "main.py"))
 assert spec and spec.loader
 main = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(main)

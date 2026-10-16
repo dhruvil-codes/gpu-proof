@@ -153,13 +153,20 @@ class ContreeSandboxRunner:
         )
 
 
+_SIM_SINGLETON: SimulatedSandboxRunner | None = None
+
+
 def get_sandbox_runner(api_key: str | None = None,
                        project_id: str | None = None):
     """Simulated when USE_SIMULATOR=true (tests/dev); else real Contree.
 
     Real path raises RuntimeError when creds/SDK missing — callers fall
-    back to simulator explicitly, never silently.
+    back to simulator explicitly, never silently. The simulated runner
+    is a process-wide singleton so operation IDs stay unique per run.
     """
+    global _SIM_SINGLETON
     if os.environ.get("USE_SIMULATOR", "true").lower() == "true":
-        return SimulatedSandboxRunner()
+        if _SIM_SINGLETON is None:
+            _SIM_SINGLETON = SimulatedSandboxRunner()
+        return _SIM_SINGLETON
     return ContreeSandboxRunner(api_key=api_key, project_id=project_id)

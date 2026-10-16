@@ -1,15 +1,19 @@
-"""Live GPU market pricing via Tavily Search API (stdlib only).
+"""Live market pricing via Tavily Search API (stdlib only).
 
-Two entry points:
-  fetch_gpu_prices() -> dict(source, fetched_at, rates, evidence, queries)
-  release_radar()     -> list[{model, note, url, days_ago_hint}]
+Entry points:
+  fetch_gpu_prices()       -> dict(source, fetched_at, rates, evidence, queries)
+  fetch_inference_prices() -> dict(source, fetched_at, rates, evidence, queries)
+  release_radar()          -> list[{model, note, url, days_ago_hint}]
 
 Contract:
 - TAVILY_API_KEY comes from the environment at runtime only.
-- Successful results are cached to artifacts/market/prices.json + radar.json.
+- Successful results are cached to artifacts/market/prices.json,
+  inference_prices.json + radar.json.
 - On ANY failure (missing key, HTTP error, bad payload, unparseable
   rates) raise RuntimeError. Callers decide fallback; this module never
   returns static data silently.
+- Tavily runs host-side only. Callers must NEVER pass TAVILY_API_KEY
+  into a sandbox (see services/sandbox_runner.py).
 """
 from __future__ import annotations
 
@@ -35,6 +39,22 @@ PRICE_QUERIES = (
 RADAR_QUERIES = (
     "newest open weight LLM release 2026",
     "new open weight quantized model release FP8 AWQ 2026",
+)
+INFERENCE_PRICE_QUERIES = (
+    "Nemotron Qwen Llama inference API price per 1M tokens 2026",
+    "open model serverless inference price per million tokens Nemotron 2026",
+)
+# $/1M-token plausibility band (rejects $/hr GPU figures and stray dollars).
+INFERENCE_MIN_USD = 0.01
+INFERENCE_MAX_USD = 50.00
+_INFERENCE_RE = re.compile(
+    r"\$\s*(?P<usd>\d+(?:\.\d{1,4})?)\s*(?:/|per)\s*1\s*[mM]\b",
+    re.IGNORECASE,
+)
+_MODEL_RE = re.compile(
+    r"\b(nemotron[\w\-\.]*|qwen[\w\-\.]*|llama[\w\-\.]*|"
+    r"gemma[\w\-\.]*|deepseek[\w\-\.]*|gpt-oss[\w\-\.]*)",
+    re.IGNORECASE,
 )
 
 
@@ -62,6 +82,10 @@ def prices_cache_path() -> Path:
 
 def radar_cache_path() -> Path:
     return _cache_dir() / "radar.json"
+
+
+def inference_prices_cache_path() -> Path:
+    return _cache_dir() / "inference_prices.json"
 
 
 def _api_key() -> str:
@@ -375,3 +399,98 @@ def release_radar(queries: tuple | list | None = None,
         except OSError:
             pass
     return items
+
+
+def extract_inference_rates(results: list[dict],
+                            answer: str | None = None) -> tuple[dict, list[dict]]:
+    """Associate per-model $/1M-token rates from Tavily result blobs.
+
+    A price votes only when it matches ``$X / 1M`` (or per-1M) form within
+    the plausibility band and a known model family is mentioned within
+    500 chars. Cheapest surviving observation wins per family key
+    (lower-cased first token, e.g. ``nemotron``). Raises RuntimeError
+    when nothing usable is found.
+    """
+    buckets: dict[str, list[float]] = {}
+    texts: list[str] = []
+    for r in results or []:
+        if not isinstance(r, dict):
+            continue
+        texts.append(f"{r.get('title') or ''}\n{r.get('content') or ''}")
+    if answer:
+        texts.append(str(answer))
+    for text in texts:
+        price_hits = [(m.start(), float(m.group("usd")))
+                      for m in _INFERENCE_RE.finditer(text)]
+        price_hits = [(p, v) for p, v in price_hits
+                      if INFERENCE_MIN_USD <= v <= INFERENCE_MAX_USD]
+        if not price_hits:
+            continue
+        model_hits = [(m.start(), m.group(1).lower()) for m in _MODEL_RE.finditer(text)]
+        if not model_hits:
+            continue
+        for pos, val in price_hits:
+            best: str | None = None
+            best_dist: int | None = None
+            for gpos, name in model_hits:
+                d = abs(pos - gpos)
+                if d <= 500 and (best_dist is None or d < best_dist):
+                    m = re.match(r"[a-z]+", name)
+                    best, best_dist = (m.group(0) if m else name), d
+            if best is not None:
+                buckets.setdefault(best, []).append(val)
+    rates = {k: round(min(v), 4) for k, v in buckets.items() if v}
+    if not rates:
+        raise RuntimeError("could not extract any $/1M inference rate from tavily results")
+    return rates, extract_evidence(results)
+
+
+def save_inference_prices(doc: dict, path: Path | str | None = None) -> Path:
+    dest = Path(path) if path else inference_prices_cache_path()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    return dest
+
+
+def load_cached_inference_prices(path: Path | str | None = None) -> dict | None:
+    src = Path(path) if path else inference_prices_cache_path()
+    try:
+        doc = json.loads(src.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(doc, dict) or not isinstance(doc.get("rates"), dict):
+        return None
+    return doc
+
+
+def fetch_inference_prices(queries: tuple | list | None = None,
+                           max_results: int = 5,
+                           cache: bool = True) -> dict:
+    """Fetch live $/1M-token inference rates via Tavily.
+
+    Raises RuntimeError on any failure or empty parse (callers decide
+    fallback). Cached to artifacts/market/inference_prices.json.
+    """
+    qs = list(queries) if queries else list(INFERENCE_PRICE_QUERIES)
+    all_results: list[dict] = []
+    answers: list[str] = []
+    for q in qs:
+        payload = _post_search(q, max_results=max_results)
+        all_results.extend(payload.get("results") or [])
+        if payload.get("answer"):
+            answers.append(str(payload["answer"]))
+    rates, evidence = extract_inference_rates(
+        all_results, answer="\n".join(answers) or None)
+    doc = {
+        "source": "tavily",
+        "fetched_at": _now_iso(),
+        "rates": rates,
+        "evidence": evidence,
+        "queries": qs,
+    }
+    if cache:
+        try:
+            save_inference_prices(doc)
+        except OSError:
+            pass
+    return doc

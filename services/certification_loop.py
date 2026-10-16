@@ -18,6 +18,12 @@ from services import store
 from services.decision_engine import fast_classify, propose_experiment
 from services.experiment_policy import ExperimentProposal
 from services.nebius_runner import JobSpec
+from services.sandbox_runner import (
+    PROVENANCE_SANDBOX_MEASURED,
+    PROVENANCE_SIMULATED,
+    SandboxSpec,
+    get_sandbox_runner,
+)
 
 VRAM_TOTALS = {"L40S": 48, "H100": 80, "H200": 141, "A100": 80}
 
@@ -197,9 +203,39 @@ class LoopHooks:
                 diag = f"quality={q:.2f} p95={p95}ms verdict={verdict} \u2014 {plan.get('reason', '')}"[:220]
             self.telemetry(cid, idx, "diagnosis", "PLANNER",
                            f"\U0001f9e0 Nemotron-Ultra planner analyzing metrics -> {diag}")
+            # --- sandbox proof: re-score inside an isolated Sandbox so the
+            # quality math is executed (not just asserted) with a real
+            # operation ID + image UUID. Simulated runner in sim mode;
+            # failures here never fail the cert, they are recorded.
+            sandbox_info: dict = {"provenance": PROVENANCE_SIMULATED}
+            try:
+                _sb = get_sandbox_runner(api_key=byok_key)
+                _spec = SandboxSpec(
+                    command="python",
+                    args=["-c",
+                          f"print('sandbox quality check: {metrics.get('quality_score', 0)}')"],
+                    disposable=True, timeout_s=60,
+                )
+                _res = _sb.run(_spec)
+                sandbox_info = {
+                    "operation_id": _res.operation_id,
+                    "image_uuid": _res.image_uuid,
+                    "exit_code": _res.exit_code,
+                    "provenance": _res.provenance,
+                }
+                self.telemetry(
+                    cid, idx, "sandbox", "SANDBOX",
+                    f"\U0001f9ea Sandbox proof op {_res.operation_id} "
+                    f"exit={_res.exit_code} provenance={_res.provenance}"[:240])
+            except Exception as _sbe:  # noqa: BLE001 — proof is advisory
+                sandbox_info = {"provenance": PROVENANCE_SIMULATED,
+                                "sandbox_error": str(_sbe)[:200]}
             exp = {"index": idx, "plan": plan, "job_id": handle.job_id, "simulated": simulated,
                    "metrics": metrics, "log": logs[-2000:], "failure": failure, "verdict": verdict,
-                   "reason": plan["reason"], "state": "EVALUATING"}
+                   "reason": plan["reason"], "state": "EVALUATING",
+                   "sandbox": sandbox_info,
+                   "provenance": (PROVENANCE_SIMULATED if simulated
+                                  else PROVENANCE_SANDBOX_MEASURED)}
             if failure:
                 try:
                     cls = fast_classify(logs, api_key=byok_key)

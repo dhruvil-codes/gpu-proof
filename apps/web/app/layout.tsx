@@ -5,30 +5,28 @@ import "./globals.css";
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "SandboxProof — Autonomous GPU Inference Certification | Nebius x NVIDIA Hackathon",
+  title: "SandboxProof — Prove model swaps in isolated sandboxes | Nebius x NVIDIA Hackathon",
   description:
-    "Stop guessing if open-source models will fit in VRAM or break tool calls. Autonomously stress-test on Nebius Cloud GPUs and mint deterministic SHIP/BLOCK certificates.",
+    "Stop guessing if a model swap breaks tool calls. SandboxProof replays your workload in isolated Nebius Sandboxes and mints deterministic SHIP/BLOCK certificates.",
   keywords: [
-    "GPU certification",
-    "Nebius AI Cloud",
+    "model certification",
+    "Nebius Token Factory Sandboxes",
     "NVIDIA Nemotron",
-    "vLLM",
     "inference benchmarking",
-    "VRAM OOM",
     "tool calling",
     "SHIP BLOCK certificate",
   ],
   openGraph: {
-    title: "SandboxProof — Autonomous GPU Inference Certification | Nebius x NVIDIA Hackathon",
+    title: "SandboxProof — Prove model swaps in isolated sandboxes | Nebius x NVIDIA Hackathon",
     description:
-      "Stop guessing if open-source models will fit in VRAM or break tool calls. Autonomously stress-test on Nebius Cloud GPUs and mint deterministic SHIP/BLOCK certificates.",
+      "Stop guessing if a model swap breaks tool calls. SandboxProof replays your workload in isolated Nebius Sandboxes and mints deterministic SHIP/BLOCK certificates.",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SandboxProof — Autonomous GPU Inference Certification | Nebius x NVIDIA Hackathon",
+    title: "SandboxProof — Prove model swaps in isolated sandboxes | Nebius x NVIDIA Hackathon",
     description:
-      "Stop guessing if open-source models will fit in VRAM or break tool calls. Autonomously stress-test on Nebius Cloud GPUs and mint deterministic SHIP/BLOCK certificates.",
+      "Stop guessing if a model swap breaks tool calls. SandboxProof replays your workload in isolated Nebius Sandboxes and mints deterministic SHIP/BLOCK certificates.",
   },
 };
 

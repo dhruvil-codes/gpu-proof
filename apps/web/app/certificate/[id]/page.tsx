@@ -387,17 +387,17 @@ export default function Certificate({ params }: { params: { id: string } }) {
               <span className="font-bold text-xs uppercase tracking-wider">Deterministic Hardware Simulation · Dev-Grade</span>
             </div>
             <p className="mt-1 text-[12px] text-muted">
-              Validated via deterministic hardware simulation. For an official production-grade certificate, re-run with live Nebius Cloud GPU execution enabled.
+              Validated via deterministic simulation. For a production-grade certificate, re-run with live sandbox execution enabled.
             </p>
           </div>
         ) : (
           <div className="rounded-lg border border-ship/40 bg-ship/5 p-4 text-left">
             <div className="flex items-center gap-2">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-ship" />
-              <span className="font-bold text-xs uppercase tracking-wider text-ship">Nebius AI Cloud Hardware Verified · Production-Grade</span>
+              <span className="font-bold text-xs uppercase tracking-wider text-ship">Nebius Sandbox Verified · Production-Grade</span>
             </div>
             <p className="mt-1 text-[12px] text-muted">
-              Executed on isolated Nebius serverless GPU containers with measured runtime telemetry.
+              Executed in isolated Nebius Sandbox microVMs with measured runtime telemetry and operation lineage.
             </p>
           </div>
         )}

@@ -765,7 +765,7 @@ export default function DocsPage() {
                 <p className="border-t border-ink/15 py-2.5"><strong>Try it</strong> <span className="text-muted">— an hour on a cloud GPU with live telemetry. → <Link href="/sandbox" className="font-bold underline-offset-4 hover:underline">Live Sandbox</Link></span></p>
                 <p className="border-y border-ink/15 py-2.5"><strong>Prove it</strong> <span className="text-muted">— a sealed SHIP / BLOCK certificate anyone can re-check.</span></p>
               </div>
-              <p className="mt-4 border-t border-dotted border-ink/30 pt-3 font-mono text-[12px] text-muted">Integrations: Nebius AI Cloud (GPUs) · Hugging Face (models + live specs) · vLLM-style serving telemetry · BYOK keys that never leave your browser.</p>
+              <p className="mt-4 border-t border-dotted border-ink/30 pt-3 font-mono text-[12px] text-muted">Integrations: Token Factory Sandboxes (isolated runs) · Hugging Face (models + live specs) · hosted-endpoint replay telemetry · BYOK keys that never leave your browser.</p>
             </section>
 
             <section aria-label="Build your AI lab" className="border-b border-ink/15 py-8">

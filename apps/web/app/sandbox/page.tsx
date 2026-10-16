@@ -483,9 +483,9 @@ function Gate() {
   if (!started) {
     return (
       <div className="mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-8">
-        <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">Live Sandbox · Nebius AI Cloud</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight lg:text-3xl">Spin up a GPU in 30 seconds</h1>
-        <p className="mt-1 font-mono text-sm text-muted">Three questions, then a full hour on real cloud VRAM. Free while in Demo Mode.</p>
+        <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">Sizing Quiz · Token Factory Sandboxes</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight lg:text-3xl">Size the swap in 30 seconds</h1>
+        <p className="mt-1 font-mono text-sm text-muted">Three questions, then prove it in an isolated sandbox. Free in beta.</p>
 
         <div className="mt-5 grid items-start gap-4 lg:grid-cols-[1fr_320px]">
           <div className="min-w-0 space-y-4">
@@ -519,8 +519,8 @@ function Gate() {
         </section>
 
         <section aria-labelledby="q2" className="rounded-2xl border border-ink/15 bg-[#F5F1E9] p-5">
-          <h2 id="q2" className="font-mono text-sm font-bold">Q2 · Choose Nebius Cloud GPU <span className="font-normal text-muted">(all 6 · Oct 2026 rates)</span></h2>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Nebius Cloud GPU">
+          <h2 id="q2" className="font-mono text-sm font-bold">Q2 · Choose reference tier <span className="font-normal text-muted">(sandbox proof runs the swap here)</span></h2>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Reference tier">
             {GPUS.map((g) => {
               const gf = footprint(selModel, precKey);
               const gOk = gf.total <= g.vram * 0.95;

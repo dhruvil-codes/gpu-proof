@@ -192,8 +192,8 @@ const FAILURE_MODES = [
     code: "TKT",
     img: "/cards/failure-tkt.png",
     title: "Quota Ticket Purgatory",
-    text: "Waiting weeks for AWS GPU limit approvals versus launching high-performance Nebius compute containers in about 30 seconds.",
-    stat: "WEEKS OF TICKETS → 30-SECOND LAUNCH",
+    text: "Waiting weeks for GPU quota approvals versus proving the swap today in a free sandbox run that returns an operation ID.",
+    stat: "WEEKS OF TICKETS → ONE SANDBOX RUN",
     tag: "Dev Velocity",
   },
 ];
@@ -211,11 +211,11 @@ const PIPELINE_MODULES = [
   {
     kind: "blade" as const,
     index: "MODULE 02",
-    title: "Spin Up the Nebius Sandbox",
-    text: "One-hour hot-swappable H100 containers at $4.50/hr with live tok/s telemetry from 1 to 50+ concurrent users.",
-    spec: "$4.50/HR H100 ON-DEMAND",
-    href: "/new?target_gpu=h100",
-    cta: "Open sandbox",
+    title: "Prove it in an isolated sandbox",
+    text: "Every experiment runs in a fresh Contree microVM with its own operation ID and image UUID. Free in beta, up to 50 concurrent ops.",
+    spec: "ISOLATED MICROVM · OP ID PER RUN",
+    href: "/new",
+    cta: "Run proof",
   },
   {
     kind: "cert" as const,
@@ -264,7 +264,7 @@ function HeroScene() {
       viewBox="0 0 640 460"
       className="block w-full"
       role="img"
-      aria-label="Isometric schematic: a local Apple Silicon rig streams a model through an animated data conduit into a Nebius H100 accelerator hub, which returns a certified production blueprint."
+      aria-label="Isometric schematic: a workload twin streams into a Nebius Sandbox microVM pool, which returns a certified SHIP or BLOCK blueprint."
     >
       <defs>
         <marker
@@ -1113,22 +1113,23 @@ export default function Home() {
                   <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 motion-safe:animate-ping" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600" />
                 </span>
-                Nebius Token Factory · Nemotron judge · Tavily live pricing
+                Nebius Token Factory Sandboxes · Nemotron judges · Tavily-grounded
               </div>
 
               <h1 className="mt-7 text-4xl font-bold leading-[1.04] tracking-tight sm:text-5xl lg:text-[3.35rem]">
-                The Holy Grail
+                Ship or block
                 <br />
-                for AI Hardware.
+                your next model swap.
                 <span className="mt-4 block text-lg font-bold leading-snug tracking-tight text-muted lg:text-[1.35rem]">
-                  From Mac Mini to 10-GPU Clusters.
+                  Proven in isolated sandboxes, not vibes.
                 </span>
               </h1>
 
               <p className="mt-5 max-w-md text-xs leading-relaxed text-muted sm:text-sm">
-                Stop guessing with vague ChatGPT answers. Know the exact memory,
-                token speed, and production cost for any open-source model —
-                measured live, before you commit budget.
+                SandboxProof replays your production workload against the candidate
+                model inside fresh Nebius Sandbox microVMs — tool calls, JSON,
+                p95 latency, error rate, $/1M. Every run carries an operation ID.
+                SHIP or BLOCK with receipts.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -1136,7 +1137,7 @@ export default function Home() {
                   href="/new"
                   className={`${transition} inline-flex min-h-12 cursor-pointer items-center justify-center whitespace-nowrap rounded-xl bg-ink px-6 py-3 text-xs font-bold text-canvas shadow-[0_8px_30px_rgb(0,0,0,0.1)] hover:-translate-y-0.5 hover:shadow-[0_12px_36px_rgb(0,0,0,0.16)] active:translate-y-0`}
                 >
-                  🚀 Launch Hardware Workbench
+                  🧪 Run your first certification
                   <span className="ml-2" aria-hidden="true">
                     →
                   </span>
@@ -1145,7 +1146,7 @@ export default function Home() {
                   href="/docs"
                   className={`${transition} inline-flex min-h-12 cursor-pointer items-center justify-center whitespace-nowrap rounded-xl border border-ink/15 bg-white/75 px-6 py-3 text-xs font-bold text-ink hover:-translate-y-0.5 hover:border-ink/40 hover:bg-white active:translate-y-0`}
                 >
-                  📖 Read Homelab &amp; GPU Guide
+                  📖 See how proof works
                 </Link>
               </div>
             </div>
@@ -1514,7 +1515,7 @@ export default function Home() {
             Start With the Model You Want.
           </h2>
           <p className="mx-auto mt-2 max-w-xl text-xs text-muted">
-            Click any chip to pre-fill the Hardware Workbench with a verified
+            Click any chip to pre-fill a sandbox proof with a verified
             architecture.
           </p>
 
@@ -1584,13 +1585,13 @@ export default function Home() {
                   href="/new"
                   className={`${transition} inline-flex min-h-12 w-full cursor-pointer items-center justify-center whitespace-nowrap rounded-xl bg-canvas px-6 py-3 text-xs font-bold text-ink hover:-translate-y-0.5 hover:bg-white active:translate-y-0 sm:w-auto`}
                 >
-                  🚀 Launch Hardware Workbench →
+                  🧪 Run your first certification →
                 </Link>
                 <Link
                   href="/docs"
                   className={`${transition} inline-flex min-h-12 w-full cursor-pointer items-center justify-center whitespace-nowrap rounded-xl border border-canvas/30 bg-transparent px-6 py-3 text-xs font-bold text-canvas hover:border-canvas hover:bg-canvas/10 active:translate-y-0 sm:w-auto`}
                 >
-                  📖 Read Homelab Handbook
+                  📖 See how proof works
                 </Link>
               </div>
             </div>

@@ -119,8 +119,8 @@ export const HARDWARE_TARGETS: HardwareTarget[] = [
   },
   {
     key: "NEBIUS_CLOUD",
-    label: "Nebius Cloud GPU",
-    sub: "L40S 48GB → H100 80GB certified",
+    label: "Sandbox reference tier",
+    sub: "L40S 48GB → H100 80GB sizing ladder",
     usableGB: 48,
     kind: "cloud",
   },
@@ -655,7 +655,7 @@ export function resolveTargetGB(targetKey: string, detected: DetectedHardware | 
 export function targetLabel(targetKey: string, detected: DetectedHardware | null): string {
   if (targetKey === "AUTO" || !targetKey) return detected ? `Your machine — ${detected.label}` : "Your machine (auto-detect…)";
   const t = HARDWARE_TARGETS.find((x) => x.key === targetKey);
-  if (t?.kind === "cloud") return "Nebius Cloud GPU (L40S 48GB entry → H100 on OOM)";
+  if (t?.kind === "cloud") return "Sandbox reference tier (L40S 48GB entry → H100 on OOM)";
   return t ? t.label : targetKey;
 }
 
@@ -730,9 +730,9 @@ export function evaluateFit(
     headline: `❌ OOM ON YOUR ${isAuto ? "CURRENT " : ""}${where.toUpperCase()}`,
     detail: `${modelName}${params} needs ~${needed}GB at 4-bit but ${where} offers ~${usable}GB. ${
       cloud
-        ? "Requires multi-GPU cluster — certify on Nebius Cloud GPUs below."
-        : "Exceeds local headroom — certify on Nebius Cloud GPUs below."
+        ? "Requires multi-GPU cluster — prove the swap in a sandbox below."
+        : "Exceeds local headroom — prove the swap in a sandbox below."
     }`,
-    stackHint: "Production path: vLLM / SGLang on Nebius Cloud",
+    stackHint: "Production path: hosted inference proven in a sandbox",
   };
 }

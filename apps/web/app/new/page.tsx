@@ -672,9 +672,9 @@ function Cockpit() {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-ink/15 pb-4">
         <div className="min-w-0 max-w-2xl">
-          <h1 className="text-2xl font-bold tracking-tight lg:text-3xl">Verify Hardware Fit</h1>
+          <h1 className="text-2xl font-bold tracking-tight lg:text-3xl">Start a sandbox proof</h1>
           <p className="mt-1 font-mono text-sm leading-relaxed text-muted">
-            Pick a model, pick hardware, profile traffic. Exact VRAM math before you spend a dollar on GPUs.
+            Pick a model, pick a reference tier, profile traffic. Exact VRAM math first — then the swap is proven in an isolated sandbox.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1333,7 +1333,7 @@ function Cockpit() {
             {submitting ? "Minting…" : "📜 Mint Cryptographic Certification →"}
           </button>
           <p className="mt-2 text-center font-mono text-[11px] leading-relaxed text-canvas/60">
-            Sandbox replays live traffic for 1 hour{sandboxCost > 0 ? ` (≈$${sandboxCost.toFixed(2)})` : ""}. Mint runs the full audit → <span className="underline">/certificate/[id]</span>.
+            Sandbox replays your workload in an isolated microVM{sandboxCost > 0 ? ` (≈$${sandboxCost.toFixed(2)})` : " (free in beta)"}. Mint runs the full audit → <span className="underline">/certificate/[id]</span>.
           </p>
 
           <div aria-live="polite" className="mt-2 min-h-[20px] text-center">
@@ -1341,7 +1341,7 @@ function Cockpit() {
               <p className="font-mono text-[11px] text-canvas/80">{status}</p>
             ) : (
               <p className="font-mono text-[11px] text-canvas/50">
-                {concurrency} streams · {fmt(contextLen)} ctx · {precision} · {effMode === "real" ? "live GPU" : "simulator"}
+                {concurrency} streams · {fmt(contextLen)} ctx · {precision} · {effMode === "real" ? "live sandbox" : "simulator"}
               </p>
             )}
           </div>

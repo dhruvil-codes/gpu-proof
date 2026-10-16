@@ -83,12 +83,12 @@ export function ExecutionModeToggle({ compact = false }: { compact?: boolean }) 
   return (
     <div
       role="radiogroup"
-      aria-label="Execution mode: live Nebius cloud GPU or deterministic simulator"
-      title="Choose live cloud GPUs or instant simulation"
+      aria-label="Execution mode: live sandbox or deterministic simulator"
+      title="Choose live sandbox runs or instant simulation"
       className="flex items-center gap-1 rounded-lg border border-ink bg-[#F5F1E9] p-1"
     >
-      {opt("real", "⚡", "Live Nebius Cloud GPU", "Run audits on live Nebius Cloud GPUs (bills BYOK key or host pool)")}
-      {opt("sim", "🧪", "Deterministic Simulator", "Instant $0 simulation — no GPU spend, dev-only, never certifies")}
+      {opt("real", "⚡", "Live sandbox", "Run audits in isolated Nebius Sandboxes (free in beta; inference bills BYOK key or host pool)")}
+      {opt("sim", "🧪", "Deterministic Simulator", "Instant $0 simulation — no spend, dev-only, never certifies")}
     </div>
   );
 }

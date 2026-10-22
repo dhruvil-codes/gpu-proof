@@ -482,22 +482,25 @@ function Gate() {
 
   if (!started) {
     return (
-      <div className="mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-8">
-        <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">Sizing Quiz · Token Factory Sandboxes</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight lg:text-3xl">Size the swap in 30 seconds</h1>
-        <p className="mt-1 font-mono text-sm text-muted">Three questions, then prove it in an isolated sandbox. Free in beta.</p>
+      <div className="mx-auto w-full max-w-[1280px] px-4 py-8 lg:px-8">
+        <p className="font-mono text-[11px] font-medium tracking-[0.08em] uppercase text-muted">PREFLIGHT SIZING / NEBIUS TOKEN FACTORY SANDBOXES</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-ink lg:text-3xl">Verify hardware headroom before execution</h1>
+        <p className="mt-2 font-mono text-sm text-muted">Select an archetype, hardware tier, and model checkpoint to evaluate KV-cache boundaries.</p>
 
-        <div className="mt-5 grid items-start gap-4 lg:grid-cols-[1fr_320px]">
-          <div className="min-w-0 space-y-4">
+        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[1fr_340px]">
+          <div className="min-w-0 space-y-6">
 
-        <section aria-labelledby="q1" className="rounded-2xl border border-ink/15 bg-[#F5F1E9] p-5">
-          <h2 id="q1" className="font-mono text-sm font-bold">Q1 · What are you sizing?</h2>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Target archetype">
+        <section aria-labelledby="q1" className="border border-rule bg-white p-5 sm:p-6">
+          <div className="flex items-center justify-between border-b border-rule pb-3">
+            <h2 id="q1" className="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-ink">01 / WORKLOAD ARCHETYPE</h2>
+            <span className="font-mono text-[10px] text-muted">TARGET PROFILE</span>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Target archetype">
             {(
               [
-                { id: "lab", icon: "🧑‍💻", t: "Home AI Lab / Local Sizing", d: "Will it run on my rig? Starts on L40S 48GB." },
-                { id: "prod", icon: "🏢", t: "Production AI System", d: "SLOs, batching, cost. Starts on H100 80GB." },
-              ] as { id: Archetype; icon: string; t: string; d: string }[]
+                { id: "lab", tag: "SINGLE STREAM", t: "Developer Workstation / Local Rig", d: "1 active stream · baseline interactive harness · starts on L40S 48GB." },
+                { id: "prod", tag: "CONCURRENT", t: "Production Agent Cluster", d: "Multi-user concurrency · strict latency SLAs · starts on H100 80GB." },
+              ] as { id: Archetype; tag: string; t: string; d: string }[]
             ).map((a) => (
               <button
                 key={a.id}
@@ -508,62 +511,71 @@ function Gate() {
                   setArch(a.id);
                   setGpuKey(a.id === "prod" ? "H100" : "L40S");
                 }}
-                className={`min-h-[76px] cursor-pointer rounded-xl border p-3 text-left transition-colors ${arch === a.id ? "border-ink bg-ink text-canvas" : "border-ink/25 hover:border-ink"}`}
+                className={`min-h-[82px] cursor-pointer rounded-[2px] border p-4 text-left transition-colors ${arch === a.id ? "border-ink bg-ink text-white" : "border-rule bg-paper hover:border-ink"}`}
               >
-                <span aria-hidden="true" className="text-xl">{a.icon}</span>
-                <span className="mt-1 block font-mono text-sm font-bold">{a.t}</span>
-                <span className={`block font-mono text-[11px] ${arch === a.id ? "text-canvas/75" : "text-muted"}`}>{a.d}</span>
+                <span className={`inline-block font-mono text-[10px] tracking-[0.06em] font-medium ${arch === a.id ? "text-orange" : "text-orangeDeep"}`}>[{a.tag}]</span>
+                <span className="mt-1.5 block font-mono text-sm font-medium">{a.t}</span>
+                <span className={`mt-1 block font-mono text-[11px] leading-relaxed ${arch === a.id ? "text-inverseMuted" : "text-muted"}`}>{a.d}</span>
               </button>
             ))}
           </div>
         </section>
 
-        <section aria-labelledby="q2" className="rounded-2xl border border-ink/15 bg-[#F5F1E9] p-5">
-          <h2 id="q2" className="font-mono text-sm font-bold">Q2 · Choose reference tier <span className="font-normal text-muted">(sandbox proof runs the swap here)</span></h2>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Reference tier">
+        <section aria-labelledby="q2" className="border border-rule bg-white p-5 sm:p-6">
+          <div className="flex items-center justify-between border-b border-rule pb-3">
+            <h2 id="q2" className="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-ink">02 / REFERENCE HARDWARE TIER</h2>
+            <span className="font-mono text-[10px] text-muted">NEBIUS CLUSTER</span>
+          </div>
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2" role="radiogroup" aria-label="Reference tier">
             {GPUS.map((g) => {
               const gf = footprint(selModel, precKey);
               const gOk = gf.total <= g.vram * 0.95;
+              const active = gpuKey === g.key;
               return (
                 <button
                   key={g.key}
                   type="button"
                   role="radio"
-                  aria-checked={gpuKey === g.key}
+                  aria-checked={active}
                   onClick={() => setGpuKey(g.key)}
-                  className={`min-h-[64px] cursor-pointer rounded-xl border px-3 py-2 text-left transition-colors ${gpuKey === g.key ? "border-ink bg-ink text-canvas" : "border-ink/25 hover:border-ink"}`}
+                  className={`min-h-[70px] cursor-pointer rounded-[2px] border px-3.5 py-2.5 text-left transition-colors ${active ? "border-ink bg-ink text-white" : "border-rule bg-paper hover:border-ink"}`}
                 >
-                  <span className="block font-mono text-xs font-bold">{g.label}</span>
-                  <span className={`block font-mono text-[11px] ${gpuKey === g.key ? "text-canvas/75" : "text-muted"}`}>
-                    ${g.price.toFixed(2)}/hr · {g.vram}GB · {g.blurb}
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-semibold">{g.label}</span>
+                    <span className={`font-mono text-[10px] ${active ? "text-orange" : "text-muted"}`}>${g.price.toFixed(2)}/HR</span>
+                  </div>
+                  <span className={`mt-1 block font-mono text-[11px] ${active ? "text-inverseMuted" : "text-muted"}`}>
+                    {g.vram} GB VRAM · {g.blurb}
                   </span>
-                  <span className={`mt-0.5 block font-mono text-[10px] font-bold ${gOk ? "text-ship" : gpuKey === g.key ? "text-red-200" : "text-block"}`}>
-                    {gOk ? `✓ ~${gf.total}GB fits` : `✗ needs ~${gf.total}GB`}
+                  <span className={`mt-1 block font-mono text-[10px] font-medium ${gOk ? (active ? "text-emerald-400" : "text-ship") : (active ? "text-red-300" : "text-block")}`}>
+                    {gOk ? `✓ ~${gf.total} GB FITS` : `✗ EXCEEDS (~${gf.total} GB REQUIRED)`}
                   </span>
                 </button>
               );
             })}
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-ink/15 bg-canvas p-3">
-            <ByokBadge connected={byokConnected} />
-            <span className="font-mono text-[11px] text-muted">
-              {byokConnected ? "Live runs bill your Nebius key." : "No key? Simulated evaluation on the host pool — free."}
-            </span>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-4">
+            <div className="flex items-center gap-3">
+              <ByokBadge connected={byokConnected} />
+              <span className="font-mono text-[11px] text-muted">
+                {byokConnected ? "Live execution configured with BYOK key." : "Simulated verification enabled on host pool ($0 demo)."}
+              </span>
+            </div>
             <button
               type="button"
               onClick={() => setByokOpen(true)}
-              className="min-h-[36px] cursor-pointer rounded-full border border-ink/25 px-3 py-1 font-mono text-[11px] font-bold transition-colors hover:border-ink"
+              className="sigil-technical-button min-h-[34px] cursor-pointer rounded-[2px] border border-rule bg-paper px-3 py-1 font-mono text-[11px] font-medium text-ink hover:border-ink"
             >
-              {byokConnected ? "Manage key" : "Add Nebius key"}
+              {byokConnected ? "MANAGE KEY" : "ADD NEBIUS KEY"}
             </button>
           </div>
           <ByokModal open={byokOpen} onClose={() => setByokOpen(false)} />
         </section>
 
-        <section aria-labelledby="q3" className="rounded-2xl border border-ink/15 bg-[#F5F1E9] p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="q3" className="font-mono text-sm font-bold">Q3 · Choose model <span className="font-normal text-muted">(only fits for {gpu.label} can start · ★ recommended for this GPU)</span></h2>
-            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Precision">
+        <section aria-labelledby="q3" className="border border-rule bg-white p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule pb-3">
+            <h2 id="q3" className="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-ink">03 / CANDIDATE MODEL & PRECISION</h2>
+            <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Precision">
               {Object.keys(PREC_BYTES).map((p) => (
                 <button
                   key={p}
@@ -572,14 +584,14 @@ function Gate() {
                   aria-checked={precKey === p}
                   title={PREC_BYTES[p].label}
                   onClick={() => setPrecision(p)}
-                  className={`min-h-[36px] cursor-pointer rounded-full border px-3 py-1 font-mono text-[11px] font-bold transition-colors ${precKey === p ? "border-ink bg-ink text-canvas" : "border-ink/25 hover:border-ink"}`}
+                  className={`min-h-[30px] cursor-pointer rounded-[2px] border px-2.5 py-0.5 font-mono text-[11px] font-medium transition-colors ${precKey === p ? "border-ink bg-ink text-white" : "border-rule bg-paper hover:border-ink"}`}
                 >
                   {p}
                 </button>
               ))}
             </div>
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Sandbox model">
+          <div className="mt-4 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Sandbox model">
             {[...MODELS]
               .sort((a, b) => {
                 const ra = gpu.recs.indexOf(a.slug);
@@ -601,34 +613,37 @@ function Gate() {
                   disabled={locked}
                   title={ok ? `${m.slug} · ~${mf.total}GB on ${gpu.label}` : `Needs ~${mf.total}GB — exceeds ${gpu.label} (${usable}GB usable)`}
                   onClick={() => setModelSlug(m.slug)}
-                  className={`min-h-[64px] rounded-xl border px-3 py-2 text-left transition-colors ${active ? "border-ink bg-ink text-canvas" : ok ? "cursor-pointer border-ink/25 hover:border-ink" : "cursor-not-allowed border-ink/15 opacity-45"}`}
+                  className={`min-h-[66px] rounded-[2px] border px-3 py-2 text-left transition-colors ${active ? "border-ink bg-ink text-white" : ok ? "cursor-pointer border-rule bg-paper hover:border-ink" : "cursor-not-allowed border-rule bg-paper/50 opacity-40"}`}
                 >
-                  <span className="block font-mono text-xs font-bold">{gpu.recs.includes(m.slug) ? "★ " : ""}{m.label}</span>
-                  <span className={`block truncate font-mono text-[10px] ${active ? "text-canvas/70" : "text-muted"}`}>{m.slug} · {m.paramsB}B</span>
-                  <span className={`mt-0.5 block font-mono text-[10px] font-bold ${ok ? "text-ship" : active ? "text-red-200" : "text-block"}`}>
-                    {ok ? `✓ ~${mf.total}GB fits` : int4Ok ? `✗ needs ~${mf.total}GB — INT4 unlocks it` : `✗ needs ~${mf.total}GB — locked`}
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-semibold">{m.label}</span>
+                    {gpu.recs.includes(m.slug) && <span className="font-mono text-[9px] tracking-wide text-orangeDeep uppercase">[REC]</span>}
+                  </div>
+                  <span className={`block truncate font-mono text-[10px] ${active ? "text-inverseMuted" : "text-muted"}`}>{m.slug} · {m.paramsB}B</span>
+                  <span className={`mt-1 block font-mono text-[10px] font-medium ${ok ? (active ? "text-emerald-400" : "text-ship") : (active ? "text-red-300" : "text-block")}`}>
+                    {ok ? `✓ ~${mf.total} GB FITS` : int4Ok ? `✗ ~${mf.total} GB (INT4 AVAILABLE)` : `✗ ~${mf.total} GB (LOCKED)`}
                   </span>
                 </button>
               );
             })}
           </div>
-          <p className="mt-2 font-mono text-[11px] text-muted">Same exact math as the hardware audit — unfit pairs never reach the console.</p>
-          <div className="mt-3 border-t border-ink/10 pt-3">
-            <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
-              🔎 Search Hugging Face — latest versions included
+          <p className="mt-3 font-mono text-[11px] text-muted">Deterministic sizing math applied before launch — invalid pairs are locked.</p>
+          <div className="mt-4 border-t border-rule pt-4">
+            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted">
+              SEARCH HUGGING FACE REPOSITORY
             </p>
             <input
               value={hfq}
               onChange={(e) => setHfq(e.target.value)}
-              placeholder="Type a name (e.g. Qwen 3.8, Gemma) — only fits for this GPU show…"
+              placeholder="Search by slug or family (e.g. Qwen, Gemma, Llama)…"
               spellCheck={false}
               autoComplete="off"
               aria-label="Search Hugging Face models"
-              className="mt-1.5 min-h-[44px] w-full rounded-xl border border-ink/25 bg-transparent p-2.5 font-mono text-sm outline-none focus:border-ink"
+              className="mt-2 min-h-[42px] w-full rounded-[2px] border border-rule bg-paper p-2.5 font-mono text-xs text-ink outline-none focus:border-ink"
             />
-            {searching && <p className="mt-1.5 font-mono text-[11px] text-muted">Searching huggingface.co…</p>}
+            {searching && <p className="mt-1.5 font-mono text-[11px] text-muted">Querying Hugging Face Hub metadata…</p>}
             {!searching && hfq.trim().length >= 2 && searchHits.length === 0 && (
-              <p className="mt-1.5 font-mono text-[11px] text-muted">No verified fits for “{hfq.trim()}” on {gpu.label} — try the full model name.</p>
+              <p className="mt-1.5 font-mono text-[11px] text-muted">No verified fits found for “{hfq.trim()}” on {gpu.label}.</p>
             )}
             {searchHits.length > 0 && (
               <div className="mt-2 grid max-h-56 gap-1.5 overflow-y-auto sm:grid-cols-2" role="radiogroup" aria-label="Search results">
@@ -642,33 +657,33 @@ function Gate() {
                       role="radio"
                       aria-checked={active}
                       onClick={() => setModelSlug(f.slug)}
-                      className={`min-h-[52px] rounded-xl border px-2.5 py-1.5 text-left transition-colors ${active ? "cursor-pointer border-ink bg-ink text-canvas" : "cursor-pointer border-ink/25 hover:border-ink"}`}
+                      className={`min-h-[50px] rounded-[2px] border px-3 py-2 text-left transition-colors ${active ? "cursor-pointer border-ink bg-ink text-white" : "cursor-pointer border-rule bg-paper hover:border-ink"}`}
                     >
-                      <span className="block truncate font-mono text-[11px] font-bold" title={f.slug}>{f.label}</span>
-                      <span className={`block font-mono text-[10px] ${active ? "text-canvas/70" : "text-muted"}`}>
-                        {f.paramsB}B · ♥ {f.likes} · ~{ft.total}GB ✓
+                      <span className="block truncate font-mono text-[11px] font-medium" title={f.slug}>{f.label}</span>
+                      <span className={`block font-mono text-[10px] ${active ? "text-inverseMuted" : "text-muted"}`}>
+                        {f.paramsB}B · ~{ft.total} GB
                       </span>
                     </button>
                   );
                 })}
               </div>
             )}
-            <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
-              ⚡ More verified fits for {gpu.label} ({pool.length})
+            <p className="mt-4 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted">
+              VERIFIED TIER FITS FOR {gpu.label} ({pool.length})
             </p>
             {liveLoading && pool.length === 0 ? (
-              <p className="mt-2 font-mono text-[11px] text-muted">Checking the live leaderboard for fits…</p>
+              <p className="mt-2 font-mono text-[11px] text-muted">Loading live checkpoint catalog…</p>
             ) : (
               <>
                 {liveFits.length === 0 && (
                   <p className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted">
-                    <span>Live leaderboard unreachable — offline catalog below.</span>
+                    <span>Live endpoint catalog unreachable — fallback spec pool active.</span>
                     <button
                       type="button"
                       onClick={() => setLiveRetry((n) => n + 1)}
-                      className="min-h-[32px] cursor-pointer rounded-full border border-ink/25 px-2.5 py-0.5 font-mono text-[11px] font-bold transition-colors hover:border-ink"
+                      className="sigil-technical-button min-h-[30px] cursor-pointer rounded-[2px] border border-rule bg-paper px-2.5 py-0.5 font-mono text-[11px] text-ink hover:border-ink"
                     >
-                      ↻ Retry live
+                      RETRY
                     </button>
                   </p>
                 )}
@@ -683,11 +698,11 @@ function Gate() {
                         role="radio"
                         aria-checked={active}
                         onClick={() => setModelSlug(f.slug)}
-                        className={`min-h-[52px] rounded-xl border px-2.5 py-1.5 text-left transition-colors ${active ? "cursor-pointer border-ink bg-ink text-canvas" : "cursor-pointer border-ink/25 hover:border-ink"}`}
+                        className={`min-h-[50px] rounded-[2px] border px-3 py-2 text-left transition-colors ${active ? "cursor-pointer border-ink bg-ink text-white" : "cursor-pointer border-rule bg-paper hover:border-ink"}`}
                       >
-                        <span className="block truncate font-mono text-[11px] font-bold" title={f.slug}>{f.fresh ? "🆕 " : ""}{f.label}</span>
-                        <span className={`block font-mono text-[10px] ${active ? "text-canvas/70" : "text-muted"}`}>
-                          {f.paramsB}B · {f.src === "live" ? `♥ ${f.likes}${f.downloads ? ` · ↓ ${f.downloads}` : ""}` : "offline catalog · est. spec"} · ~{ft.total}GB ✓
+                        <span className="block truncate font-mono text-[11px] font-medium" title={f.slug}>{f.label}</span>
+                        <span className={`block font-mono text-[10px] ${active ? "text-inverseMuted" : "text-muted"}`}>
+                          {f.paramsB}B · ~{ft.total} GB
                         </span>
                       </button>
                     );
@@ -697,9 +712,9 @@ function Gate() {
                   <button
                     type="button"
                     onClick={() => setShowAll((v) => !v)}
-                    className="mt-2 min-h-[40px] w-full cursor-pointer rounded-xl border border-dashed border-ink/30 px-3 py-2 font-mono text-[11px] font-bold transition-colors hover:border-ink"
+                    className="sigil-technical-button mt-2 min-h-[36px] w-full cursor-pointer rounded-[2px] border border-rule bg-paper px-3 py-1 font-mono text-[11px] font-medium text-ink hover:border-ink"
                   >
-                    {showAll ? "Show less ↑" : `+ ${pool.length - 6} more verified fits`}
+                    {showAll ? "COLLAPSE CATALOG ↑" : `VIEW ${pool.length - 6} ADDITIONAL VERIFIED CHECKPOINTS`}
                   </button>
                 )}
               </>
@@ -708,46 +723,49 @@ function Gate() {
         </section>
           </div>
 
-          {/* Fit side-panel — complements /new both directions */}
-          <aside aria-label="Fit check" className="min-w-0 rounded-2xl border border-ink bg-ink p-5 text-canvas lg:sticky lg:top-20">
-            <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-canvas/60">Fit check · complements audit</p>
-            <div className={`mt-2 rounded-xl border p-3 ${fits ? "border-ship bg-ship text-white" : "border-block bg-block text-white"}`}>
-              <p className="font-mono text-lg font-bold tracking-tight" role="status">{fits ? "SHIP ✓" : "BLOCK ✗"}</p>
-              <p className="mt-0.5 font-mono text-[11px] leading-relaxed">
+          {/* Fit side-panel */}
+          <aside aria-label="Fit check" className="min-w-0 border border-darkRule bg-ink p-5 text-white lg:sticky lg:top-20">
+            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-inverseMuted">HARDWARE PREFLIGHT CHECK</p>
+            <div className={`mt-3 border p-3.5 ${fits ? "border-ship bg-ship/20 text-white" : "border-block bg-block/20 text-white"}`}>
+              <p className={`font-mono text-base font-semibold tracking-wide ${fits ? "text-emerald-300" : "text-red-300"}`} role="status">
+                {fits ? "STATUS / SHIP COMPLIANT" : "STATUS / BLOCK (OOM EXCEEDED)"}
+              </p>
+              <p className="mt-1 font-mono text-[11px] leading-relaxed text-inverseMuted">
                 {fits
-                  ? `${selModel.label} @ ${precKey} ≈ ${fit.total}GB vs ${usable}GB usable on ${gpu.label}.`
-                  : `${selModel.label} @ ${precKey} needs ~${fit.total}GB but ${gpu.label} offers ${usable}GB usable.`}
+                  ? `${selModel.label} @ ${precKey} requires ~${fit.total} GB against ${usable} GB usable capacity.`
+                  : `${selModel.label} @ ${precKey} requires ~${fit.total} GB exceeding ${usable} GB usable limit.`}
               </p>
             </div>
-            <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full border border-canvas/30 bg-canvas/10" role="img" aria-label={`Weights ${fit.w}GB, KV ${fit.kv}GB of ${gpu.vram}GB`}>
-              <span className="h-full bg-canvas" style={{ width: `${(fit.w / gpu.vram) * 100}%` }} />
-              <span className={`h-full ${fits ? "bg-emerald-400" : "bg-red-400"}`} style={{ width: `${(fit.kv / gpu.vram) * 100}%` }} />
-              <span className="h-full bg-[#3B82F6]" style={{ width: `${(RUNTIME_GB / gpu.vram) * 100}%` }} />
+            <div className="mt-4 h-3 w-full border border-darkRule bg-[#272725]" role="img" aria-label={`Weights ${fit.w}GB, KV ${fit.kv}GB of ${gpu.vram}GB`}>
+              <div className="flex h-full w-full">
+                <span className="h-full bg-white" style={{ width: `${(fit.w / gpu.vram) * 100}%` }} />
+                <span className={`h-full ${fits ? "bg-orange" : "bg-block"}`} style={{ width: `${(fit.kv / gpu.vram) * 100}%` }} />
+                <span className="h-full bg-[#52524E]" style={{ width: `${(RUNTIME_GB / gpu.vram) * 100}%` }} />
+              </div>
             </div>
-            <ul className="mt-2 space-y-1 font-mono text-[11px] text-canvas/80">
-              <li className="flex justify-between"><span>Weights</span><span>{fit.w}GB</span></li>
-              <li className="flex justify-between"><span>KV-cache (1×8K baseline)</span><span>{fit.kv}GB</span></li>
-              <li className="flex justify-between"><span>Runtime</span><span>{RUNTIME_GB}GB</span></li>
-              <li className="flex justify-between font-bold"><span>Total vs usable</span><span>{fit.total} / {usable}GB</span></li>
+            <ul className="mt-3 space-y-1.5 border-t border-darkRule pt-3 font-mono text-[11px] text-inverseMuted">
+              <li className="flex justify-between"><span>Weights</span><span className="text-white">{fit.w} GB</span></li>
+              <li className="flex justify-between"><span>KV-cache (1×8K context)</span><span className="text-white">{fit.kv} GB</span></li>
+              <li className="flex justify-between"><span>Runtime Buffer</span><span className="text-white">{RUNTIME_GB} GB</span></li>
+              <li className="flex justify-between border-t border-darkRule pt-1.5 font-semibold text-white">
+                <span>Total vs Usable</span><span>{fit.total} / {usable} GB</span>
+              </li>
             </ul>
             <button
               type="button"
               onClick={() => fits && setStarted(true)}
               disabled={!fits}
-              title={fits ? `Start 60-minute session` : "Pick a fitting pair above"}
-              className="mt-4 flex min-h-[52px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-canvas px-4 py-3 font-mono text-sm font-bold text-ink transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              title={fits ? `Start session on ${gpu.label}` : "Pick a fitting pair above"}
+              className="sigil-technical-button mt-5 flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-[2px] bg-orange px-4 py-2.5 font-mono text-xs font-semibold uppercase tracking-wider text-white transition-colors hover:bg-orangeDeep disabled:cursor-not-allowed disabled:bg-darkRule disabled:text-inverseMuted"
             >
-              {fits ? `🚀 Provision ${gpu.label} → Start 60-minute session` : "✗ No fit — adjust pair above"}
+              {fits ? `Start Sandbox Session ➔` : "Incompatible Sizing"}
             </button>
-            <p className="mt-2 text-center font-mono text-[11px] text-canvas/60">
-              {selModel.label} · {precKey} · ≈${gpu.price.toFixed(2)} for the hour{byokConnected ? " (BYOK)" : " ($0 demo)"} · KV grows with chat.
+            <p className="mt-3 text-center font-mono text-[10px] text-inverseMuted">
+              {selModel.label} · {precKey} · ≈${gpu.price.toFixed(2)}/hr · Nebius Token Factory
             </p>
-            <Link href={auditHref} className="mt-3 block rounded-xl border border-canvas/30 px-3 py-2.5 text-center font-mono text-xs font-bold transition-colors hover:bg-canvas/10">
-              Full 3-step hardware audit →
+            <Link href={auditHref} className="sigil-technical-button mt-4 block min-h-[38px] rounded-[2px] border border-darkRule bg-inkSoft px-3 py-2 text-center font-mono text-[11px] font-medium text-white transition-colors hover:border-white">
+              Launch Full 3-Step Audit ➔
             </Link>
-            <p className="mt-2 font-mono text-[10px] leading-snug text-canvas/50">
-              Audited on /new? Bring the verdict here — identical sizing math, then verify it live for an hour.
-            </p>
           </aside>
         </div>
       </div>
@@ -1006,46 +1024,46 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
   const warn = remaining <= WARN_SECONDS && remaining > 0;
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-8">
+    <div className="mx-auto w-full max-w-[1280px] px-4 py-8 lg:px-8">
       {warn && status !== "ended" && (
-        <p role="alert" className="mb-3 rounded-xl border border-amber-400/60 bg-amber-400/10 p-3 text-center font-mono text-xs font-bold text-amber-200">
-          ⏳ 5 minutes left on this GPU — export your certification soon. Transcript is preserved either way.
+        <p role="alert" className="mb-4 border border-amber-500/60 bg-amber-500/10 p-3 text-center font-mono text-xs font-semibold text-amber-700">
+          SESSION NOTICE: 5 MINUTES REMAINING ON THIS TIER — EXPORT CERTIFICATION SOON.
         </p>
       )}
 
       {/* Session header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rule pb-4">
         <div className="min-w-0">
-          <p className="font-mono text-[11px] uppercase tracking-widest text-muted">
-            Sandbox session {sid.current} · {arch === "lab" ? "🧑‍💻 Home AI Lab" : "🏢 Production AI System"}
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted">
+            SANDBOX SESSION {sid.current} · {arch === "lab" ? "[SINGLE STREAM / LAB]" : "[CONCURRENT / PRODUCTION]"}
           </p>
-          <h1 className="mt-0.5 font-mono text-lg font-bold tracking-tight">
-            {gpu.label} <span className="font-normal text-muted">${gpu.price.toFixed(2)}/hr · Oct 2026</span>
+          <h1 className="mt-1 font-mono text-xl font-semibold tracking-tight text-ink">
+            {gpu.label} <span className="font-normal text-muted">${gpu.price.toFixed(2)}/HR · NEBIUS TOKEN FACTORY</span>
           </h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] font-bold">
-          <span className={`rounded-full border px-2.5 py-1 ${liveLink && simEnforced === false ? "border-ship/40 bg-ship/10 text-ship" : liveLink ? "border-amber-500/50 bg-amber-500/10 text-amber-700" : "border-ink/25 text-muted"}`}>
+        <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+          <span className={`rounded-[2px] border px-2.5 py-1 ${liveLink && simEnforced === false ? "border-ship/40 bg-ship/10 text-ship" : liveLink ? "border-amber-500/50 bg-amber-500/10 text-amber-700" : "border-rule text-muted"}`}>
             {liveLink === null
-              ? "● linking…"
+              ? "● LINKING…"
               : !liveLink
-                ? "● OFFLINE — backend unreachable"
+                ? "● OFFLINE"
                 : simEnforced
-                  ? "● SIMULATED — backend enforced"
-                  : "● LIVE LINK — Nebius"}
+                  ? "● SIMULATED ENGINE"
+                  : "● LIVE NEBIUS LINK"}
           </span>
-          <span className={`rounded-full border px-2.5 py-1 ${status === "ready" ? "border-ship/40 bg-ship/10 text-ship" : status === "ended" ? "border-ink/25 text-muted" : "border-amber-500/50 bg-amber-500/10 text-amber-700"}`}>
+          <span className={`rounded-[2px] border px-2.5 py-1 ${status === "ready" ? "border-ship/40 bg-ship/10 text-ship" : status === "ended" ? "border-rule text-muted" : "border-amber-500/50 bg-amber-500/10 text-amber-700"}`}>
             {status === "ready" ? "● READY" : status === "swapping" ? `◌ SWAPPING ${swapPct}%` : status === "ended" ? "○ ENDED" : "◌ PROVISIONING"}
           </span>
-          <span className={`rounded-full border px-2.5 py-1 tabular-nums ${warn || status === "ended" ? "border-block/50 bg-block/10 text-block" : "border-ink/25 text-ink"}`} role="timer" aria-label={`${fmtClock(remaining)} remaining`}>
-            ⏱ {fmtClock(remaining)}
+          <span className={`rounded-[2px] border px-2.5 py-1 tabular-nums ${warn || status === "ended" ? "border-block/50 bg-block/10 text-block" : "border-rule text-ink"}`} role="timer" aria-label={`${fmtClock(remaining)} remaining`}>
+            {fmtClock(remaining)}
           </span>
-          {byokConnected && <span className="rounded-full border border-ink/25 px-2.5 py-1 text-muted">🔑 BYOK</span>}
+          {byokConnected && <span className="rounded-[2px] border border-rule px-2.5 py-1 text-muted">[BYOK KEY ACTIVE]</span>}
         </div>
       </div>
 
       {/* Model quick-switcher */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-ink/15 bg-[#F5F1E9] p-3">
-        <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">Model</span>
+      <div className="mt-4 flex flex-wrap items-center gap-2 border border-rule bg-white p-3">
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">CHECKPOINT</span>
         {ALL.map((m) => (
           <button
             key={m.slug}
@@ -1054,21 +1072,21 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
             onClick={() => swapTo(m)}
             aria-pressed={model.slug === m.slug}
             title={served.includes(m.slug) ? "Live endpoint verified" : "No verified live endpoint yet — sizing still exact"}
-            className={`min-h-[40px] cursor-pointer rounded-full border px-3 py-1.5 font-mono text-xs font-bold transition-colors disabled:cursor-wait disabled:opacity-50 ${model.slug === m.slug ? "border-ink bg-ink text-canvas" : "border-ink/25 hover:border-ink"}`}
+            className={`min-h-[36px] cursor-pointer rounded-[2px] border px-3 py-1 font-mono text-xs font-medium transition-colors disabled:cursor-wait disabled:opacity-50 ${model.slug === m.slug ? "border-ink bg-ink text-white" : "border-rule bg-paper hover:border-ink"}`}
           >
             <span aria-hidden="true" className={served.includes(m.slug) ? "text-ship" : "text-muted"}>● </span>
             {m.label}
           </button>
         ))}
-        <span className="mx-1 hidden h-5 w-px bg-ink/15 sm:inline-block" aria-hidden="true" />
+        <span className="mx-1 hidden h-5 w-px bg-rule sm:inline-block" aria-hidden="true" />
         <button
           type="button"
           disabled={busy}
           onClick={() => setCompare((v) => !v)}
           aria-pressed={compare}
-          className={`min-h-[40px] cursor-pointer rounded-full border px-3 py-1.5 font-mono text-xs font-bold transition-colors disabled:cursor-wait disabled:opacity-50 ${compare ? "border-ink bg-ink text-canvas" : "border-ink/25 hover:border-ink"}`}
+          className={`min-h-[36px] cursor-pointer rounded-[2px] border px-3 py-1 font-mono text-xs font-medium transition-colors disabled:cursor-wait disabled:opacity-50 ${compare ? "border-ink bg-ink text-white" : "border-rule bg-paper hover:border-ink"}`}
         >
-          ◫ Compare {compare ? "ON" : "OFF"}
+          COMPARE {compare ? "ON" : "OFF"}
         </button>
         {compare && (
           <select
@@ -1076,7 +1094,7 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
             value={modelB.slug}
             disabled={busy}
             onChange={(e) => setModelB(ALL.find((m) => m.slug === e.target.value) ?? ALL[1] ?? ALL[0])}
-            className="min-h-[40px] cursor-pointer rounded-full border border-ink/25 bg-transparent px-3 font-mono text-xs font-bold outline-none disabled:opacity-50"
+            className="min-h-[36px] cursor-pointer rounded-[2px] border border-rule bg-paper px-3 font-mono text-xs font-medium outline-none disabled:opacity-50"
           >
             {ALL.filter((m) => m.slug !== model.slug).map((m) => (
               <option key={m.slug} value={m.slug}>{(served.includes(m.slug) ? "● " : "○ ") + m.label}</option>
@@ -1085,23 +1103,23 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
         )}
       </div>
 
-      <div className={`mt-3 grid items-start gap-3 ${compare ? "lg:grid-cols-2" : "lg:grid-cols-[1fr_340px]"}`}>
+      <div className={`mt-4 grid items-start gap-4 ${compare ? "lg:grid-cols-2" : "lg:grid-cols-[1fr_340px]"}`}>
         {/* Chat console */}
-        <div className="min-w-0 overflow-hidden rounded-2xl border border-ink bg-[#121212] text-canvas">
-          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-2.5">
-            <p className="truncate font-mono text-xs font-bold">
-              {model.label} <span className="font-normal text-zinc-400">· {model.slug}</span>
+        <div className="min-w-0 border border-darkRule bg-ink text-white">
+          <div className="flex items-center justify-between gap-2 border-b border-darkRule px-4 py-3">
+            <p className="truncate font-mono text-xs font-semibold">
+              {model.label} <span className="font-normal text-inverseMuted">· {model.slug}</span>
             </p>
-            <Link href="/new" className="shrink-0 font-mono text-[11px] text-zinc-400 underline-offset-4 hover:underline">
-              ← sizing
+            <Link href="/new" className="shrink-0 font-mono text-[11px] text-orange hover:underline">
+              PREFLIGHT SIZING ➔
             </Link>
           </div>
           {compare && (
-            <p className="border-b border-white/10 px-4 py-1.5 font-mono text-[11px] text-zinc-400">
-              Side-by-side: one prompt streams on both models — watch TTFT/ITL diverge.
+            <p className="border-b border-darkRule px-4 py-2 font-mono text-[11px] text-inverseMuted">
+              SIDE-BY-SIDE INFERENCE: ONE PROMPT STREAMS ACROSS BOTH ENDPOINTS.
             </p>
           )}
-          <div className={`grid ${compare ? "grid-cols-1 sm:grid-cols-2 sm:divide-x sm:divide-white/10" : "grid-cols-1"}`}>
+          <div className={`grid ${compare ? "grid-cols-1 sm:grid-cols-2 sm:divide-x sm:divide-darkRule" : "grid-cols-1"}`}>
             <Pane msgs={paneA.msgs} streaming={paneA.streaming} stats={paneA.stats} label={compare ? model.label : undefined} />
             {compare && <Pane msgs={paneB.msgs} streaming={paneB.streaming} stats={paneB.stats} label={modelB.label} />}
           </div>
@@ -1110,69 +1128,69 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
               e.preventDefault();
               sendCurrent();
             }}
-            className="flex items-center gap-2 border-t border-white/10 p-3"
+            className="flex items-center gap-2 border-t border-darkRule p-3"
           >
-            <span aria-hidden="true" className="font-mono text-sm text-emerald-400">$</span>
+            <span aria-hidden="true" className="font-mono text-sm text-orange">&gt;</span>
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={busy}
-              placeholder={status === "ended" ? "Session ended — export below." : `Ask ${model.label}… (Enter to send)`}
+              placeholder={status === "ended" ? "Session ended — export certificate below." : `Send test prompt to ${model.label}…`}
               aria-label="Chat prompt"
-              className="min-h-[44px] flex-1 rounded-lg border border-white/15 bg-black/40 px-3 font-mono text-sm text-canvas outline-none placeholder:text-zinc-500 focus:border-emerald-400/60 disabled:opacity-50"
+              className="min-h-[42px] flex-1 rounded-[2px] border border-darkRule bg-[#272725] px-3 font-mono text-xs text-white outline-none placeholder:text-inverseMuted focus:border-orange disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={busy || !input.trim()}
-              className="min-h-[44px] shrink-0 cursor-pointer rounded-lg bg-canvas px-4 font-mono text-sm font-bold text-ink transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              className="sigil-technical-button min-h-[42px] shrink-0 cursor-pointer rounded-[2px] bg-orange px-5 font-mono text-xs font-semibold uppercase text-white transition-colors hover:bg-orangeDeep disabled:cursor-not-allowed disabled:bg-darkRule disabled:text-inverseMuted"
             >
-              Send
+              SEND
             </button>
           </form>
         </div>
 
         {/* Telemetry HUD */}
-        <aside aria-label="Live telemetry HUD" className="min-w-0 space-y-3 rounded-2xl border border-ink bg-[#121212] p-4 text-canvas">
-          <p className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-widest text-zinc-400">
-            <span aria-hidden="true" className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            Telemetry HUD
+        <aside aria-label="Live telemetry HUD" className="min-w-0 space-y-4 border border-darkRule bg-ink p-5 text-white">
+          <p className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-inverseMuted">
+            <span aria-hidden="true" className="inline-block h-1.5 w-1.5 bg-orange" />
+            TELEMETRY HUD / MEASURED TIMINGS
           </p>
           <dl className="grid grid-cols-3 gap-2 text-center">
             {[
               { k: "TTFT", v: hud.replies ? `${hud.ttft}ms` : "—" },
               { k: "ITL", v: hud.replies ? `${hud.itl}ms` : "—" },
-              { k: "Speed", v: hud.replies ? `${hud.tps} t/s` : "—" },
+              { k: "Throughput", v: hud.replies ? `${hud.tps} t/s` : "—" },
             ].map((s) => (
-              <div key={s.k} className="rounded-xl border border-white/10 bg-white/5 px-2 py-2.5">
-                <dt className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-400">{s.k}</dt>
-                <dd className="mt-0.5 font-mono text-sm font-bold tabular-nums">{s.v}</dd>
+              <div key={s.k} className="rounded-[2px] border border-darkRule bg-inkSoft px-2 py-3">
+                <dt className="font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-inverseMuted">{s.k}</dt>
+                <dd className="mt-1 font-mono text-sm font-semibold tabular-nums text-white">{s.v}</dd>
               </div>
             ))}
           </dl>
           <div>
             <div className="flex items-baseline justify-between font-mono text-[11px]">
-              <span className="font-bold uppercase tracking-widest text-zinc-400">VRAM pressure</span>
-              <span className="font-bold tabular-nums">{totalGb} / {gpu.vram}GB ({vramPct}%)</span>
+              <span className="font-medium uppercase tracking-[0.08em] text-inverseMuted">VRAM HEADROOM</span>
+              <span className="font-semibold tabular-nums text-white">{totalGb} / {gpu.vram} GB ({vramPct}%)</span>
             </div>
-            <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(vramPct)} aria-label={`VRAM ${vramPct} percent`} className="mt-1.5 flex h-3 w-full overflow-hidden rounded-full border border-white/15 bg-white/5">
-              <span className="h-full bg-zinc-300" style={{ width: `${(weightsGb / gpu.vram) * 100}%` }} title={`Weights ${weightsGb}GB`} />
-              <span className={`h-full ${vramPct >= 95 ? "bg-red-400" : "bg-emerald-400"}`} style={{ width: `${(kvGb / gpu.vram) * 100}%` }} title={`KV-cache ${kvGb}GB`} />
-              <span className="h-full bg-[#3B82F6]" style={{ width: `${(RUNTIME_GB / gpu.vram) * 100}%` }} title={`Runtime ${RUNTIME_GB}GB`} />
+            <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(vramPct)} aria-label={`VRAM ${vramPct} percent`} className="mt-2 flex h-3 w-full border border-darkRule bg-[#272725]">
+              <span className="h-full bg-white" style={{ width: `${(weightsGb / gpu.vram) * 100}%` }} title={`Weights ${weightsGb}GB`} />
+              <span className={`h-full ${vramPct >= 95 ? "bg-block" : "bg-orange"}`} style={{ width: `${(kvGb / gpu.vram) * 100}%` }} title={`KV-cache ${kvGb}GB`} />
+              <span className="h-full bg-[#52524E]" style={{ width: `${(RUNTIME_GB / gpu.vram) * 100}%` }} title={`Runtime ${RUNTIME_GB}GB`} />
             </div>
-            <p className="mt-1 font-mono text-[10px] leading-snug text-zinc-400">
-              Weights {weightsGb}GB + KV {kvGb}GB (grows with chat) + {RUNTIME_GB}GB · {tokensUsed} session tokens
+            <p className="mt-2 font-mono text-[10px] leading-relaxed text-inverseMuted">
+              Weights {weightsGb} GB + KV {kvGb} GB (grows with chat) + {RUNTIME_GB} GB runtime · {tokensUsed} session tokens
             </p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-white/5 p-2.5 font-mono text-[11px] leading-relaxed text-zinc-300" aria-live="polite">
-            <p className="font-bold uppercase tracking-widest text-zinc-400">What minting runs</p>
+          <div className="rounded-[2px] border border-darkRule bg-inkSoft p-3 font-mono text-[11px] leading-relaxed text-inverseMuted" aria-live="polite">
+            <p className="font-semibold uppercase tracking-[0.08em] text-white">REPLAY HARNESS SPEC</p>
             {totals.current.prompts === 0 ? (
-              <p className="mt-1 text-zinc-400">Chat first — the audit replays your session shape.</p>
+              <p className="mt-1 text-inverseMuted">Send a prompt above — the certification will replay this exact token distribution.</p>
             ) : (
-              <p className="mt-1">
+              <p className="mt-1 text-white">
                 {model.label} · {gpu.cert} {precision.toUpperCase()} · {totals.current.prompts} prompts →{" "}
                 {Math.min(1000, Math.max(20, totals.current.prompts * 20))} replayed requests · cap $
                 {Math.min(20, Math.max(2, gpu.price * 2)).toFixed(2)}
-                {simEnforced !== false ? " → SIMULATED dev verdict" : ` → live benchmark on ${gpu.cert}`}
+                {simEnforced !== false ? " → SIMULATED verdict" : ` → live benchmark on ${gpu.cert}`}
               </p>
             )}
           </div>
@@ -1180,56 +1198,58 @@ function Console({ arch, gpuKey, modelSlug, precision, extraModel }: { arch: Arc
             type="button"
             onClick={exportCert}
             disabled={exporting}
-            className="flex min-h-[52px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-canvas px-4 py-3 font-mono text-sm font-bold text-ink transition-colors hover:bg-white disabled:cursor-wait disabled:opacity-70"
+            className="sigil-technical-button flex min-h-[46px] w-full cursor-pointer items-center justify-center gap-2 rounded-[2px] bg-orange px-4 py-2.5 font-mono text-xs font-semibold uppercase tracking-wider text-white transition-colors hover:bg-orangeDeep disabled:cursor-wait disabled:bg-darkRule disabled:text-inverseMuted"
           >
-            {exporting ? "Minting…" : "📜 Export Verified Certification & Deployment Blueprint →"}
+            {exporting ? "Minting Certificate…" : "Export Verified Certificate ➔"}
           </button>
           {error && (
-            <p role="alert" className="rounded-xl border border-red-400/50 bg-red-500/15 p-2 text-center font-mono text-[11px] font-bold text-red-200">
+            <p role="alert" className="border border-block bg-block/20 p-2.5 text-center font-mono text-[11px] font-medium text-red-300">
               {error}
             </p>
           )}
-          <div aria-label="Session event log" className="max-h-44 overflow-y-auto rounded-xl border border-white/10 bg-black/50 p-2.5 font-mono text-[11px] leading-relaxed">
-            {log.length === 0 && <p className="text-zinc-500">$ awaiting session events…</p>}
+          <div aria-label="Session event log" className="max-h-44 overflow-y-auto border border-darkRule bg-[#272725] p-3 font-mono text-[11px] leading-relaxed">
+            {log.length === 0 && <p className="text-inverseMuted">&gt; awaiting session events…</p>}
             {log.map((l, i) => (
-              <p key={`${i}-${l}`} className="gp-log-line whitespace-pre-wrap break-words text-zinc-300">
-                <span className="text-zinc-600">[{i + 1}]</span> {l}
+              <p key={`${i}-${l}`} className="gp-log-line whitespace-pre-wrap break-words text-inverseMuted">
+                <span className="text-orange">[{i + 1}]</span> {l}
               </p>
             ))}
           </div>
-          <p className="font-mono text-[10px] leading-snug text-zinc-500">
-            Every reply streams live model tokens with measured timings; the VRAM gauge is exact sizing math. Export mints a real audited certification of this setup.
+          <p className="font-mono text-[10px] leading-snug text-inverseMuted">
+            Tokens and timings measured live from endpoints; VRAM gauge runs exact sizing physics.
           </p>
         </aside>
       </div>
 
-      {/* Live request traces + session spans */}
-      <section aria-label="Session traces" className="mt-3 overflow-hidden rounded-2xl border border-ink bg-[#121212] text-canvas">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-2.5">
-          <p className="font-mono text-xs font-bold">Traces · {traces.length} request{traces.length === 1 ? "" : "s"} · {tokensUsed} session tokens</p>
-          <p className="font-mono text-[11px] text-zinc-400">tokens + timings measured live from endpoints</p>
+      {/* Live request traces */}
+      <section aria-label="Session traces" className="mt-6 border border-darkRule bg-ink text-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-darkRule px-5 py-3">
+          <p className="font-mono text-xs font-semibold uppercase tracking-[0.08em]">
+            REQUEST TRACES · {traces.length} RECORD{traces.length === 1 ? "" : "S"} · {tokensUsed} TOKENS
+          </p>
+          <p className="font-mono text-[10px] text-inverseMuted">LIVE HARDWARE METRICS COLLECTED</p>
         </div>
         {traces.length === 0 ? (
-          <p className="px-4 py-4 font-mono text-[12px] text-zinc-500">No requests yet — every prompt you send lands here with its TTFT, ITL and token counts.</p>
+          <p className="px-5 py-6 font-mono text-xs text-inverseMuted">No request traces recorded yet. Active prompts and measured TTFT / ITL timings will appear here.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] font-mono text-[11px]">
               <thead>
-                <tr className="border-b border-white/10 text-left text-zinc-400">
-                  <th className="px-4 py-2 font-bold">#</th>
-                  <th className="px-2 py-2 font-bold">Time</th>
-                  <th className="px-2 py-2 font-bold">Model</th>
-                  <th className="px-2 py-2 font-bold">Prompt</th>
-                  <th className="px-2 py-2 text-right font-bold">In/out tok</th>
-                  <th className="px-2 py-2 text-right font-bold">TTFT</th>
-                  <th className="px-2 py-2 text-right font-bold">ITL</th>
+                <tr className="border-b border-darkRule text-left text-inverseMuted">
+                  <th className="px-4 py-2.5 font-medium">#</th>
+                  <th className="px-3 py-2.5 font-medium">TIME</th>
+                  <th className="px-3 py-2.5 font-medium">MODEL</th>
+                  <th className="px-3 py-2.5 font-medium">PROMPT</th>
+                  <th className="px-3 py-2.5 text-right font-medium">TOKENS (IN/OUT)</th>
+                  <th className="px-3 py-2.5 text-right font-medium">TTFT</th>
+                  <th className="px-3 py-2.5 text-right font-medium">ITL</th>
                 </tr>
               </thead>
               <tbody>
                 {[...traces].reverse().map((t) => (
-                  <tr key={`${t.n}-${t.time}`} className="border-b border-white/5 last:border-b-0">
-                    <td className="px-4 py-1.5 text-zinc-500">{t.n}</td>
-                    <td className="px-2 py-1.5 text-zinc-400">{t.time}</td>
+                  <tr key={`${t.n}-${t.time}`} className="border-b border-darkRule/60 last:border-b-0">
+                    <td className="px-4 py-2 text-inverseMuted">{t.n}</td>
+                    <td className="px-3 py-2 text-inverseMuted">{t.time}</td>
                     <td className="max-w-[180px] truncate px-2 py-1.5 text-zinc-200" title={t.model}>{t.model}</td>
                     <td className="max-w-[280px] truncate px-2 py-1.5 text-zinc-300" title={t.prompt}>{t.prompt}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums text-zinc-300">{t.pTok}/{t.cTok}</td>

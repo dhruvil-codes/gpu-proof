@@ -23,7 +23,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-inte
 .chip { border: 1px solid var(--rule); border-radius: 2px; }
 .btn-dark { background: var(--ink); color: var(--white); border: 1px solid var(--ink); }
 .btn-dark:hover { background: var(--ink-soft); }
-.sigil-label { font: 500 11px/16px var(--font-plex-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
+.sigil-label { font: 500 11px/16px var(--font-jetbrains-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
 .sigil-display { font-size: clamp(3.25rem, 7vw, 4.5rem); line-height: 1.055; letter-spacing: -.055em; font-weight: 600; }
 .sigil-h2 { font-size: clamp(2.35rem, 4.7vw, 3rem); line-height: 1.085; letter-spacing: -.055em; font-weight: 600; }
 .sigil-h3 { font-size: 2rem; line-height: 2.25rem; letter-spacing: -.04em; font-weight: 600; }
@@ -37,7 +37,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font-inte
 .sigil-technical-button { border-radius: 2px; min-height: 48px; transition: background-color 150ms, color 150ms, border-color 150ms, transform 150ms; }
 .sigil-technical-button:active { transform: translateY(1px); }
 .sigil-technical-button:disabled { opacity: .55; cursor: not-allowed; }
-.sigil-terminal { background: var(--ink-soft); color: #f0f0ec; border: 1px solid var(--dark-rule); font-family: var(--font-plex-mono), monospace; }
+.sigil-terminal { background: var(--ink-soft); color: #f0f0ec; border: 1px solid var(--dark-rule); font-family: var(--font-jetbrains-mono), monospace; }
 .sigil-oom-fill { animation: sigil-oom 2.8s ease-in-out infinite alternate; transform-origin: left; }
 @keyframes sigil-oom { from { width: 62%; } to { width: 100%; } }
 @media (max-width: 767px) {

@@ -12,7 +12,7 @@ module.exports = {
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "sans-serif"],
-        mono: ["var(--font-plex-mono)", "IBM Plex Mono", "monospace"],
+        mono: ["var(--font-jetbrains-mono)", "JetBrains Mono", "monospace"],
       },
       maxWidth: { wide: "1280px", content: "1120px" },
       borderRadius: { sm: "2px", DEFAULT: "2px", md: "2px", lg: "2px", xl: "2px", "2xl": "2px" },

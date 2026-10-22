@@ -2,12 +2,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TopNav } from "@/components/ui";
+import { ModelPassport } from "@/components/ModelPassport";
+import { downloadPassportPng, passportShareUrl, type PassportData } from "@/lib/passport";
+import { QRCodeSVG } from "qrcode.react";
 
 const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 const REGION = "eu-north1";
 
 const WORKLOAD_DIGEST_EXPLANATION =
-  "Deterministic SHA-256 fingerprint generated from exact prompt seeds and request traces. Guarantees that these latency and memory numbers were measured on real hardware without hallucinations, and can be verified offline by any auditor or engineering lead.";
+  "Workload fingerprint supplied by the audit engine. Compare it against the replay input and operation receipts when verifying this result.";
 
 const GPU_LABELS: Record<string, string> = {
   L40S: "1x Nebius NVIDIA L40S 48GB",
@@ -90,7 +93,7 @@ function fallbackServingCommand(candidate: string, precision: string): string {
 function Seal({ tone }: { tone: "ship" | "block" | "sim" }) {
   const bg = tone === "ship" ? "bg-ship" : tone === "block" ? "bg-block" : "bg-ink";
   return (
-    <span aria-hidden="true" className={`inline-flex h-14 w-14 items-center justify-center rounded-full ${bg} text-white shadow-[3px_3px_0_rgba(31,31,31,0.25)]`}>
+    <span aria-hidden="true" className={`inline-flex h-14 w-14 items-center justify-center rounded-sm ${bg} text-white `}>
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2l8 3.5v5.2c0 5-3.4 8.6-8 10.3-4.6-1.7-8-5.3-8-10.3V5.5L12 2z" />
         {tone === "block"
@@ -108,7 +111,9 @@ export default function Certificate({ params }: { params: { id: string } }) {
   const [copiedHash, setCopiedHash] = useState(false);
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [issuedAt] = useState(() => new Date());
+  const [verificationUrl, setVerificationUrl] = useState("");
   useEffect(() => {
+    setVerificationUrl(window.location.href);
     let alive = true;
     async function load() {
       try {
@@ -146,11 +151,11 @@ export default function Certificate({ params }: { params: { id: string } }) {
       <main>
         <TopNav />
         <div className="mx-auto max-w-xl px-6 py-12 text-center">
-          <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-ink/20">
+          <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center rounded-sm border-2 border-ink/20">
             {terminalIdle ? (
               <span className="font-mono text-xl font-bold text-block">!</span>
             ) : (
-              <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-ink/20 border-t-ink" />
+              <span className="inline-block h-6 w-6 animate-spin rounded-sm border-2 border-ink/20 border-t-ink" />
             )}
           </span>
           <h1 className="mt-4 text-2xl tracking-tight">
@@ -159,12 +164,12 @@ export default function Certificate({ params }: { params: { id: string } }) {
           <p className="mt-1 font-mono text-[12px] text-muted">
             {params.id} · {terminalIdle ? `status ${st}` : `status ${st} · elapsed ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`}
           </p>
-          <ol aria-label="Audit progress" className="panel mx-auto mt-6 max-w-md space-y-2 rounded-lg p-4 text-left">
+          <ol aria-label="Audit progress" className="panel mx-auto mt-6 max-w-md space-y-2 rounded-sm p-4 text-left">
             {steps.map((s, i) => (
               <li key={s.label} className="flex items-center gap-2.5 text-[13px]">
                 <span
                   aria-hidden="true"
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${s.done ? "border-ship bg-ship text-white" : s.active ? "border-ink bg-ink text-canvas" : "border-ink/25 text-muted"}`}
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border text-[10px] font-bold ${s.done ? "border-ship bg-ship text-white" : s.active ? "border-ink bg-ink text-canvas" : "border-ink/25 text-muted"}`}
                 >
                   {s.done ? "✓" : s.active ? "◌" : i + 1}
                 </span>
@@ -174,7 +179,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
           </ol>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             {!terminalIdle && (
-              <Link href={`/timeline/${params.id}`} className="btn-dark min-h-[44px] cursor-pointer rounded px-5 py-2.5 text-sm font-bold">
+              <Link href={`/timeline/${params.id}`} className="btn-dark min-h-[44px] cursor-pointer rounded-sm px-5 py-2.5 text-sm font-bold">
                 Watch it live →
               </Link>
             )}
@@ -209,7 +214,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
   // Prefer the backend SHA-256 twin digest (reproducible across any cluster);
   // fall back to the client-side FNV-1a evidence fingerprint for old certs.
   const primaryDigest = d.twin_digest || fnvDigest;
-  const digestExplanation = WORKLOAD_DIGEST_EXPLANATION;
+  const digestExplanation = d.twin_digest ? WORKLOAD_DIGEST_EXPLANATION : "Legacy evidence fingerprint (FNV-1a). This is not a SHA-256 workload digest.";
   const replayCount = d.twin_count ?? m?.count ?? d.experiments?.length ?? null;
 
   // --- Production Deployment Prescription (backend authoritative, client fallback) ---
@@ -263,6 +268,17 @@ export default function Certificate({ params }: { params: { id: string } }) {
     }
   }
 
+  const passport: PassportData = {
+    model: candidateModel,
+    status: ship ? "SHIP" : sim ? "SIMULATED" : "BLOCK",
+    hardware: certifiedHardware,
+    p95Ms: typeof p95 === "number" ? p95 : null,
+    toolAccuracy: typeof q === "number" ? q : null,
+    concurrency: ship ? maxConcurrency : null,
+    fingerprint: primaryDigest,
+    label: sim ? "SIMULATED / DEV GRADE" : "NEBIUS SANDBOX / MEASURED",
+  };
+
   const kpis = [
     {
       icon: "⚡",
@@ -305,12 +321,12 @@ export default function Certificate({ params }: { params: { id: string } }) {
   ];
 
   function statusBadgeClass(pass: boolean | null) {
-    if (pass === true) return "border border-ship/40 bg-ship/10 text-ship px-2 py-0.5 text-[11px] font-mono font-bold rounded";
-    if (pass === false) return "border border-block/40 bg-block/10 text-block px-2 py-0.5 text-[11px] font-mono font-bold rounded";
-    return "border border-ink/20 bg-ink/5 text-muted px-2 py-0.5 text-[11px] font-mono font-bold rounded";
+    if (pass === true) return "border border-ship/40 bg-ship/10 text-ship px-2 py-0.5 text-[11px] font-mono font-bold rounded-sm";
+    if (pass === false) return "border border-block/40 bg-block/10 text-block px-2 py-0.5 text-[11px] font-mono font-bold rounded-sm";
+    return "border border-ink/20 bg-ink/5 text-muted px-2 py-0.5 text-[11px] font-mono font-bold rounded-sm";
   }
 
-  return (<main>
+  return (<main className="min-h-screen bg-paper text-ink">
     <TopNav />
     <style>{`@media print {
       @page { margin: 10mm; size: A4; }
@@ -328,10 +344,10 @@ export default function Certificate({ params }: { params: { id: string } }) {
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }`}</style>
     {/* Clean top bar: navigation + print, hidden on paper */}
-    <div className="no-print mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2 px-6 pt-5">
+    <div className="no-print mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-2 px-6 pt-5">
       <Link
         href="/dashboard"
-        className="chip inline-block min-h-[44px] cursor-pointer px-4 py-2.5 text-xs font-bold transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.25)]"
+        className="chip inline-block min-h-[44px] cursor-pointer px-4 py-2.5 text-xs font-bold transition-colors hover:border-ink"
         aria-label="Return to dashboard"
       >
         ← Return to Dashboard
@@ -339,24 +355,24 @@ export default function Certificate({ params }: { params: { id: string } }) {
       <button
         type="button"
         onClick={() => window.print()}
-        className="btn-dark min-h-[44px] cursor-pointer rounded px-4 py-2.5 text-xs font-bold transition-all hover:-translate-y-px"
+        className="btn-dark min-h-[44px] cursor-pointer rounded-sm px-4 py-2.5 text-xs font-bold transition-all "
       >
         Print / Save PDF
       </button>
     </div>
-    <div className="print-page mx-auto max-w-4xl px-6 py-8">
+    <div className="print-page mx-auto max-w-[1120px] border-x border-rule px-6 py-8 md:px-10">
       {/* Header + seal */}
-      <div className="text-center">
+      <div className="text-left">
         <Seal tone={tone} />
-        <h1 className="mt-3 text-2xl tracking-tight md:text-3xl">OFFICIAL INFERENCE CERTIFICATE</h1>
-        <p className="mt-1 text-[11px] uppercase tracking-widest text-muted">SandboxProof · Nebius Token Factory Sandboxes · Deterministic audit, never vibes</p>
+        <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.08em] text-orange">04 / OFFICIAL CERTIFICATE</p><h1 className="mt-4 text-[clamp(42px,6vw,72px)] font-semibold leading-[1.04] tracking-[-0.055em]">The proof is in<br /><span className="text-orange">the receipt.</span></h1>
+        <p className="mt-5 text-sm text-muted">SandboxProof · Nebius Token Factory Sandboxes · Deterministic audit, never vibes</p>
       </div>
 
       {/* Metadata bar */}
-      <dl className="print-card panel mt-6 grid grid-cols-2 gap-3 rounded-lg p-4 text-left md:grid-cols-4">
+      <dl className="print-card panel mt-6 grid grid-cols-2 gap-3 rounded-sm p-4 text-left md:grid-cols-4">
         <div><dt className="text-[10px] uppercase tracking-widest text-muted">Certification ID</dt><dd className="hash-digest mt-0.5 truncate font-mono text-[12px] font-bold" title={params.id}>{params.id}</dd></div>
         <div><dt className="text-[10px] uppercase tracking-widest text-muted">Issued</dt><dd className="mt-0.5 text-[12px] font-bold">{issuedAt.toLocaleString()}</dd></div>
-        <div><dt className="text-[10px] uppercase tracking-widest text-muted">Workload Hash Digest</dt><dd className="hash-digest mt-0.5 truncate font-mono text-[12px] font-bold" title={primaryDigest}>{primaryDigest}</dd></div>
+        <div><dt className="text-[10px] uppercase tracking-widest text-muted">Workload Fingerprint</dt><dd className="hash-digest mt-0.5 truncate font-mono text-[12px] font-bold" title={primaryDigest}>{primaryDigest}</dd></div>
         <div><dt className="text-[10px] uppercase tracking-widest text-muted">Nebius Region</dt><dd className="mt-0.5 text-[12px] font-bold">{REGION}</dd></div>
       </dl>
 
@@ -364,7 +380,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
       <div
         role="status"
         aria-label={`verdict ${d.verdict}`}
-        className={`print-card mt-4 rounded-lg border p-5 text-left md:p-6 ${ship ? "border-ship bg-ship text-white" : sim ? "border-ink bg-[#F5F1E9]" : "border-block bg-block text-white"}`}
+        className={`print-card mt-4 rounded-sm border p-5 text-left md:p-6 ${ship ? "border-ship bg-ship text-white" : sim ? "border-ink bg-paper" : "border-block bg-block text-white"}`}
       >
         {ship && (<><p className="text-xl font-bold tracking-tight md:text-2xl">🟢 SHIP FOR PRODUCTION</p>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed">Verified shield — the candidate model passed every SLA gate and is safe for deployment. Latency, quality, reliability, and cost evidence are attached below.</p></>)}
@@ -381,9 +397,9 @@ export default function Certificate({ params }: { params: { id: string } }) {
       {/* Provenance badge — single source of truth, no duplicate disclaimer */}
       <div className="mt-4">
         {sim ? (
-          <div className="rounded-lg border border-ink/40 bg-ink/5 p-4 text-left">
+          <div className="rounded-sm border border-ink/40 bg-ink/5 p-4 text-left">
             <div className="flex items-center gap-2">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-500" />
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-warning" />
               <span className="font-bold text-xs uppercase tracking-wider">Deterministic Hardware Simulation · Dev-Grade</span>
             </div>
             <p className="mt-1 text-[12px] text-muted">
@@ -391,9 +407,9 @@ export default function Certificate({ params }: { params: { id: string } }) {
             </p>
           </div>
         ) : (
-          <div className="rounded-lg border border-ship/40 bg-ship/5 p-4 text-left">
+          <div className="rounded-sm border border-ship/40 bg-ship/5 p-4 text-left">
             <div className="flex items-center gap-2">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-ship" />
+              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-ship" />
               <span className="font-bold text-xs uppercase tracking-wider text-ship">Nebius Sandbox Verified · Production-Grade</span>
             </div>
             <p className="mt-1 text-[12px] text-muted">
@@ -404,15 +420,15 @@ export default function Certificate({ params }: { params: { id: string } }) {
       </div>
 
       {/* Reproducible benchmark audit fingerprint */}
-      <section aria-label="Reproducible benchmark audit fingerprint" className="print-card panel print-break mt-4 rounded-lg p-4 text-left md:p-5">
+      <section aria-label="Reproducible benchmark audit fingerprint" className="print-card panel print-break mt-4 rounded-sm p-4 text-left md:p-5">
         <div className="flex items-center gap-2">
           <span aria-hidden="true">🔒</span>
-          <h2 className="text-sm font-bold uppercase tracking-widest">REPRODUCIBLE BENCHMARK AUDIT FINGERPRINT</h2>
+          <h2 className="font-mono text-sm font-medium uppercase tracking-[0.08em]">REPRODUCIBLE BENCHMARK AUDIT FINGERPRINT</h2>
         </div>
         <p className="mt-2 text-[12px] leading-relaxed text-ink/80">{digestExplanation}</p>
         <dl className="mt-3 grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
           <div>
-            <dt className="text-[10px] uppercase tracking-widest text-muted">Workload Hash Digest</dt>
+            <dt className="text-[10px] uppercase tracking-widest text-muted">Workload Fingerprint</dt>
             <dd className="hash-digest mt-0.5 break-all font-mono text-[12px] font-bold" title={primaryDigest}>{primaryDigest}</dd>
           </div>
           <div>
@@ -427,7 +443,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
           <button
             type="button"
             onClick={() => copyText(primaryDigest, setCopiedHash)}
-            className="cursor-pointer rounded border border-ink px-3 py-2 text-[12px] font-bold transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.25)]"
+            className="cursor-pointer rounded-sm border border-ink px-3 py-2 text-[12px] font-bold transition-colors hover:bg-ink hover:text-white"
             aria-live="polite"
           >
             {copiedHash ? "✓ Copied!" : "Copy Audit Fingerprint"}
@@ -440,7 +456,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
       {/* KPI cards — sleek compact editorial */}
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((k) => (
-          <div key={k.label} className="print-card panel flex flex-col rounded-md p-3">
+          <div key={k.label} className="print-card panel flex flex-col rounded-sm p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{k.label}</p>
               <span aria-hidden="true" className="text-sm leading-none">{k.icon}</span>
@@ -458,7 +474,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
       </div>
 
       {/* Evidence scorecard */}
-      <div className="print-card panel mt-4 overflow-auto rounded-lg text-left">
+      <div className="print-card panel mt-4 overflow-auto rounded-sm text-left">
         <table className="w-full text-xs">
           <caption className="p-4 text-left text-sm font-bold">Executive Evidence Scorecard — Current vs. Candidate (measured)</caption>
           <thead><tr className="border-y border-ink bg-ink/[0.04] text-left text-muted">
@@ -471,8 +487,8 @@ export default function Certificate({ params }: { params: { id: string } }) {
               <td className="p-3 font-mono">{g.req}</td>
               <td className="p-3 text-right">
                 {g.pass === null ? (<span className="text-muted">—</span>)
-                  : g.pass ? (<span className="inline-block rounded-full border border-ship/30 bg-ship px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Passed</span>)
-                  : (<span className="inline-block rounded-full border border-block/30 bg-block px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Failed</span>)}
+                  : g.pass ? (<span className="inline-block rounded-sm border border-ship/30 bg-ship px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Passed</span>)
+                  : (<span className="inline-block rounded-sm border border-block/30 bg-block px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Failed</span>)}
               </td>
             </tr>))}</tbody>
         </table>
@@ -480,7 +496,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
       </div>
 
       {/* Production Deployment Blueprint — turnkey DevOps/ML blueprint (star outcome) */}
-      <section aria-label="Production deployment blueprint (Nebius Cloud)" className="print-card panel print-break mt-4 rounded-lg p-4 text-left md:p-5">
+      <section aria-label="Production deployment blueprint (Nebius Cloud)" className="print-card panel print-break mt-4 rounded-sm p-4 text-left md:p-5">
         <div className="flex items-center gap-2">
           <span aria-hidden="true">🚀</span>
           <h2 className="text-sm font-bold uppercase tracking-widest">PRODUCTION DEPLOYMENT BLUEPRINT (NEBIUS CLOUD)</h2>
@@ -490,14 +506,14 @@ export default function Certificate({ params }: { params: { id: string } }) {
           {sim ? " Simulation values shown; re-run live for production-grade numbers." : ""}
         </p>
         <dl className="mt-3 grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
-          <div className="rounded-lg border border-ink/20 bg-canvas p-3">
+          <div className="rounded-sm border border-ink/20 bg-canvas p-3">
             <dt className="text-[10px] uppercase tracking-widest text-muted">Certified Hardware</dt>
             <dd className="mt-0.5 text-[13px] font-bold">{certifiedHardware}</dd>
             <dd className="mt-1 font-mono text-[11px] text-muted">
               {candidateModel} · {planPrecision} · {(lastExp?.plan?.engine || d.deployment?.engine || "vLLM")}
             </dd>
           </div>
-          <div className="rounded-lg border border-ink/20 bg-canvas p-3">
+          <div className="rounded-sm border border-ink/20 bg-canvas p-3">
             <dt className="text-[10px] uppercase tracking-widest text-muted">Economics</dt>
             <dd className="mt-0.5 font-mono text-[13px] font-bold">${costPer1k.toFixed(4)} / 1k queries</dd>
             <dd className="mt-1 text-[11px] text-muted">
@@ -507,12 +523,12 @@ export default function Certificate({ params }: { params: { id: string } }) {
         </dl>
         <div className="mt-3">
           <p className="text-[10px] uppercase tracking-widest text-muted">Ready-to-Run Serving Command</p>
-          <pre className="hash-digest mt-1 overflow-auto rounded-lg border border-ink bg-ink p-3 font-mono text-[11px] leading-relaxed text-canvas">{servingCommand}</pre>
+          <pre className="hash-digest mt-1 overflow-auto rounded-sm border border-ink bg-ink p-3 font-mono text-[11px] leading-relaxed text-canvas">{servingCommand}</pre>
           <div className="no-print mt-2">
             <button
               type="button"
               onClick={() => copyText(servingCommand, setCopiedCmd)}
-              className="cursor-pointer rounded border border-ink px-3 py-2 text-[12px] font-bold transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.25)]"
+              className="cursor-pointer rounded-sm border border-ink px-3 py-2 text-[12px] font-bold transition-colors hover:bg-ink hover:text-white"
               aria-live="polite"
             >
               {copiedCmd ? "✓ Copied!" : "Copy Command"}
@@ -520,11 +536,11 @@ export default function Certificate({ params }: { params: { id: string } }) {
           </div>
         </div>
         <ul className="mt-3 space-y-2 text-[12px] leading-relaxed">
-          <li className="rounded-lg border border-ink/15 p-3">
+          <li className="rounded-sm border border-ink/15 p-3">
             <span className="font-bold">Max safe concurrency: {maxConcurrency} streams. </span>
             <span className="text-ink/80">{concurrencyNote}</span>
           </li>
-          <li className="rounded-lg border border-ink/15 p-3">
+          <li className="rounded-sm border border-ink/15 p-3">
             <span className="font-bold">Max context length: {maxContext.toLocaleString()} tokens. </span>
             <span className="text-ink/80">{contextNote}</span>
           </li>
@@ -532,12 +548,13 @@ export default function Certificate({ params }: { params: { id: string } }) {
       </section>
 
       {/* Official cryptographic footer / document seal */}
-      <div className="print-card panel mt-4 rounded-lg p-4 text-left">
+      <div className="print-card panel mt-4 rounded-sm p-4 text-left">
         <div className="flex items-center gap-2">
           <span aria-hidden="true">🔒</span>
           <p className="text-xs font-bold uppercase tracking-widest">Official Seal · Cryptographic Verification</p>
         </div>
-        <dl className="mt-3 grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
+        <div className="mt-3 grid gap-6 md:grid-cols-[1fr_136px]">
+          <dl className="grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
           <div>
             <dt className="text-[10px] uppercase tracking-widest text-muted">Issued by</dt>
             <dd className="mt-0.5 font-bold">SandboxProof Policy Engine v1.0</dd>
@@ -551,15 +568,22 @@ export default function Certificate({ params }: { params: { id: string } }) {
             <dd className="mt-0.5 font-bold">{REGION}</dd>
           </div>
           <div>
-            <dt className="text-[10px] uppercase tracking-widest text-muted">Workload Digest</dt>
+            <dt className="text-[10px] uppercase tracking-widest text-muted">Workload Fingerprint</dt>
             <dd className="hash-digest mt-0.5 break-all font-mono text-[12px] font-bold" title={primaryDigest}>{primaryDigest}</dd>
           </div>
-        </dl>
+          </dl>
+          {verificationUrl && (
+            <div className="w-fit border border-rule bg-white p-2">
+              <QRCodeSVG value={verificationUrl} size={120} bgColor="#FFFFFF" fgColor="#111111" level="M" aria-label="Scan to open this certificate" />
+              <p className="mt-1 text-center font-mono text-[9px] uppercase tracking-[0.08em]">Verify online</p>
+            </div>
+          )}
+        </div>
         <div className="no-print mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => copyText(primaryDigest, setCopiedHash)}
-            className="cursor-pointer rounded border border-ink px-3 py-2 text-[12px] font-bold transition-all hover:-translate-y-px hover:shadow-[3px_3px_0_rgba(31,31,31,0.25)]"
+            className="cursor-pointer rounded-sm border border-ink px-3 py-2 text-[12px] font-bold transition-colors hover:bg-ink hover:text-white"
           >
             {copiedHash ? "✓ Copied!" : "Copy Verification Hash"}
           </button>
@@ -568,15 +592,30 @@ export default function Certificate({ params }: { params: { id: string } }) {
         <p className="hash-digest mt-2 hidden break-all font-mono text-[11px] text-muted print:block">{primaryDigest}</p>
       </div>
 
+      <section className="no-print mt-8 border-t border-rule pt-8" aria-label="Model passport">
+        <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-orange">05 / MODEL PASSPORT</p>
+        <h2 className="mt-3 text-[32px] font-medium tracking-[-0.055em] md:text-5xl">Proof, ready to share.</h2>
+        <p className="mb-6 mt-3 text-sm text-muted">Export a 1200 × 630 px receipt graphic with the recorded verdict and metrics.</p>
+        <ModelPassport data={passport} />
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button type="button" onClick={() => void downloadPassportPng(passport)} className="min-h-[44px] bg-orange px-5 font-mono text-[11px] uppercase tracking-[0.08em] text-white hover:bg-orangeDeep">Export Proof Card</button>
+          <button type="button" onClick={() => window.open(passportShareUrl(passport, window.location.href), "_blank", "noopener,noreferrer")} className="min-h-[44px] border border-ink px-5 font-mono text-[11px] uppercase tracking-[0.08em] hover:bg-ink hover:text-white">Share Proof Card on X →</button>
+        </div>
+      </section>
+      <div className="mt-6 border-y border-rule py-4 font-mono text-[11px] text-muted">
+        VERIFICATION URL / <span className="break-all text-ink">/certificate/{params.id}</span>
+        <span className="ml-3">Verify the fingerprint against the underlying workload and operation receipts.</span>
+      </div>
+
       {/* Engineering drawer */}
-      <details className="no-print panel mt-4 rounded-lg p-4 text-left text-xs">
+      <details className="no-print panel mt-4 rounded-sm p-4 text-left text-xs">
         <summary className="cursor-pointer font-bold">▶ Technical Evidence &amp; Per-Experiment Ledger (JSON)</summary>
         <pre className="mt-2 max-h-80 overflow-auto border border-ink/20 bg-canvas p-3 text-[11px] leading-relaxed">{JSON.stringify(d.experiments ?? d.evidence ?? d, null, 2).slice(0, 6000)}</pre>
       </details>
 
       {/* Action bar */}
       <div className="no-print mt-6 flex flex-wrap gap-3">
-        <button onClick={() => window.print()} className="btn-dark min-h-[44px] cursor-pointer rounded px-5 py-3 text-sm font-bold transition-colors">Print / Save Certificate (PDF)</button>
+        <button onClick={() => window.print()} className="btn-dark min-h-[44px] cursor-pointer rounded-sm px-5 py-3 text-sm font-bold transition-colors">Print / Save Certificate (PDF)</button>
         <Link href="/dashboard" className="chip inline-block min-h-[44px] cursor-pointer px-5 py-3 text-sm">Back to Dashboard</Link>
         <Link href="/new" className="chip inline-block min-h-[44px] cursor-pointer px-5 py-3 text-sm">Run New Audit</Link>
       </div>

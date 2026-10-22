@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { LiveRegion, StatusPill, TopNav } from "@/components/ui";
@@ -19,7 +19,7 @@ type Experiment = {
   classifier?: { failure: string; action: string; reason: string };
   status: string;
   verdict: string;
-  metrics: { latency_p95_ms: number; quality_score: number; error_rate: number };
+  metrics: { latency_p95_ms: number; quality_score: number; error_rate: number; ttft_ms?: number; tokens_per_second?: number; memory_utilization?: number };
   log?: string;
 };
 
@@ -213,7 +213,7 @@ function VerdictBanner({ status, exps, simulated }: { status: string; exps: Expe
       <section
         role="status"
         aria-label="Executive verdict: ready to ship"
-        className="mt-6 rounded-lg border-2 border-ship bg-ship p-5 text-white shadow-[4px_4px_0_rgba(30,107,58,0.25)] md:p-6"
+        className="mt-6 rounded-sm border-2 border-ship bg-ship p-5 text-white  md:p-6"
       >
         <p className="text-[11px] font-bold uppercase tracking-widest text-white/75">The Bottom Line</p>
         <p className="mt-1 text-lg font-bold leading-tight tracking-tight md:text-xl">
@@ -221,7 +221,7 @@ function VerdictBanner({ status, exps, simulated }: { status: string; exps: Expe
         </p>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/90">{summary}</p>
         {simulated && (
-          <p className="mt-2 inline-block rounded border border-white/40 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider">
+          <p className="mt-2 inline-block rounded-sm border border-white/40 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider">
             Simulated run — dev-grade evidence
           </p>
         )}
@@ -234,7 +234,7 @@ function VerdictBanner({ status, exps, simulated }: { status: string; exps: Expe
       <section
         role="status"
         aria-label="Executive verdict: blocked from production"
-        className="mt-6 rounded-lg border-2 border-block bg-block p-5 text-white shadow-[4px_4px_0_rgba(179,38,30,0.25)] md:p-6"
+        className="mt-6 rounded-sm border-2 border-block bg-block p-5 text-white  md:p-6"
       >
         <p className="text-[11px] font-bold uppercase tracking-widest text-white/75">The Bottom Line</p>
         <p className="mt-1 text-lg font-bold leading-tight tracking-tight md:text-xl">
@@ -249,7 +249,7 @@ function VerdictBanner({ status, exps, simulated }: { status: string; exps: Expe
     <section
       role="status"
       aria-label="Executive verdict: audit in progress"
-      className="mt-6 rounded-lg border-2 border-ink bg-ink p-5 text-canvas shadow-[4px_4px_0_rgba(31,31,31,0.25)] md:p-6"
+      className="mt-6 rounded-sm border-2 border-ink bg-ink p-5 text-canvas  md:p-6"
     >
       <p className="text-[11px] font-bold uppercase tracking-widest text-canvas/60">The Bottom Line</p>
       <p className="mt-1 text-lg font-bold leading-tight tracking-tight md:text-xl">
@@ -291,15 +291,15 @@ function MemoryWaterfall({ e }: { e: Experiment }) {
 
   return (
     <div aria-label="Memory waterfall">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-muted">Memory waterfall</p>
+      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">OOM autopsy / schematic memory pressure</p>
       <div
         role="img"
         aria-label={
           oom
-            ? `KV-cache allocation reached ${total.toFixed(1)}GB of ${cap}GB capacity, overflow`
-            : `Peak reserved ${total.toFixed(1)}GB of ${cap}GB capacity`
+            ? `Illustrative allocation beyond ${cap}GB capacity after KV-cache growth`
+            : `Illustrative allocation within ${cap}GB capacity`
         }
-        className="mt-2 flex h-4 w-full overflow-hidden rounded border border-ink/30 bg-canvas"
+        className="mt-2 flex h-4 w-full overflow-hidden rounded-sm border border-ink/30 bg-canvas"
       >
         <span className="h-full bg-ink/70" style={{ width: `${wPct}%` }} title={`Model weights ${weights.toFixed(1)}GB`} />
         <span
@@ -324,14 +324,15 @@ function MemoryWaterfall({ e }: { e: Experiment }) {
         </span>
       </div>
       {oom ? (
-        <p className="mt-1.5 inline-block rounded bg-block px-2 py-0.5 text-[11px] font-bold text-white">
-          {total.toFixed(1)}GB / {cap}GB ({usedPct}%) — OVERFLOW, CUDA OOM
+        <p className="mt-1.5 inline-block rounded-sm bg-block px-2 py-0.5 text-[11px] font-bold text-white">
+          ESTIMATED PRESSURE / {cap}GB LIMIT — CUDA OOM
         </p>
       ) : (
         <p className="mt-1.5 text-[12px]">
-          Peak reserved <b className="font-mono">{total.toFixed(1)}GB of {cap}GB ({usedPct}%)</b> — within budget.
+          Illustrative allocation <b className="font-mono">{usedPct}% of {cap}GB</b>. See runtime logs for measured values.
         </p>
       )}
+      <p className="mt-2 font-mono text-[10px] text-muted">Segment sizes are schematic; the API does not report per-component VRAM or the exact breach token.</p>
     </div>
   );
 }
@@ -343,7 +344,7 @@ function SlaGates({ e }: { e: Experiment }) {
     return (
       <div aria-label="SLA gate status">
         <p className="text-[11px] font-bold uppercase tracking-widest text-muted">SLA gate status</p>
-        <p className="mt-1.5 rounded border border-dashed border-ink/30 p-2 text-[12px] text-muted">
+        <p className="mt-1.5 rounded-sm border border-dashed border-ink/30 p-2 text-[12px] text-muted">
           No gate sampling — job hit CUDA OOM before latency / accuracy / error metrics could be recorded.
         </p>
       </div>
@@ -371,16 +372,16 @@ function SlaGates({ e }: { e: Experiment }) {
       <p className="text-[11px] font-bold uppercase tracking-widest text-muted">SLA gate status</p>
       <ul className="mt-1.5 space-y-1.5">
         {rows.map((r) => (
-          <li key={r.gate} className="flex flex-wrap items-center justify-between gap-2 rounded border border-ink/20 bg-canvas px-2 py-1.5 text-[12px]">
+          <li key={r.gate} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-ink/20 bg-canvas px-2 py-1.5 text-[12px]">
             <span className="font-bold">{r.gate}</span>
             <span className="flex items-center gap-2">
               <span className="font-mono text-muted">{r.observed}</span>
               {r.pass === null ? (
                 <span className="text-muted">—</span>
               ) : r.pass ? (
-                <span className="rounded bg-ship px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Passed</span>
+                <span className="rounded-sm bg-ship px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Passed</span>
               ) : (
-                <span className="rounded bg-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Failed</span>
+                <span className="rounded-sm bg-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Failed</span>
               )}
             </span>
           </li>
@@ -394,7 +395,7 @@ function StageTelemetry({ e }: { e: Experiment }) {
   return (
     <div aria-label="Container logs">
       <p className="text-[11px] font-bold uppercase tracking-widest text-muted">Container logs</p>
-      <div className="mt-1.5 space-y-1 rounded border border-ink/20 bg-canvas p-2 font-mono text-[11px] leading-relaxed">
+      <div className="mt-1.5 space-y-1 rounded-sm border border-ink/20 bg-canvas p-2 font-mono text-[11px] leading-relaxed">
         <p>
           <span className="text-muted">planner reason:</span> {e.reason}
         </p>
@@ -415,6 +416,13 @@ function StageTelemetry({ e }: { e: Experiment }) {
       </div>
     </div>
   );
+}
+
+function CopyId({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  return <button type="button" onClick={async () => {
+    try { await navigator.clipboard.writeText(value); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setCopied(false); }
+  }} className="min-h-11 border border-rule px-3 font-mono text-[10px] uppercase tracking-[0.08em] hover:border-orange hover:text-orange">{copied ? "COPIED ✓" : `COPY ${label}`}</button>;
 }
 
 // ---------------------------------------------------------------------------
@@ -465,8 +473,8 @@ function StageCard({
     <li className="relative pl-8">
       {/* timeline rail */}
       <span aria-hidden="true" className="absolute bottom-0 left-[9px] top-0 w-px bg-ink/20" />
-      <span aria-hidden="true" className={`absolute left-[3px] top-6 h-[13px] w-[13px] rounded-full border-2 border-canvas ${dot}`} />
-      <div className={`panel rounded-lg ${ring}`}>
+      <span aria-hidden="true" className={`absolute left-[3px] top-6 h-[13px] w-[13px] rounded-sm border-2 border-canvas ${dot}`} />
+      <div className={`panel rounded-sm ${ring}`}>
         <button
           type="button"
           id={btnId}
@@ -494,8 +502,8 @@ function StageCard({
             </span>
             <span className="mt-0.5 block text-[12px] leading-relaxed text-muted">{meta.hypothesis}</span>
             <span className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className={`rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${pill}`}>{o.pill}</span>
-              <span className="rounded border border-ink/25 px-2 py-0.5 font-mono text-[10px] text-muted" title={e.sandbox?.operation_id ? `sandbox op ${e.sandbox.operation_id} · image ${e.sandbox.image_uuid || "disposable"} · job ${e.job_id}` : `job ${e.job_id}`}>
+              <span className={`rounded-sm px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${pill}`}>{o.pill}</span>
+              <span className="rounded-sm border border-ink/25 px-2 py-0.5 font-mono text-[10px] text-muted" title={e.sandbox?.operation_id ? `sandbox op ${e.sandbox.operation_id} · image ${e.sandbox.image_uuid || "disposable"} · job ${e.job_id}` : `job ${e.job_id}`}>
                 {e.plan.gpu_type} · {e.plan.precision} · batch {String(e.plan.batch_config)} · sandbox {(e.sandbox?.operation_id || e.job_id).slice(0, 12)}
                 {e.provenance === "sandbox-measured" ? " · PROVEN" : e.simulated ? " · SIM" : ""}
               </span>
@@ -509,7 +517,7 @@ function StageCard({
             <div className="space-y-4 border-t border-ink/15 px-4 pb-4 pt-3">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-muted">Watch why</p>
-                <p className="mt-1 inline-block rounded px-2 py-1 text-[12px] font-bold">{n.badge}</p>
+                <p className="mt-1 inline-block rounded-sm px-2 py-1 text-[12px] font-bold">{n.badge}</p>
                 <p className="mt-1 text-[12px] leading-relaxed">{n.summary}</p>
                 {e.classifier && (
                   <p className="mt-1 text-[12px] text-muted">
@@ -519,6 +527,11 @@ function StageCard({
               </div>
               <MemoryWaterfall e={e} />
               <SlaGates e={e} />
+              <div className="border-t border-rule pt-4 font-mono text-[11px]"><p className="mb-3 uppercase tracking-[0.08em] text-muted">MicroVM operation receipt</p>
+                <div className="flex flex-wrap items-center justify-between gap-2"><span className="break-all">OPERATION / {e.sandbox?.operation_id || e.job_id}</span><CopyId label="OP ID" value={e.sandbox?.operation_id || e.job_id} /></div>
+                {e.sandbox?.image_uuid && <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><span className="break-all">IMAGE / {e.sandbox.image_uuid}</span><CopyId label="IMAGE ID" value={e.sandbox.image_uuid} /></div>}
+                <p className="mt-2 text-muted">{e.provenance === "sandbox-measured" ? "NEBIUS SANDBOX / MEASURED" : e.simulated ? "SIMULATED / DEV GRADE" : "PROVENANCE NOT REPORTED"}</p>
+              </div>
               <StageTelemetry e={e} />
             </div>
           </div>
@@ -534,7 +547,7 @@ function DiagnosticJourney({ exps }: { exps: Experiment[] }) {
 
   if (sorted.length === 0) {
     return (
-      <div className="panel animate-pulse rounded p-6 text-sm text-muted">
+      <div className="panel animate-pulse rounded-sm p-6 text-sm text-muted">
         Provisioning first experiment… planner → policy → sandbox run.
       </div>
     );
@@ -554,7 +567,7 @@ function DiagnosticJourney({ exps }: { exps: Experiment[] }) {
             type="button"
             onClick={() => setOpen(Object.fromEntries(sorted.map((e) => [e.index, true])))}
             disabled={allOpen}
-            className="gp-chip cursor-pointer rounded border border-ink/30 px-2 py-1 text-[11px] font-bold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-default disabled:opacity-40"
+            className="gp-chip cursor-pointer rounded-sm border border-ink/30 px-2 py-1 text-[11px] font-bold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-default disabled:opacity-40"
           >
             Expand all
           </button>
@@ -562,7 +575,7 @@ function DiagnosticJourney({ exps }: { exps: Experiment[] }) {
             type="button"
             onClick={() => setOpen({})}
             disabled={sorted.every((e) => !isOpen(e.index))}
-            className="gp-chip cursor-pointer rounded border border-ink/30 px-2 py-1 text-[11px] font-bold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-default disabled:opacity-40"
+            className="gp-chip cursor-pointer rounded-sm border border-ink/30 px-2 py-1 text-[11px] font-bold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-default disabled:opacity-40"
           >
             Collapse all
           </button>
@@ -606,11 +619,11 @@ function Stepper({ status, expCount }: { status: string; expCount: number }) {
         aria-valuemin={0}
         aria-valuemax={steps.length}
         aria-valuenow={doneCount}
-        className="mb-2 h-1 overflow-hidden rounded-full bg-ink/10"
+        className="mb-2 h-1 overflow-hidden rounded-sm bg-ink/10"
       >
         <div
           aria-hidden="true"
-          className="h-full rounded-full bg-ship transition-[width] duration-500 ease-out"
+          className="h-full rounded-sm bg-ship transition-[width] duration-500 ease-out"
           style={{ width: `${progressPct}%` }}
         />
       </div>
@@ -619,11 +632,11 @@ function Stepper({ status, expCount }: { status: string; expCount: number }) {
           <li
             key={s.label}
             aria-current={s.state === "active" ? "step" : undefined}
-            className={`gp-step rounded-lg border p-3 text-left ${s.state === "active" ? "gp-step-running border-2 border-ink bg-ink text-canvas" : s.state === "done" ? "border-ink bg-[#F5F1E9]" : "border-ink/30 bg-transparent text-muted"}`}
+            className={`gp-step rounded-sm border p-3 text-left ${s.state === "active" ? "gp-step-running border-2 border-ink bg-ink text-canvas" : s.state === "done" ? "border-ink bg-[#F5F1E9]" : "border-ink/30 bg-transparent text-muted"}`}
           >
             <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
               {s.state === "done" ? (
-                <span key={`done-${i}`} aria-hidden="true" className="gp-pop inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ship text-white">
+                <span key={`done-${i}`} aria-hidden="true" className="gp-pop inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-ship text-white">
                   <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
                     <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
                   </svg>
@@ -631,13 +644,13 @@ function Stepper({ status, expCount }: { status: string; expCount: number }) {
               ) : s.state === "active" ? (
                 <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
                   {running && i === 1 ? (
-                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-canvas/30 border-t-canvas" />
+                    <span className="inline-block h-4 w-4 animate-spin rounded-sm border-2 border-canvas/30 border-t-canvas" />
                   ) : (
-                    <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-canvas" />
+                    <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-sm bg-canvas" />
                   )}
                 </span>
               ) : (
-                <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-current text-[11px] tabular-nums leading-none">{i + 1}</span>
+                <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-current text-[11px] tabular-nums leading-none">{i + 1}</span>
               )}
               Step {i + 1}
             </span>
@@ -673,12 +686,12 @@ function normalizeTag(tag: unknown, step: string): string {
 
 function tagColor(tag: string): string {
   const t = tag.toUpperCase();
-  if (t === "NEBIUS") return "text-sky-400";
-  if (t === "VLLM") return "text-amber-400";
-  if (t === "VRAM") return "text-purple-400";
-  if (t === "PLANNER") return "text-emerald-400";
-  if (t === "OOM" || t === "WARN" || t === "ERROR") return "text-red-400";
-  if (t === "POLICY") return "text-orange-300";
+  if (t === "NEBIUS") return "text-inverseMuted";
+  if (t === "VLLM") return "text-orange";
+  if (t === "VRAM") return "text-orange";
+  if (t === "PLANNER") return "text-ship";
+  if (t === "OOM" || t === "WARN" || t === "ERROR") return "text-block";
+  if (t === "POLICY") return "text-orange";
   return "text-zinc-400";
 }
 
@@ -823,37 +836,45 @@ export default function Timeline({ params }: { params: { id: string } }) {
   const finished = status !== "RUNNING" && status !== "CREATED";
   const lastExp = exps.length > 0 ? sortedExps(exps)[sortedExps(exps).length - 1] : null;
   const activeJobId = lastExp ? (lastExp.sandbox?.operation_id || lastExp.job_id) : "waiting for sandbox…";
-  return (<main>
+  return (<main className="min-h-screen bg-paper text-ink">
     <TopNav />
-    <div className="mx-auto max-w-3xl px-6 py-8">
+    <div className="mx-auto max-w-[1280px] border-x border-rule px-6 py-8 md:px-12 md:py-12">
       <LiveRegion message={live} />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><p className="text-[11px] text-muted">Experiment Timeline · {params.id}</p>
-        <h1 className="text-2xl tracking-tight">Watch it prove it</h1></div>
+      <div className="flex flex-wrap items-start justify-between gap-6 border-b border-rule pb-10">
+        <div><p className="font-mono text-[11px] uppercase tracking-[0.08em] text-orange">03 / LIVE EXPERIMENT · {params.id}</p>
+        <h1 className="mt-5 text-[clamp(42px,6vw,72px)] font-semibold leading-[1.04] tracking-[-0.055em]">Watch the model<br /><span className="text-orange">earn its verdict.</span></h1>
+        <p className="mt-5 max-w-xl text-base leading-7 text-muted">Every attempt has a hardware receipt and a measurable outcome. Follow the microVM run as it happens.</p></div>
         <StatusPill status={status} simulated={sim ?? undefined} />
       </div>
       <Stepper status={status} expCount={exps.length} />
       <VerdictBanner status={status} exps={exps} simulated={sim} />
-      <section aria-label="Live telemetry terminal" className="mt-6 overflow-hidden rounded-lg border border-ink bg-[#141414] text-zinc-200 shadow-[4px_4px_0_rgba(31,31,31,0.15)]">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-black/40 px-3 py-2">
+      <section aria-label="Latest measured metrics" className="mt-8 grid border-l border-t border-rule sm:grid-cols-2 lg:grid-cols-4">
+        {([
+          ["TTFT", lastExp?.metrics?.ttft_ms, "ms"],
+          ["TOKENS / SECOND", lastExp?.metrics?.tokens_per_second, ""],
+          ["P95 LATENCY", lastExp?.metrics?.latency_p95_ms, "ms"],
+          ["MEMORY UTILIZATION", lastExp?.metrics?.memory_utilization === undefined ? undefined : lastExp.metrics.memory_utilization * 100, "%"],
+        ] as const).map(([label, value, unit]) => <div key={label} className="min-h-32 border-b border-r border-rule bg-white p-5"><p className="font-mono text-[11px] tracking-[0.08em] text-muted">{label}</p><p className="mt-6 font-mono text-3xl">{typeof value === "number" ? `${value.toFixed(unit === "%" ? 1 : 0)}${unit}` : "—"}</p></div>)}
+      </section>
+      <p className="mt-2 font-mono text-[10px] text-muted">A dash means the runtime did not report that metric. {sim ? "Simulated run · dev-grade evidence." : "Measured values are drawn from recorded sandbox telemetry."}</p>
+      <section aria-label="Live telemetry terminal" className="mt-6 overflow-hidden rounded-sm border border-ink bg-ink text-zinc-200 ">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-darkRule bg-[#1B1B1A] px-3 py-2">
           <div className="flex min-w-0 items-center gap-3">
             <span aria-hidden="true" className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#FF5F57]" />
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#FEBC2E]" />
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#28C840]" />
+              <span className="inline-block h-2.5 w-2.5 bg-orange" />
             </span>
-            <span className="truncate font-mono text-[11px] text-zinc-400">job {activeJobId}</span>
+            <span className="truncate font-mono text-[11px] text-inverseMuted">MICROVM / OPERATION {activeJobId}</span>
           </div>
           {finished ? (
             <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-zinc-500">
-              <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-zinc-500" />
+              <span aria-hidden="true" className="inline-block h-2 w-2 rounded-sm bg-zinc-500" />
               Stream ended
             </span>
           ) : (
             <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-green-400">
               <span className="relative flex h-2 w-2" aria-hidden="true">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-sm bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-sm bg-green-500" />
               </span>
               <span className="animate-pulse">Live streaming</span>
             </span>
@@ -864,7 +885,6 @@ export default function Timeline({ params }: { params: { id: string } }) {
           role="log"
           aria-label="Live sandbox telemetry"
           className="h-72 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed"
-          style={{ fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" }}
         >
           {teleLines.length === 0 && (
             <p className="text-zinc-500">$ awaiting sandbox output… planner → policy → sandbox run.</p>
@@ -880,13 +900,13 @@ export default function Timeline({ params }: { params: { id: string } }) {
             <span aria-hidden="true" className="mt-1 inline-block h-3.5 w-2 animate-pulse bg-green-400" />
           )}
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-black/40 px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-darkRule bg-[#1B1B1A] px-3 py-2">
           <label className="flex cursor-pointer items-center gap-2 font-mono text-[11px] text-zinc-400">
             <input
               type="checkbox"
               checked={follow}
               onChange={(e) => setFollow(e.target.checked)}
-              className="h-3.5 w-3.5 accent-green-500"
+              className="h-3.5 w-3.5 accent-orange"
             />
             Follow output
           </label>
@@ -895,26 +915,26 @@ export default function Timeline({ params }: { params: { id: string } }) {
             <button
               type="button"
               onClick={copyLogs}
-              className="gp-chip cursor-pointer rounded border border-white/20 px-2 py-1 font-mono text-[11px] text-zinc-300 transition-[transform,border-color,color] duration-200 hover:border-white/40 hover:text-white active:scale-[0.97]"
+              className="gp-chip cursor-pointer rounded-sm border border-white/20 px-2 py-1 font-mono text-[11px] text-zinc-300 transition-[transform,border-color,color] duration-200 hover:border-white/40 hover:text-white "
             >
               {copied ? "Copied!" : "Copy Logs"}
             </button>
           </div>
         </div>
       </section>
-      <section aria-label="Watch why diagnostic journey" className="mt-8">
-        <h2 className="text-lg font-bold tracking-tight">Watch Why — Diagnostic Journey</h2>
+      <section aria-label="Watch why diagnostic journey" className="mt-12 border-t border-rule pt-12">
+        <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-orange">01 / EXPERIMENT LEDGER</p><h2 className="mt-3 text-[clamp(30px,4vw,48px)] font-medium leading-tight tracking-[-0.055em]">Failure is a data point.</h2>
         <div className="mt-4" aria-live="off">
           <DiagnosticJourney exps={exps} />
         </div>
       </section>
       <div className="mt-6 flex flex-wrap items-center gap-3">
         {finished ? (
-          <Link href={`/certificate/${params.id}`} className="btn-dark gp-chip inline-block min-h-[44px] cursor-pointer rounded px-6 py-3 text-sm font-bold transition-[transform,background-color] duration-200 active:scale-[0.97]">View Official Certificate →</Link>
+          <Link href={`/certificate/${params.id}`} className="btn-dark gp-chip inline-block min-h-[44px] cursor-pointer rounded-sm px-6 py-3 text-sm font-bold transition-[transform,background-color] duration-200 ">View Official Certificate →</Link>
         ) : (
           <span className="chip inline-block min-h-[44px] px-5 py-3 text-sm text-muted">Certificate will appear when the audit finishes…</span>
         )}
-        <Link href="/dashboard" className="chip gp-chip inline-block min-h-[44px] cursor-pointer px-5 py-3 text-sm transition-[transform,border-color] duration-200 active:scale-[0.97]">Dashboard</Link>
+        <Link href="/dashboard" className="chip gp-chip inline-block min-h-[44px] cursor-pointer px-5 py-3 text-sm transition-[transform,border-color] duration-200 ">Dashboard</Link>
       </div>
     </div>
   </main>);

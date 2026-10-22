@@ -2,6 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --paper: #F6F6F2;
+  --white: #FFFFFF;
+  --ink: #111111;
+  --ink-soft: #1B1B1A;
+  --muted: #777874;
+  --rule: #DEDFDA;
+  --dark-rule: #30302E;
+  --signal: #FF4D0A;
+  --signal-wash: #F8E0D7;
+  --ship: #42735B;
+  --block: #B84233;
+}
+
+body { background: var(--paper); color: var(--ink); font-family: var(--font-inter), Inter, sans-serif; }
+.frame { min-height: 100vh; margin: 0; border: 0; background: var(--paper); }
+.panel { background: var(--white); border: 1px solid var(--rule); border-radius: 0; }
+.cell { border: 1px solid var(--rule); border-radius: 0; }
+.chip { border: 1px solid var(--rule); border-radius: 2px; }
+.btn-dark { background: var(--ink); color: var(--white); border: 1px solid var(--ink); }
+.btn-dark:hover { background: var(--ink-soft); }
+.sigil-label { font: 500 11px/16px var(--font-plex-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
+.sigil-display { font-size: clamp(3.25rem, 7vw, 4.5rem); line-height: 1.055; letter-spacing: -.055em; font-weight: 600; }
+.sigil-h2 { font-size: clamp(2.35rem, 4.7vw, 3rem); line-height: 1.085; letter-spacing: -.055em; font-weight: 600; }
+.sigil-h3 { font-size: 2rem; line-height: 2.25rem; letter-spacing: -.04em; font-weight: 600; }
+.sigil-body { font-size: 18px; line-height: 27px; letter-spacing: -.015em; }
+.sigil-rule { border-color: var(--rule); }
+.sigil-grid { background-image: linear-gradient(to right, var(--rule) 1px, transparent 1px), linear-gradient(to bottom, var(--rule) 1px, transparent 1px); background-size: 64px 64px; }
+.sigil-index-rail { border-right: 1px solid var(--rule); width: 176px; flex: none; }
+.sigil-section { max-width: 1440px; margin-inline: auto; border-inline: 1px solid var(--rule); }
+.sigil-section-inner { display: flex; }
+.sigil-content { min-width: 0; flex: 1; }
+.sigil-technical-button { border-radius: 2px; min-height: 48px; transition: background-color 150ms, color 150ms, border-color 150ms, transform 150ms; }
+.sigil-technical-button:active { transform: translateY(1px); }
+.sigil-technical-button:disabled { opacity: .55; cursor: not-allowed; }
+.sigil-terminal { background: var(--ink-soft); color: #f0f0ec; border: 1px solid var(--dark-rule); font-family: var(--font-plex-mono), monospace; }
+.sigil-oom-fill { animation: sigil-oom 2.8s ease-in-out infinite alternate; transform-origin: left; }
+@keyframes sigil-oom { from { width: 62%; } to { width: 100%; } }
+@media (max-width: 767px) {
+  .sigil-index-rail { display: none; }
+  .sigil-section { border-inline: 0; }
+  .sigil-content { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sigil-oom-fill { animation: none; width: 100%; }
+  .sigil-technical-button { transition: none; }
+}
+
 :root { color-scheme: light; }
 html { scroll-behavior: smooth; }
 body { background: #EFEBE4; }
@@ -275,3 +323,13 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     will-change: auto;
   }
 }
+
+/* Final Sigil surface overrides for existing application components. */
+body { background: var(--paper); color: var(--ink); font-family: var(--font-inter), Inter, sans-serif; }
+.frame { margin: 0; border: 0; background: var(--paper); }
+.panel { background: var(--white); border: 1px solid var(--rule); border-radius: 0; }
+.cell { border: 1px solid var(--rule); border-radius: 0; }
+.chip { border: 1px solid var(--rule); border-radius: 2px; }
+.btn-dark { background: var(--ink); color: var(--white); border: 1px solid var(--ink); }
+.btn-dark:hover { background: var(--ink-soft); }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; }

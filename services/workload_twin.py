@@ -29,5 +29,5 @@ def build_twin(seed: int = 42, n: int = 200, tasks: tuple = TASKS) -> dict:
             "input_tokens": 120 + (i * 7) % 380,
             "expect_output_tokens": 40 + (i * 13) % 160,
         })
-    digest = hashlib.sha256(json.dumps(items, sort_keys=True).encode()).hexdigest()[:16]
+    digest = hashlib.sha256(json.dumps(items, sort_keys=True).encode()).hexdigest()
     return {"seed": seed, "count": n, "digest": digest, "items": items, "rng_note": f"seeded {rng.random():.4f}"}

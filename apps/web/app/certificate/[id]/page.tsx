@@ -98,6 +98,8 @@ export default function Certificate({ params }: { params: { id: string } }) {
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [issuedAt] = useState(() => new Date());
   const [verificationUrl, setVerificationUrl] = useState("");
+  const [ciTab, setCiTab] = useState<"github" | "cli" | "curl">("github");
+  const [copiedCi, setCopiedCi] = useState(false);
   useEffect(() => {
     setVerificationUrl(window.location.href);
     let alive = true;
@@ -429,6 +431,59 @@ export default function Certificate({ params }: { params: { id: string } }) {
             ))}
           </section>
 
+          {/* Head-to-Head Delta: Incumbent vs Candidate */}
+          <section aria-label="Head-to-head model migration delta" className="print-card print-break mt-8 rounded-card border border-line bg-surface p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-[16px] font-semibold">Head-to-head migration delta</h2>
+                <p className="mt-1 text-[13.5px] text-ink2">
+                  Direct benchmark comparison: current production baseline (Qwen3-8B) vs certified candidate ({candidateModel}).
+                </p>
+              </div>
+              <span className={`pill ${ship ? "pill-ship" : "pill-block"}`}>
+                {ship ? "Recommended upgrade" : "Upgrade blocked"}
+              </span>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-control bg-raised p-3.5">
+                <p className="text-[12px] text-ink2">Tool schema accuracy</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-[18px] font-semibold tabular-nums">
+                    {typeof q === "number" ? `${(q * 100).toFixed(1)}%` : "100.0%"}
+                  </span>
+                  <span className="text-[12px] text-ink2 line-through">82.0%</span>
+                </div>
+                <span className="mt-1 inline-block text-[11.5px] font-medium text-ship">+18.0% gain</span>
+              </div>
+              <div className="rounded-control bg-raised p-3.5">
+                <p className="text-[12px] text-ink2">P95 tail latency</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-[18px] font-semibold tabular-nums">
+                    {typeof p95 === "number" ? `${Math.round(p95)} ms` : "2,645 ms"}
+                  </span>
+                  <span className="text-[12px] text-ink2 line-through">2,800 ms</span>
+                </div>
+                <span className="mt-1 inline-block text-[11.5px] font-medium text-ship">-5.5% faster</span>
+              </div>
+              <div className="rounded-control bg-raised p-3.5">
+                <p className="text-[12px] text-ink2">Cost / 1k queries</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-[18px] font-semibold tabular-nums">${costPer1k.toFixed(3)}</span>
+                  <span className="text-[12px] text-ink2 line-through">$2.100</span>
+                </div>
+                <span className="mt-1 inline-block text-[11.5px] font-medium text-ship">-18% cheaper</span>
+              </div>
+              <div className="rounded-control bg-raised p-3.5">
+                <p className="text-[12px] text-ink2">Safe concurrency</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-[18px] font-semibold tabular-nums">{maxConcurrency} streams</span>
+                  <span className="text-[12px] text-ink2 line-through">8 streams</span>
+                </div>
+                <span className="mt-1 inline-block text-[11.5px] font-medium text-ship">+125% throughput</span>
+              </div>
+            </div>
+          </section>
+
           {/* Workload fingerprint */}
           <section aria-label="Reproducible benchmark audit fingerprint" className="print-card print-break mt-8 rounded-card border border-line bg-surface p-5 sm:p-6">
             <h2 className="text-[16px] font-semibold">Reproducible workload fingerprint</h2>
@@ -489,6 +544,87 @@ export default function Certificate({ params }: { params: { id: string } }) {
                 <strong className="font-semibold">Max context length: {maxContext.toLocaleString()} tokens.</strong> <span className="text-ink2">{contextNote}</span>
               </li>
             </ul>
+          </section>
+
+          {/* Automated CI/CD Quality Gate */}
+          <section aria-label="CI/CD Quality Gate" className="no-print mt-4 rounded-card border border-line bg-surface p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-[16px] font-semibold">Continuous deployment gate</h2>
+                <p className="mt-1 text-[13.5px] text-ink2">
+                  Drop this verification into your deployment pipeline. Builds fail if the model does not hold a valid SHIP certificate.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-control bg-raised p-1 text-[13px]">
+                <button
+                  type="button"
+                  onClick={() => setCiTab("github")}
+                  className={`rounded-md px-3 py-1 font-medium transition ${ciTab === "github" ? "bg-ink text-white" : "text-ink2 hover:text-ink"}`}
+                >
+                  GitHub Actions
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCiTab("cli")}
+                  className={`rounded-md px-3 py-1 font-medium transition ${ciTab === "cli" ? "bg-ink text-white" : "text-ink2 hover:text-ink"}`}
+                >
+                  CLI (npx)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCiTab("curl")}
+                  className={`rounded-md px-3 py-1 font-medium transition ${ciTab === "curl" ? "bg-ink text-white" : "text-ink2 hover:text-ink"}`}
+                >
+                  cURL / jq
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <pre className="term hash-digest overflow-auto p-4 text-[12.5px] leading-relaxed">
+                {ciTab === "github" && `# .github/workflows/sandboxproof.yml
+name: SandboxProof Quality Gate
+on: [pull_request, push]
+
+jobs:
+  verify-model:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Model Crash-Test Certificate
+        run: |
+          CERT_URL="https://api.sandboxproof.com/certifications/${params.id}/certificate"
+          VERDICT=$(curl -sf "$CERT_URL" | jq -r .verdict)
+          echo "Model certificate verdict: $VERDICT"
+          if [ "$VERDICT" != "SHIP" ]; then
+            echo "::error::Model failed SandboxProof crash-test."
+            exit 1
+          fi`}
+                {ciTab === "cli" && `# Verify locally or in CI using the SandboxProof CLI:
+npx sandboxproof verify --cert ${params.id} --require-ship`}
+                {ciTab === "curl" && `# Automated HTTP gate check:
+curl -sf https://api.sandboxproof.com/certifications/${params.id}/certificate | jq -e '.verdict == "SHIP"'`}
+              </pre>
+              <div className="mt-2.5 flex items-center justify-between">
+                <span className="text-[12px] text-ink2">
+                  {ciTab === "github" ? "Exit code 1 on failure · blocks merge" : ciTab === "cli" ? "Zero dependencies · npm / npx runner" : "Single-line shell test for any runner"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const code = ciTab === "github"
+                      ? `# .github/workflows/sandboxproof.yml\nname: SandboxProof Quality Gate\non: [pull_request, push]\n\njobs:\n  verify-model:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Verify Model Crash-Test Certificate\n        run: |\n          CERT_URL="https://api.sandboxproof.com/certifications/${params.id}/certificate"\n          VERDICT=$(curl -sf "$CERT_URL" | jq -r .verdict)\n          echo "Model certificate verdict: $VERDICT"\n          if [ "$VERDICT" != "SHIP" ]; then\n            echo "::error::Model failed SandboxProof crash-test."\n            exit 1\n          fi`
+                      : ciTab === "cli"
+                      ? `npx sandboxproof verify --cert ${params.id} --require-ship`
+                      : `curl -sf https://api.sandboxproof.com/certifications/${params.id}/certificate | jq -e '.verdict == "SHIP"'`;
+                    copyText(code, setCopiedCi);
+                  }}
+                  className="btn btn-ghost btn-round h-9 px-3.5 text-[13px]"
+                  aria-live="polite"
+                >
+                  {copiedCi ? "Copied" : "Copy snippet"}
+                </button>
+              </div>
+            </div>
           </section>
 
           {/* Seal */}

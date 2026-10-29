@@ -399,6 +399,129 @@ function CopyId({ label, value }: { label: string; value: string }) {
 
 /* ——— Stage cards ——— */
 
+type RequestTelemetry = {
+  id: string;
+  status: string;
+  latency_ms: number;
+  ttft_ms?: number;
+  input_tokens: number;
+  output_tokens: number;
+  quality: number;
+  json_valid: boolean;
+  schema_ok: boolean;
+  tool_ok: boolean;
+  args_ok: boolean;
+  text?: string;
+};
+
+function parseRequests(log?: string): RequestTelemetry[] {
+  if (!log) return [];
+  try {
+    const marker = '"requests":';
+    const idx = log.indexOf(marker);
+    if (idx !== -1) {
+      const rest = log.slice(idx + marker.length).trim();
+      const endIdx = rest.indexOf('], "errors"');
+      if (endIdx !== -1) {
+        return JSON.parse(rest.slice(0, endIdx + 1));
+      }
+      const bracketEnd = rest.indexOf("]");
+      if (bracketEnd !== -1) {
+        return JSON.parse(rest.slice(0, bracketEnd + 1));
+      }
+    }
+  } catch {}
+  return [];
+}
+
+function RequestInspector({ e }: { e: Experiment }) {
+  const reqs = parseRequests(e.log);
+  const [selectedReq, setSelectedReq] = useState<string | null>(null);
+
+  if (reqs.length === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-rule pt-4">
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] font-medium">
+          Request Inspector ({reqs.length} replayed requests)
+        </p>
+        <span className="text-[11.5px] text-ink2">Inspected inside microVM</span>
+      </div>
+      <div className="mt-2.5 space-y-2">
+        {reqs.map((r) => {
+          const isSelected = selectedReq === r.id;
+          return (
+            <div key={r.id} className="overflow-hidden rounded-control border border-line bg-raised">
+              <button
+                type="button"
+                onClick={() => setSelectedReq(isSelected ? null : r.id)}
+                className="flex w-full items-center justify-between p-3 text-left transition hover:bg-surface/50"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="mono text-[12px] font-medium">{r.id}</span>
+                  <span className={`pill px-2 py-0.5 text-[10.5px] ${r.quality >= 0.85 ? "pill-ship" : "pill-warn"}`}>
+                    {r.quality >= 0.85 ? "Valid" : "Quality Breach"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-[12px] tabular-nums text-ink2">
+                  <span>{Math.round(r.latency_ms)} ms</span>
+                  <span>{r.input_tokens} in → {r.output_tokens} out</span>
+                  <span className="text-ink">{isSelected ? "▲" : "▼"}</span>
+                </div>
+              </button>
+
+              {isSelected && (
+                <div className="space-y-3 border-t border-line bg-surface p-3 text-[12px]">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="rounded bg-raised p-2">
+                      <span className="block text-[11px] text-ink2">JSON Valid</span>
+                      <span className={`font-semibold ${r.json_valid ? "text-ship" : "text-block"}`}>
+                        {r.json_valid ? "✓ Pass" : "✗ Truncated"}
+                      </span>
+                    </div>
+                    <div className="rounded bg-raised p-2">
+                      <span className="block text-[11px] text-ink2">Schema Match</span>
+                      <span className={`font-semibold ${r.schema_ok ? "text-ship" : "text-block"}`}>
+                        {r.schema_ok ? "✓ Pass" : "✗ Incomplete"}
+                      </span>
+                    </div>
+                    <div className="rounded bg-raised p-2">
+                      <span className="block text-[11px] text-ink2">Tool Adherence</span>
+                      <span className={`font-semibold ${r.tool_ok ? "text-ship" : "text-block"}`}>
+                        {r.tool_ok ? "✓ Pass" : "✗ Missing"}
+                      </span>
+                    </div>
+                    <div className="rounded bg-raised p-2">
+                      <span className="block text-[11px] text-ink2">Arguments Valid</span>
+                      <span className={`font-semibold ${r.args_ok ? "text-ship" : "text-block"}`}>
+                        {r.args_ok ? "✓ Pass" : "✗ Missing"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block text-[11px] font-medium text-ink2">Model Output Captured in MicroVM:</span>
+                    {r.text && r.text.trim() ? (
+                      <pre className="term mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all p-2.5 text-[11.5px] leading-relaxed">
+                        {r.text}
+                      </pre>
+                    ) : (
+                      <div className="mt-1 rounded bg-warnWash p-2.5 text-[11.5px] text-warn">
+                        Output truncated before completion due to lean max_tokens ({r.output_tokens} tokens generated). Reasoning thoughts consumed budget before tool call could be formatted.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function StageCard({
   e,
   stageNo,
@@ -494,6 +617,7 @@ function StageCard({
                   {e.provenance === "sandbox-measured" ? "Nebius sandbox — measured" : e.simulated ? "Simulated — dev grade" : "Provenance not reported"}
                 </p>
               </div>
+              <RequestInspector e={e} />
               <StageTelemetry e={e} />
             </div>
           </div>

@@ -854,24 +854,108 @@ function HeroScene() {
   );
 }
 
+/* ——— User Guide / How it Works ——— */
+
+function UserGuide() {
+  const [openIdx, setOpenIdx] = useState<number | null>(0);
+  const items = [
+    {
+      q: "What is a Workload Twin?",
+      a: "A workload twin is a cryptographic capture of your real production traffic: actual prompt distributions, JSON schemas, tool definitions, and concurrency patterns. Sealed with a SHA-256 fingerprint at temperature 0.0 with deterministic seeds, guaranteeing identical replay across every candidate model.",
+    },
+    {
+      q: "Why do models fail in isolated sandboxes?",
+      a: "Reasoning models (like Nemotron-3-Nano) consume output tokens formulating their thought chain before returning JSON; with a lean max_tokens budget, tool calls get truncated mid-flight. High concurrency saturates token throughput and causes P95 tail latency breaches. SandboxProof catches these in disposable microVMs before production users ever see them.",
+    },
+    {
+      q: "How does Nemotron Ultra adapt parameters autonomously?",
+      a: "When a replay run breaches an SLA gate, the Nemotron Ultra planner analyzes the failure telemetry. If structured JSON is truncated, it raises max_tokens; if tail latency breaches the SLA, it throttles concurrency. Immutable policy engines verify every plan before launch, and hard quality gates are never relaxed.",
+    },
+    {
+      q: "What does the SHIP certificate guarantee?",
+      a: "A cryptographic certificate of measured capacity envelope: verified maximum safe concurrency, maximum context window, minimum token output budget, and cost per 1,000 queries. Backed by real Nebius microVM operation IDs and deterministic hash receipts.",
+    },
+  ];
+
+  return (
+    <section id="guide" className="mx-auto max-w-shell px-5 py-24 lg:py-32">
+      <div className="max-w-2xl rise">
+        <h2 className="d-lg">How it works.<br />No magic, just arithmetic.</h2>
+        <p className="lead mt-4 text-ink">
+          Everything you need to understand how SandboxProof crash-tests open-weight models before production rollout.
+        </p>
+      </div>
+
+      <div className="mt-12 grid gap-4 lg:grid-cols-2">
+        {items.map((item, idx) => {
+          const isOpen = openIdx === idx;
+          return (
+            <div key={item.q} className="rounded-card border border-line bg-surface p-6 transition">
+              <button
+                type="button"
+                onClick={() => setOpenIdx(isOpen ? null : idx)}
+                className="flex w-full items-start justify-between text-left cursor-pointer"
+                aria-expanded={isOpen}
+              >
+                <h3 className="text-[16px] font-semibold text-ink">{item.q}</h3>
+                <span className="mono ml-3 text-[18px] text-ink2">{isOpen ? "−" : "+"}</span>
+              </button>
+              {isOpen && (
+                <p className="mt-3 text-[14px] leading-relaxed text-ink2">
+                  {item.a}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 /* ——— Landing (page, not app shell) ——— */
 
 export default function LandingPage() {
   return (
     <div className="bg-bg">
       <TopNav />
+
+      {/* Hackathon Judge Showcase Banner */}
+      <aside aria-label="Hackathon Judge Showcase" className="border-b border-line bg-surface/90 px-4 py-2.5 backdrop-blur">
+        <div className="mx-auto flex max-w-shell flex-wrap items-center justify-between gap-3 text-[13px]">
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+            <strong className="font-semibold text-ink">Judge Showcase:</strong>
+            <span className="text-ink2">
+              Verified live audit <code className="mono font-semibold text-ink">cert-a1a3fa0d</code> replayed in disposable Nebius microVMs ($0.0069 spend).
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href="/certificate/cert-a1a3fa0d" className="font-medium text-accent hover:underline">
+              View Certificate →
+            </Link>
+            <span className="text-line">·</span>
+            <Link href="/timeline/cert-a1a3fa0d" className="font-medium text-ink hover:underline">
+              Diagnostic Timeline →
+            </Link>
+          </div>
+        </div>
+      </aside>
+
       <main>
         {/* Hero — headline and actions left, the pipeline diagram right */}
         <section className="flex min-h-[88svh] items-center px-5 pb-8 pt-4 sm:px-6" aria-label="SandboxProof">
           <div className="mx-auto grid w-full max-w-shell items-center gap-10 lg:grid-cols-[1.05fr_1fr] lg:gap-4">
             <div className="rise max-w-[620px]">
-              <h1 className="d-xl">Crash-test your next model swap.</h1>
-              <p className="lead mt-5 max-w-[46ch] text-ink">
-                SandboxProof replays your workload in an isolated Nebius sandbox and returns a SHIP or BLOCK certificate — measured evidence, never vibes.
+              <h1 className="d-xl max-w-[14ch] text-balance">Crash early.<br />Ship with receipts.</h1>
+              <p className="lead mt-5 max-w-[46ch] text-balance text-ink">
+                SandboxProof replays your production traffic through disposable Nebius microVMs to certify open-weight models before you deploy.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
-                <a href="#launch" className="btn btn-accent btn-square h-12 px-6 text-[15px]">Run a crash test</a>
-                <Link href="/sandbox-console" className="btn btn-ghost btn-square h-12 px-6 text-[15px]">Open the console</Link>
+                <a href="#launch" className="btn btn-accent btn-square h-12 px-6 text-[15px]">Start crash test</a>
+                <Link href="/certificate/cert-a1a3fa0d" className="btn btn-ghost btn-square h-12 px-6 text-[15px]">
+                  Inspect verified run (cert-a1a3fa0d)
+                </Link>
               </div>
               <p className="mt-6 max-w-[44ch] text-[14px] leading-relaxed text-ink2">Free in simulator mode · live runs bill your own Nebius key.</p>
             </div>
@@ -898,6 +982,7 @@ export default function LandingPage() {
 
         <StageBar />
         <GatesStatement />
+        <UserGuide />
         <CrashDemo />
         <Matrix />
         <Ledger />

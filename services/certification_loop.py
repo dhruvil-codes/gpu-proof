@@ -30,7 +30,7 @@ _SERVICES_DIR = Path(__file__).resolve().parent
 
 
 def _is_sim_mode() -> bool:
-    return os.environ.get("USE_SIMULATOR", "true").lower() == "true"
+    return os.environ.get("USE_SIMULATOR", "false").lower() == "true"
 
 
 def _byok_of(cert: dict) -> dict:

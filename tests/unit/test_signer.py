@@ -70,3 +70,4 @@ def test_tamper_detection_twin_digest():
     tampered = copy.deepcopy(signed)
     tampered["twin_digest"] = "4ca34e2e70578f836fb1c19587b2cef2dfe4b49ad217ff66ec7d1558f5775378"
     assert verify_certificate(tampered) is False
+

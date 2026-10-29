@@ -92,7 +92,7 @@ def propose_experiment(context: dict, api_key: str | None = None) -> dict:
     # Simulator mode uses the deterministic stand-in so local dev costs $0.
     # Real mode always calls Nemotron Ultra; planner down -> Certification incomplete.
     # api_key is the per-run BYOK override (in-memory only); falls back to .env.
-    if os.environ.get("USE_SIMULATOR", "true").lower() == "true":
+    if os.environ.get("USE_SIMULATOR", "false").lower() == "true":
         return _simulated_plan(context)
     candidate = str(context.get("candidate") or "")
     sys = (

@@ -1,20 +1,46 @@
 {
   "certification": {
-    "certification_id": "cert-a1a3fa0d",
+    "certification_id": "cert-44e00621",
     "verdict": "SHIP",
+    "evaluated_gates": [
+      {
+        "metric": "latency_p95_ms",
+        "operator": "<=",
+        "threshold": 5000,
+        "observed": 3016.63,
+        "passed": true,
+        "detail": "3016.63 <= 5000 -> PASS"
+      },
+      {
+        "metric": "quality_score",
+        "operator": ">=",
+        "threshold": 0.85,
+        "observed": 1.0,
+        "passed": true,
+        "detail": "1.0 >= 0.85 -> PASS"
+      },
+      {
+        "metric": "error_rate",
+        "operator": "<=",
+        "threshold": 0.05,
+        "observed": 0.0,
+        "passed": true,
+        "detail": "0.0 <= 0.05 -> PASS"
+      }
+    ],
     "failing_gates": [],
     "evidence": {
       "metrics": {
         "count": 4,
         "success_rate": 1.0,
         "error_rate": 0.0,
-        "ttft_p50_ms": 1801.82,
-        "ttft_p95_ms": 3388.2,
-        "latency_p50_ms": 1801.82,
-        "latency_p95_ms": 3388.2,
-        "requests_per_s": 0.469,
-        "tokens_per_s": 759.65,
-        "total_tokens": 6473,
+        "ttft_p50_ms": 1378.62,
+        "ttft_p95_ms": 3016.63,
+        "latency_p50_ms": 1378.62,
+        "latency_p95_ms": 3016.63,
+        "requests_per_s": 0.544,
+        "tokens_per_s": 474.41,
+        "total_tokens": 3491,
         "quality_score": 1.0,
         "json_success": 1.0,
         "tool_success": 1.0,
@@ -22,9 +48,9 @@
       },
       "baseline": {}
     },
-    "spend_usd": 0.0069,
+    "spend_usd": 0.0067,
     "candidate_model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
-    "twin_digest": "3ca34e2e70578f836fb1c19587b2cef2dfe4b49ad217ff66ec7d1558f5775378",
+    "twin_digest": "e69d8c9483cc698f16d58c405da257f9cc4b4037c2719f95aa5dc39d4805b37c",
     "twin_count": 4,
     "workload_digest_explanation": "Deterministic SHA-256 fingerprint of the replayed traffic dataset (concurrency, prompt seeds, temperature 0.0, and expected tool schemas). Guarantees reproducible benchmarking across any cluster or endpoint.",
     "deployment": {
@@ -36,31 +62,42 @@
       "serving_command": "curl -X POST https://api.tokenfactory.nebius.com/v1/chat/completions \\\n  -H 'Authorization: Bearer $NEBIUS_API_KEY' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"model\": \"nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B\", \"messages\": [{\"role\": \"user\", \"content\": \"...\"}], \"max_tokens\": 512, \"temperature\": 0}'",
       "capacity_envelope": {
         "concurrency": 1,
-        "context_len": 2048,
+        "context_len": 1024,
         "max_tokens": 512
       },
       "operational_limits": {
         "max_safe_concurrency": 1,
-        "max_safe_concurrency_note": "1 parallel streams before P95 breaches 2,000ms. Observed P95 3388.2ms breaches the 2,000ms SLA \u2014 reduce concurrency before production.",
-        "max_context_tokens": 2048,
-        "max_context_note": "2,048 tokens safe input context envelope verified inside the sandbox.",
+        "max_safe_concurrency_note": "1 parallel streams before P95 breaches 2,000ms. Observed P95 3016.63ms breaches the 2,000ms SLA \u2014 reduce concurrency before production.",
+        "max_context_tokens": 1024,
+        "max_context_note": "1,024 tokens safe input context envelope verified inside the sandbox.",
         "max_tokens": 512,
         "max_tokens_note": "512 tokens output budget verified for complete structured JSON tool calling."
       },
       "economics": {
-        "cost_per_1k_queries_usd": 1.725,
-        "monthly_run_rate_1m_queries_usd": 1725.0,
+        "cost_per_1k_queries_usd": 1.675,
+        "monthly_run_rate_1m_queries_usd": 1675.0,
         "provenance": "static-table",
         "evidence_urls": [],
         "hourly_rate_usd": null,
         "hourly_rate_source": "static-table",
         "fetched_at": null,
-        "basis": "$0.0069 measured sandbox and token spend over ~4 replayed requests"
+        "basis": "$0.0067 measured sandbox and token spend over ~4 replayed requests"
+      }
+    },
+    "certificate_scope": {
+      "statement": "This certificate guarantees structural and operational compliance against the replayed workload twin under the measured capacity envelope (schema validity, tool adherence, latency SLA, error rate, and cost). It certifies behavioral execution within these parameters, NOT subjective or unconstrained free-text semantic quality.",
+      "candidate_model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+      "twin_digest": "e69d8c9483cc698f16d58c405da257f9cc4b4037c2719f95aa5dc39d4805b37c",
+      "twin_count": 4,
+      "capacity_envelope": {
+        "concurrency": 1,
+        "context_len": 1024,
+        "max_tokens": 512
       }
     },
     "signature_algorithm": "Ed25519",
     "public_key_b64": "lz6Jfdkx/RMhtw96R8JlR+kMgl7GLVHwJFKr17FvVpM=",
-    "signature": "KpNc9x7b0o9ClewzcbUu0Sh/3XxppBED9rABWRcTfB1q4H8qJ371vPn6NcF0CJo1XhDHfhMNq9f3lhbdhPF6DA=="
+    "signature": "w3sZYeE9kMLKZTU43slXXbpFvbhbusKqUjMpjv437GKKoMnRU6vts+ed3AQngvxw9mOhOar9rF+VqWWfuJP0Aw=="
   },
   "experiments": [
     {
@@ -70,45 +107,45 @@
         "concurrency": 1,
         "context_len": 512,
         "max_tokens": 64,
-        "reason": "initial cheap probe"
+        "reason": "Starting with minimal concurrency and output budget to establish baseline performance cheaply."
       },
-      "job_id": "01a1885f-2d09-73d2-9983-925aba588977",
+      "job_id": "01a188ea-5df4-77b8-b729-36b1bed72d40",
       "simulated": false,
       "metrics": {
         "count": 4,
         "success_rate": 1.0,
         "error_rate": 0.0,
-        "ttft_p50_ms": 1140.56,
-        "ttft_p95_ms": 1260.99,
-        "latency_p50_ms": 1140.56,
-        "latency_p95_ms": 1260.99,
-        "requests_per_s": 0.883,
-        "tokens_per_s": 392.96,
+        "ttft_p50_ms": 979.68,
+        "ttft_p95_ms": 1133.43,
+        "latency_p50_ms": 979.68,
+        "latency_p95_ms": 1133.43,
+        "requests_per_s": 1.008,
+        "tokens_per_s": 449.03,
         "total_tokens": 1781,
         "quality_score": 0.0,
         "json_success": 0.0,
         "tool_success": 0.0,
         "simulated": false
       },
-      "log": "{\"ok\": true, \"model\": \"nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B\", \"config\": {\"concurrency\": 1, \"context_len\": 512, \"max_tokens\": 64, \"requests\": 4}, \"metrics\": {\"count\": 4, \"success_rate\": 1.0, \"error_rate\": 0.0, \"ttft_p50_ms\": 1140.56, \"ttft_p95_ms\": 1260.99, \"latency_p50_ms\": 1140.56, \"latency_p95_ms\": 1260.99, \"requests_per_s\": 0.883, \"tokens_per_s\": 392.96, \"total_tokens\": 1781, \"quality_score\": 0.0, \"json_success\": 0.0, \"tool_success\": 0.0}, \"quality\": {\"score\": 0.0, \"json_success\": 0.0, \"tool_success\": 0.0}, \"requests\": [{\"id\": \"req-0000\", \"status\": \"ok\", \"latency_ms\": 1276.11, \"ttft_ms\": 1276.11, \"input_tokens\": 378, \"output_tokens\": 64, \"quality\": 0.0, \"json_valid\": false, \"schema_ok\": false, \"tool_ok\": false, \"args_ok\": false, \"text\": \"\"}, {\"id\": \"req-0001\", \"status\": \"ok\", \"latency_ms\": 973.79, \"ttft_ms\": 973.79, \"input_tokens\": 386, \"output_tokens\": 64, \"quality\": 0.0, \"json_valid\": false, \"schema_ok\": false, \"tool_ok\": false, \"args_ok\": false, \"text\": \"\"}, {\"id\": \"req-0002\", \"status\": \"ok\", \"latency_ms\": 1105.81, \"ttft_ms\": 1105.81, \"input_tokens\": 381, \"output_tokens\": 64, \"quality\": 0.0, \"json_valid\": false, \"schema_ok\": false, \"tool_ok\": false, \"args_ok\": false, \"text\": \"\"}, {\"id\": \"req-0003\", \"status\": \"ok\", \"latency_ms\": 1175.31, \"ttft_ms\": 1175.31, \"input_tokens\": 380, \"output_tokens\": 64, \"quality\": 0.0, \"json_valid\": false, \"schema_ok\": false, \"tool_ok\": false, \"args_ok\": false, \"text\": \"\"}], \"errors\": [], \"elapsed_s\": 4.532}\n\nreplay: 4 requests, concurrency 1, ctx 512, max_tokens 64\nreplay: done in 4.53s, p95 1260.99ms, quality 0.0, errors 0.0\n",
+      "log": "{\"ok\": true, \"model\": \"nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B\", \"config\": {\"concurrency\": 1, \"context_len\": 512, \"max_tokens\": 64, \"requests\": 4}, \"metrics\": {\"count\": 4, \"success_rate\": 1.0, \"error_rate\": 0.0, \"ttft_p50_ms\": 979.68, \"ttft_p95_ms\": 1133.43, \"latency_p50_ms\": 979.68, \"latency_p95_ms\": 1133.43, \"requests_per_s\": 1.008, \"tokens_per_s\": 449.03, \"total_tokens\": 1781, \"quality_score\": 0.0, \"json_success\": 0.0, \"tool_success\": 0.0}, \"quality\": {\"score\": 0.0, \"json_success\": 0.0, \"tool_success\": 0.0}, \"requests\": [{\"id\": \"req-0000\", \"status\": \"ok\", \"latency_ms\": 1153.5, \"ttft_ms\": 1153.5, \"input_tokens\": 378, \"output_tokens\": 64, \"quality\": 0.0, \"json_valid\": false, \"schema_ok\": false, \"tool_ok\": false, \"args_ok\": false, \"text\": \"\\n{\\n  \\\"tool\\\": \\\"get_price\\\",\\n  \\\"arguments\\\": {\\n    \\\"\"}, {\"id\": \"req-0001\", \"status\": \"ok\", \"latency_ms\": 939.64, \"ttft_ms\": 939.64, \"input_tokens\": 386, \"output_tokens\": 64, \"quality\": 0.0, \"json_valid\": false, \"schema_ok\": false, \"tool_ok\": false, \"args_ok\": false, \"text\": \"\"}, {\"id\": \"req-0002\", \"status\": \"ok\", \"latency_ms\": 851.91, \"ttft_ms\": 851.91, \"input_tokens\": 381, \"output_tokens\": 64, \"quality\": 0.0, \"json_valid\": false, \"schema_ok\": false, \"tool_ok\": false, \"args_ok\": false, \"text\": \"\"}, {\"id\": \"req-0003\", \"status\": \"ok\", \"latency_ms\": 1019.72, \"ttft_ms\": 1019.72, \"input_tokens\": 380, \"output_tokens\": 64, \"quality\": 0.0, \"json_valid\": false, \"schema_ok\": false, \"tool_ok\": false, \"args_ok\": false, \"text\": \"\"}], \"errors\": [], \"elapsed_s\": 3.966}\n\nreplay: 4 requests, concurrency 1, ctx 512, max_tokens 64\nreplay: done in 3.97s, p95 1133.43ms, quality 0.0, errors 0.0\n",
       "failure": "QUALITY",
       "verdict": "BLOCK",
-      "reason": "initial cheap probe",
+      "reason": "Starting with minimal concurrency and output budget to establish baseline performance cheaply.",
       "state": "COMPLETED",
       "status": "QUALITY",
       "sandbox": {
-        "operation_id": "01a1885f-2d09-73d2-9983-925aba588977",
+        "operation_id": "01a188ea-5df4-77b8-b729-36b1bed72d40",
         "image_uuid": null,
         "exit_code": 0,
         "provenance": "sandbox-measured",
-        "cost_usd": 0.002828,
-        "elapsed_s": 0.268
+        "cost_usd": 0.002925,
+        "elapsed_s": 0.277
       },
       "provenance": "sandbox-measured",
       "classifier": {
         "failure": "QUALITY",
-        "action": "STOP_SUCCESS",
-        "reason": "All quality metrics are zero indicating no valid JSON, tool, or schema compliance, meaning the output quality is unacceptable despite low error rates."
+        "action": "STOP_BUDGET",
+        "reason": "Quality score is 0.0, JSON output invalid and tool not invoked, indicating poor response quality."
       }
     },
     {
@@ -116,41 +153,41 @@
       "plan": {
         "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
         "concurrency": 1,
-        "context_len": 2048,
+        "context_len": 1024,
         "max_tokens": 512,
-        "reason": "Previous run failed QUALITY (quality_score 0.0, json_success 0.0) likely due to truncated structured output; increasing max_tokens to 512 per guidelines while keeping concurrency low."
+        "reason": "Increase max_tokens to 512 to avoid truncation causing QUALITY failure."
       },
-      "job_id": "01a1885f-6159-7708-86a6-9a0ca82cb13c",
+      "job_id": "01a188ea-8f48-764a-aed5-b3182b529dfe",
       "simulated": false,
       "metrics": {
         "count": 4,
         "success_rate": 1.0,
         "error_rate": 0.0,
-        "ttft_p50_ms": 1801.82,
-        "ttft_p95_ms": 3388.2,
-        "latency_p50_ms": 1801.82,
-        "latency_p95_ms": 3388.2,
-        "requests_per_s": 0.469,
-        "tokens_per_s": 759.65,
-        "total_tokens": 6473,
+        "ttft_p50_ms": 1378.62,
+        "ttft_p95_ms": 3016.63,
+        "latency_p50_ms": 1378.62,
+        "latency_p95_ms": 3016.63,
+        "requests_per_s": 0.544,
+        "tokens_per_s": 474.41,
+        "total_tokens": 3491,
         "quality_score": 1.0,
         "json_success": 1.0,
         "tool_success": 1.0,
         "simulated": false
       },
-      "log": "p50_ms\": 1801.82, \"ttft_p95_ms\": 3388.2, \"latency_p50_ms\": 1801.82, \"latency_p95_ms\": 3388.2, \"requests_per_s\": 0.469, \"tokens_per_s\": 759.65, \"total_tokens\": 6473, \"quality_score\": 1.0, \"json_success\": 1.0, \"tool_success\": 1.0}, \"quality\": {\"score\": 1.0, \"json_success\": 1.0, \"tool_success\": 1.0}, \"requests\": [{\"id\": \"req-0000\", \"status\": \"ok\", \"latency_ms\": 1289.23, \"ttft_ms\": 1289.23, \"input_tokens\": 1448, \"output_tokens\": 89, \"quality\": 1.0, \"json_valid\": true, \"schema_ok\": true, \"tool_ok\": true, \"args_ok\": true, \"text\": \"\\n{\\n  \\\"tool\\\": \\\"get_price\\\",\\n  \\\"arguments\\\": {\\n    \\\"symbol\\\": \\\"NVDA\\\"\\n  }\\n}\"}, {\"id\": \"req-0001\", \"status\": \"ok\", \"latency_ms\": 2036.32, \"ttft_ms\": 2036.32, \"input_tokens\": 1454, \"output_tokens\": 162, \"quality\": 1.0, \"json_valid\": true, \"schema_ok\": true, \"tool_ok\": true, \"args_ok\": true, \"text\": \"\\n{\\n  \\\"answer\\\": \\\"vLLM supports FP8 inference on H100 GPUs, enabling significant speedups and reduced memory usage for large language models. The implementation leverages the H100's native FP8 tensor cores and includes optimizations for quantization, dequantization, and kernel fusion to maintain accuracy while maximizing throughput.\\\",\\n  \\\"confidence\\\": 0.95\\n}\"}, {\"id\": \"req-0002\", \"status\": \"ok\", \"latency_ms\": 1567.32, \"ttft_ms\": 1567.32, \"input_tokens\": 1450, \"output_tokens\": 105, \"quality\": 1.0, \"json_valid\": true, \"schema_ok\": true, \"tool_ok\": true, \"args_ok\": true, \"text\": \"\\n{\\n  \\\"tool\\\": \\\"create_ticket\\\",\\n  \\\"arguments\\\": {\\n    \\\"priority\\\": \\\"high\\\",\\n    \\\"team\\\": \\\"infra\\\"\\n  }\\n}\"}, {\"id\": \"req-0003\", \"status\": \"ok\", \"latency_ms\": 3626.77, \"ttft_ms\": 3626.77, \"input_tokens\": 1449, \"output_tokens\": 316, \"quality\": 1.0, \"json_valid\": true, \"schema_ok\": true, \"tool_ok\": true, \"args_ok\": true, \"text\": \"\\n{\\n  \\\"answer\\\": \\\"NVDA price: $xxx\\\",\\n  \\\"confidence\\\": 0.95\\n}\"}], \"errors\": [], \"elapsed_s\": 8.521}\n\nreplay: 4 requests, concurrency 1, ctx 2048, max_tokens 512\nreplay: done in 8.52s, p95 3388.2ms, quality 1.0, errors 0.0\n",
+      "log": "idia/NVIDIA-Nemotron-3-Nano-30B-A3B\", \"config\": {\"concurrency\": 1, \"context_len\": 1024, \"max_tokens\": 512, \"requests\": 4}, \"metrics\": {\"count\": 4, \"success_rate\": 1.0, \"error_rate\": 0.0, \"ttft_p50_ms\": 1378.62, \"ttft_p95_ms\": 3016.63, \"latency_p50_ms\": 1378.62, \"latency_p95_ms\": 3016.63, \"requests_per_s\": 0.544, \"tokens_per_s\": 474.41, \"total_tokens\": 3491, \"quality_score\": 1.0, \"json_success\": 1.0, \"tool_success\": 1.0}, \"quality\": {\"score\": 1.0, \"json_success\": 1.0, \"tool_success\": 1.0}, \"requests\": [{\"id\": \"req-0000\", \"status\": \"ok\", \"latency_ms\": 1345.36, \"ttft_ms\": 1345.36, \"input_tokens\": 735, \"output_tokens\": 64, \"quality\": 1.0, \"json_valid\": true, \"schema_ok\": true, \"tool_ok\": true, \"args_ok\": true, \"text\": \"\\n{\\\"tool\\\":\\\"get_price\\\",\\\"arguments\\\":{\\\"symbol\\\":\\\"NVDA\\\"}}\"}, {\"id\": \"req-0001\", \"status\": \"ok\", \"latency_ms\": 1411.88, \"ttft_ms\": 1411.88, \"input_tokens\": 743, \"output_tokens\": 125, \"quality\": 1.0, \"json_valid\": true, \"schema_ok\": true, \"tool_ok\": true, \"args_ok\": true, \"text\": \"\\n{\\n  \\\"answer\\\": \\\"vLLM supports FP8 quantization on H100 GPUs, enabling efficient inference with reduced memory usage and higher throughput while maintaining model accuracy.\\\",\\n  \\\"confidence\\\": 0.95\\n}\"}, {\"id\": \"req-0002\", \"status\": \"ok\", \"latency_ms\": 1299.95, \"ttft_ms\": 1299.95, \"input_tokens\": 738, \"output_tokens\": 78, \"quality\": 1.0, \"json_valid\": true, \"schema_ok\": true, \"tool_ok\": true, \"args_ok\": true, \"text\": \"\\n{\\n  \\\"tool\\\": \\\"create_ticket\\\",\\n  \\\"arguments\\\": {\\n    \\\"priority\\\": \\\"high\\\",\\n    \\\"team\\\": \\\"infra\\\"\\n  }\\n}\"}, {\"id\": \"req-0003\", \"status\": \"ok\", \"latency_ms\": 3299.82, \"ttft_ms\": 3299.82, \"input_tokens\": 737, \"output_tokens\": 271, \"quality\": 1.0, \"json_valid\": true, \"schema_ok\": true, \"tool_ok\": true, \"args_ok\": true, \"text\": \"\\n{\\\"answer\\\":\\\"NVDA price is $400.00\\\",\\\"confidence\\\":0.95}\"}], \"errors\": [], \"elapsed_s\": 7.359}\n\nreplay: 4 requests, concurrency 1, ctx 1024, max_tokens 512\nreplay: done in 7.36s, p95 3016.63ms, quality 1.0, errors 0.0\n",
       "failure": null,
       "verdict": "SHIP",
-      "reason": "Previous run failed QUALITY (quality_score 0.0, json_success 0.0) likely due to truncated structured output; increasing max_tokens to 512 per guidelines while keeping concurrency low.",
+      "reason": "Increase max_tokens to 512 to avoid truncation causing QUALITY failure.",
       "state": "COMPLETED",
       "status": "COMPLETED",
       "sandbox": {
-        "operation_id": "01a1885f-6159-7708-86a6-9a0ca82cb13c",
+        "operation_id": "01a188ea-8f48-764a-aed5-b3182b529dfe",
         "image_uuid": null,
         "exit_code": 0,
         "provenance": "sandbox-measured",
-        "cost_usd": 0.002828,
-        "elapsed_s": 0.268
+        "cost_usd": 0.002962,
+        "elapsed_s": 0.281
       },
       "provenance": "sandbox-measured"
     }

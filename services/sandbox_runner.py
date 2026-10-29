@@ -230,7 +230,7 @@ def get_sandbox_runner(api_key: str | None = None,
     is a process-wide singleton so operation IDs stay unique per run.
     """
     global _SIM_SINGLETON
-    if os.environ.get("USE_SIMULATOR", "true").lower() == "true":
+    if os.environ.get("USE_SIMULATOR", "false").lower() == "true":
         if _SIM_SINGLETON is None:
             _SIM_SINGLETON = SimulatedSandboxRunner()
         return _SIM_SINGLETON

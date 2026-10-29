@@ -15,10 +15,10 @@ from services.certificate_engine import build_certificate
 
 
 def test_policy_rejects_bad_gpu_and_over_budget():
-    p = pol.ExperimentProposal("A100", 2, "FP8", "vLLM", 8, "x")
+    p = pol.ExperimentProposal("", 64, 16384, 1024, "out of bounds")
     r = pol.validate_proposal(p, experiment_index=0, cert_spend=0, total_spend=0, estimated_cost=1.0)
-    assert not r.allowed and any("gpu_type" in x for x in r.reasons) and any("gpu_count" in x for x in r.reasons)
-    ok = pol.ExperimentProposal("L40S", 1, "FP8", "vLLM", 8, "cheap first")
+    assert not r.allowed and any("model" in x for x in r.reasons) and any("concurrency" in x for x in r.reasons)
+    ok = pol.ExperimentProposal("candidate-model", 8, 4096, 256, "valid")
     r2 = pol.validate_proposal(ok, experiment_index=0, cert_spend=9.5, total_spend=19.5, estimated_cost=1.0)
     assert not r2.allowed  # breaches $10 cert and $20 total
 

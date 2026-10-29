@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { StatusPill, TopNav, useApi } from "@/components/ui";
+import { AppShell, StatusPill, useApi } from "@/components/ui";
 
 /* ==========================================================================
    Usage & spend — every run accounted for.
@@ -90,62 +90,76 @@ export default function Usage() {
   const pricedCount = sessions.filter((x) => typeof x.elapsedSec === "number").length;
   const totPrompts = sessions.reduce((s, x) => s + (x.prompts || 0), 0);
   const totTokens = sessions.reduce((s, x) => s + (x.tokens || 0), 0);
+  const pctUsed = Math.min(100, (auditSpend / Math.max(1, cap)) * 100);
 
   return (
-    <main>
-      <TopNav />
-      <div className="mx-auto w-full max-w-[1080px] px-4 py-6 lg:px-8">
-        <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">Usage &amp; spend · every run accounted for</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight lg:text-3xl">What everything cost</h1>
-        <p className="mt-1 font-mono text-sm text-muted">
-          Audit ledger: backend (source of truth) · Sandbox: duration × Oct 2026 rates · Simulator runs are $0.00, always.
-          {backendUp === false && " Backend unreachable — showing local sessions only."}
-        </p>
-
-        <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { k: "Audit spend", v: `$${auditSpend.toFixed(2)} / $${cap.toFixed(2)}`, s: `${certs.length} audits · ${simCount} simulated` },
-            { k: "Sandbox est.", v: `$${sandboxCost.toFixed(2)}`, s: `${sessions.length} sessions${pricedCount < sessions.length ? ` · ${sessions.length - pricedCount} pre-timing` : ""}` },
-            { k: "Console prompts", v: String(totPrompts), s: `${totTokens.toLocaleString("en-US")} session tokens` },
-            { k: "Caps", v: "$10 / $20", s: "per-cert · project total (backend enforced)" },
-          ].map((c) => (
-            <div key={c.k} className="rounded-2xl border border-ink/15 bg-[#F5F1E9] p-4">
-              <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted">{c.k}</p>
-              <p className="mt-1 font-mono text-xl font-bold tracking-tight">{c.v}</p>
-              <p className="mt-0.5 font-mono text-[11px] text-muted">{c.s}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full border border-ink/20" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.round((auditSpend / Math.max(1, cap)) * 100))} aria-label="Budget used">
-          <div className="h-full bg-ink transition-all" style={{ width: `${Math.min(100, (auditSpend / Math.max(1, cap)) * 100)}%` }} />
+    <AppShell>
+      <div className="app-pad mx-auto max-w-shell">
+        <div className="max-w-2xl">
+          <h1 className="text-[26px] font-semibold tracking-[-0.02em]">Spend</h1>
+          <p className="mt-1.5 text-[14px] leading-relaxed text-ink2">
+            Every run accounted for. The audit ledger comes from the backend (source of truth); sandbox sessions are
+            estimated from duration × October 2026 rates. Simulator runs are $0.00 — shown, never hidden.
+            {backendUp === false && " Backend unreachable — showing local sessions only."}
+          </p>
         </div>
 
-        <section aria-label="Audit ledger" className="mt-6">
-          <h2 className="font-mono text-sm font-bold">Audit ledger <span className="font-normal text-muted">(backend · real spend)</span></h2>
+        <section aria-label="Spend totals" className="kpi-strip mt-8 rounded-card border border-line bg-surface max-sm:grid-cols-2" style={{ ["--kpi-n" as string]: 4 }}>
+          <div className="kpi-cell">
+            <p className="kpi-label">Audit spend</p>
+            <p className="kpi-value mt-1.5 tabular-nums">
+              ${auditSpend.toFixed(2)}
+              <span className="text-[15px] font-normal text-ink2"> / ${cap.toFixed(2)}</span>
+            </p>
+            <p className="mt-1 text-[12.5px] text-ink2">{certs.length} audits · {simCount} simulated</p>
+          </div>
+          <div className="kpi-cell">
+            <p className="kpi-label">Sandbox estimate</p>
+            <p className="kpi-value mt-1.5 tabular-nums">${sandboxCost.toFixed(2)}</p>
+            <p className="mt-1 text-[12.5px] text-ink2">{sessions.length} sessions{pricedCount < sessions.length ? ` · ${sessions.length - pricedCount} pre-timing` : ""}</p>
+          </div>
+          <div className="kpi-cell">
+            <p className="kpi-label">Console prompts</p>
+            <p className="kpi-value mt-1.5 tabular-nums">{totPrompts}</p>
+            <p className="mt-1 text-[12.5px] text-ink2">{totTokens.toLocaleString("en-US")} session tokens</p>
+          </div>
+          <div className="kpi-cell">
+            <p className="kpi-label">Enforced caps</p>
+            <p className="kpi-value mt-1.5 tabular-nums">$10 <span className="text-[15px] font-normal text-ink2">/</span> $20</p>
+            <p className="mt-1 text-[12.5px] text-ink2">per certification · project total</p>
+          </div>
+        </section>
+
+        <div className={`meter mt-4 ${pctUsed >= 90 ? "meter-block" : ""}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pctUsed)} aria-label="Budget used">
+          <span style={{ width: `${pctUsed}%` }} />
+        </div>
+
+        <section aria-label="Audit ledger" className="mt-12">
+          <h2 className="text-[17px] font-semibold">Audit ledger <span className="text-[13.5px] font-normal text-ink2">— backend, real spend</span></h2>
           {certs.length === 0 ? (
-            <p className="mt-2 rounded-xl border border-ink/15 bg-[#F5F1E9] p-4 font-mono text-xs text-muted">
-              {backendUp === false ? "Backend unreachable — start it to see the ledger." : "No audits yet — mint one from /new or a sandbox export."}
+            <p className="mt-4 rounded-card border border-line bg-surface p-5 text-[14px] text-ink2">
+              {backendUp === false ? "Backend unreachable — start it to see the ledger." : "No audits yet — mint one from the crash-test lab or a sandbox export."}
             </p>
           ) : (
-            <div className="mt-2 overflow-x-auto rounded-xl border border-ink/15">
-              <table className="w-full min-w-[560px] bg-[#F5F1E9] font-mono text-[11px]">
+            <div className="mt-4 overflow-x-auto rounded-card border border-line bg-surface">
+              <table className="ttable min-w-[560px]">
                 <thead>
-                  <tr className="border-b border-ink/15 text-left text-muted">
-                    <th className="px-3 py-2">Certification</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Mode</th>
-                    <th className="px-3 py-2 text-right">Spend</th>
+                  <tr>
+                    <th scope="col">Certification</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Mode</th>
+                    <th scope="col" className="!text-right">Spend</th>
                   </tr>
                 </thead>
                 <tbody>
                   {certs.slice(0, 30).map((c) => (
-                    <tr key={c.id} className="border-b border-ink/10 last:border-b-0">
-                      <td className="px-3 py-2">
-                        <Link href={`/certificate/${c.id}`} className="font-bold underline-offset-4 hover:underline">{c.id}</Link>
+                    <tr key={c.id}>
+                      <td>
+                        <Link href={`/certificate/${c.id}`} className="mono font-medium hover:text-accentInk">{c.id}</Link>
                       </td>
-                      <td className="px-3 py-2"><StatusPill status={c.status} simulated={c.simulated} /></td>
-                      <td className="px-3 py-2 text-muted">{c.simulated ? "simulator ($0)" : "measured"}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">${(c.spend || 0).toFixed(4)}</td>
+                      <td><StatusPill status={c.status} simulated={c.simulated} /></td>
+                      <td className="text-ink2">{c.simulated ? "simulator ($0)" : "measured"}</td>
+                      <td className="tnum">${(c.spend || 0).toFixed(4)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -154,22 +168,22 @@ export default function Usage() {
           )}
         </section>
 
-        <section aria-label="Sandbox sessions" className="mt-6">
-          <h2 className="font-mono text-sm font-bold">Sandbox sessions <span className="font-normal text-muted">(this browser · console is harness-simulated)</span></h2>
+        <section aria-label="Sandbox sessions" className="mt-12">
+          <h2 className="text-[17px] font-semibold">Sandbox sessions <span className="text-[13.5px] font-normal text-ink2">— this browser, harness-simulated console</span></h2>
           {sessions.length === 0 ? (
-            <p className="mt-2 rounded-xl border border-ink/15 bg-[#F5F1E9] p-4 font-mono text-xs text-muted">
-              No exported sessions yet — export from any sandbox to record it here.
+            <p className="mt-4 rounded-card border border-line bg-surface p-5 text-[14px] text-ink2">
+              No exported sessions yet — export from any sandbox console session to record it here.
             </p>
           ) : (
-            <div className="mt-2 overflow-x-auto rounded-xl border border-ink/15">
-              <table className="w-full min-w-[720px] bg-[#F5F1E9] font-mono text-[11px]">
+            <div className="mt-4 overflow-x-auto rounded-card border border-line bg-surface">
+              <table className="ttable min-w-[720px]">
                 <thead>
-                  <tr className="border-b border-ink/15 text-left text-muted">
-                    <th className="px-3 py-2">Session</th>
-                    <th className="px-3 py-2">Model → GPU</th>
-                    <th className="px-3 py-2 text-right">Prompts/tok</th>
-                    <th className="px-3 py-2 text-right">TTFT/ITL</th>
-                    <th className="px-3 py-2 text-right">Time · est.</th>
+                  <tr>
+                    <th scope="col">Session</th>
+                    <th scope="col">Model → GPU</th>
+                    <th scope="col" className="!text-right">Prompts / tokens</th>
+                    <th scope="col" className="!text-right">TTFT / ITL</th>
+                    <th scope="col" className="!text-right">Time · estimate</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -177,14 +191,14 @@ export default function Usage() {
                     const rate = RATES[s.gpu || ""]?.price ?? 0;
                     const cost = typeof s.elapsedSec === "number" ? (s.elapsedSec / 3600) * rate : null;
                     return (
-                      <tr key={s.id} className="border-b border-ink/10 last:border-b-0">
-                        <td className="px-3 py-2">
-                          {s.cert ? <Link href={`/certificate/${s.cert}`} className="font-bold underline-offset-4 hover:underline">{s.id}</Link> : <span className="font-bold">{s.id}</span>}
+                      <tr key={s.id}>
+                        <td>
+                          {s.cert ? <Link href={`/certificate/${s.cert}`} className="mono font-medium hover:text-accentInk">{s.id}</Link> : <span className="mono font-medium">{s.id}</span>}
                         </td>
-                        <td className="max-w-[260px] truncate px-3 py-2" title={`${s.model} → ${s.gpu}`}>{(s.model || "—").split("/").pop()} → {RATES[s.gpu || ""]?.label ?? s.gpu ?? "—"}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{s.prompts ?? 0}/{(s.tokens ?? 0).toLocaleString("en-US")}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{s.meanTtftMs ?? "—"}ms/{s.meanItlMs ?? "—"}ms</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{fmtClock(s.elapsedSec)} · {cost === null ? "—" : `$${cost.toFixed(2)}`}</td>
+                        <td className="max-w-[260px] truncate text-ink2" title={`${s.model} → ${s.gpu}`}>{(s.model || "—").split("/").pop()} → {RATES[s.gpu || ""]?.label ?? s.gpu ?? "—"}</td>
+                        <td className="tnum">{s.prompts ?? 0} / {(s.tokens ?? 0).toLocaleString("en-US")}</td>
+                        <td className="tnum">{s.meanTtftMs ?? "—"} / {s.meanItlMs ?? "—"} ms</td>
+                        <td className="tnum">{fmtClock(s.elapsedSec)} · {cost === null ? "—" : `$${cost.toFixed(2)}`}</td>
                       </tr>
                     );
                   })}
@@ -194,6 +208,6 @@ export default function Usage() {
           )}
         </section>
       </div>
-    </main>
+    </AppShell>
   );
 }

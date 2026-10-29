@@ -69,9 +69,6 @@ export default function ByokModal({ open, onClose }: { open: boolean; onClose: (
     } catch {}
   }
 
-  const field =
-    "mt-1 min-h-[44px] w-full rounded border border-ink bg-transparent p-2 font-mono text-sm outline-none focus:border-black";
-
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
@@ -84,34 +81,33 @@ export default function ByokModal({ open, onClose }: { open: boolean; onClose: (
         aria-modal="true"
         aria-labelledby="byok-title"
         aria-describedby="byok-policy"
-        className="panel w-full max-w-md rounded-lg p-5 shadow-[6px_6px_0_rgba(31,31,31,0.35)]"
+        className="w-full max-w-md rounded-card border border-line bg-surface p-6 shadow-[0_16px_48px_rgba(0,0,0,0.18)]"
       >
         <div className="flex items-start justify-between gap-3">
-          <h2 id="byok-title" className="text-base font-bold tracking-tight">
-            🔑 BYOK / API Key
+          <h2 id="byok-title" className="text-[17px] font-semibold">
+            Connect your Nebius key
           </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close BYOK dialog"
-            className="cursor-pointer rounded border border-ink px-2 py-1 text-xs font-bold hover:bg-ink hover:text-canvas"
+            aria-label="Close dialog"
+            className="btn btn-ghost btn-round h-8 w-8 items-center justify-center !px-0 text-[15px]"
           >
-            ✕
+            <span aria-hidden="true">×</span>
           </button>
         </div>
 
-        <p id="byok-policy" className="mt-2 rounded border border-ink/30 bg-canvas p-2 text-[11px] leading-relaxed text-muted">
-          Your keys are stored exclusively in your browser&apos;s localStorage and passed via
-          encrypted headers per request. Never stored on our server database.
+        <p id="byok-policy" className="mt-2 rounded-control bg-raised p-3 text-[13px] leading-relaxed text-ink2">
+          Keys are stored only in this browser&apos;s localStorage and passed per request as headers. They never touch the server database.
         </p>
 
-        <form onSubmit={save} className="mt-4 space-y-4">
+        <form onSubmit={save} className="mt-5 space-y-4">
           <div>
-            <label htmlFor="byok-key" className="block text-sm font-bold">
-              Nebius API Key <span className="text-block">*</span>
+            <label htmlFor="byok-key" className="block text-[14px] font-medium">
+              Nebius API key <span className="text-blockDeep">*</span>
             </label>
-            <span id="byok-key-help" className="mt-1 block text-[11px] text-muted">
-              Required for cloud execution. Starts with <code>nb-...</code>
+            <span id="byok-key-help" className="mt-0.5 block text-[12.5px] text-ink2">
+              Required for cloud execution. Starts with <code className="mono">nb-…</code>
             </span>
             <input
               ref={keyRef}
@@ -125,17 +121,15 @@ export default function ByokModal({ open, onClose }: { open: boolean; onClose: (
               required
               aria-required="true"
               aria-describedby="byok-key-help byok-err"
-              className={field}
+              className="field mono mt-2"
             />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="byok-project" className="block text-sm font-bold">
-                Nebius Project ID
+              <label htmlFor="byok-project" className="block text-[14px] font-medium">
+                Nebius project ID
               </label>
-              <span className="mt-1 block text-[11px] text-muted">
-                Optional · Serverless GPU jobs
-              </span>
+              <span className="mt-0.5 block text-[12.5px] text-ink2">Optional · cloud GPU jobs</span>
               <input
                 id="byok-project"
                 type="text"
@@ -144,16 +138,14 @@ export default function ByokModal({ open, onClose }: { open: boolean; onClose: (
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
                 placeholder="project-..."
-                className={field}
+                className="field mono mt-2"
               />
             </div>
             <div>
-              <label htmlFor="byok-subnet" className="block text-sm font-bold">
-                Nebius Subnet ID
+              <label htmlFor="byok-subnet" className="block text-[14px] font-medium">
+                Nebius subnet ID
               </label>
-              <span className="mt-1 block text-[11px] text-muted">
-                Optional · Serverless GPU jobs
-              </span>
+              <span className="mt-0.5 block text-[12.5px] text-ink2">Optional · cloud GPU jobs</span>
               <input
                 id="byok-subnet"
                 type="text"
@@ -162,35 +154,28 @@ export default function ByokModal({ open, onClose }: { open: boolean; onClose: (
                 value={subnetId}
                 onChange={(e) => setSubnetId(e.target.value)}
                 placeholder="subnet-..."
-                className={field}
+                className="field mono mt-2"
               />
             </div>
           </div>
 
           {err && (
-            <p id="byok-err" role="alert" className="text-[11px] font-bold text-block">
+            <p id="byok-err" role="alert" className="text-[13px] font-medium text-blockDeep">
               {err}
             </p>
           )}
           {msg && (
-            <p aria-live="polite" className="text-[11px] text-muted">
+            <p aria-live="polite" className="text-[13px] text-ink2">
               {msg}
             </p>
           )}
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <button
-              type="submit"
-              className="btn-dark min-h-[44px] flex-1 cursor-pointer rounded px-4 py-2 text-sm font-bold"
-            >
-              Save &amp; Connect
+          <div className="flex flex-col gap-2 pt-1 sm:flex-row">
+            <button type="submit" className="btn btn-primary btn-round h-11 flex-1 px-4 text-sm">
+              Save and connect
             </button>
-            <button
-              type="button"
-              onClick={disconnect}
-              className="min-h-[44px] flex-1 cursor-pointer rounded border border-ink px-4 py-2 text-sm font-bold hover:bg-ink hover:text-canvas"
-            >
-              Clear / Disconnect
+            <button type="button" onClick={disconnect} className="btn btn-ghost btn-round h-11 flex-1 px-4 text-sm">
+              Disconnect
             </button>
           </div>
         </form>

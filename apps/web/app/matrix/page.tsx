@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { StatusPill, TopNav } from "@/components/ui";
+import { AppShell, StatusPill } from "@/components/ui";
 
 /* ==========================================================================
    Matrix — the compounding dataset. Empirical (model, precision) quality
@@ -60,49 +60,54 @@ export default function Matrix() {
   }
 
   return (
-    <main>
-      <TopNav />
-      <div className="mx-auto w-full max-w-[1080px] px-4 py-6 lg:px-8">
-        <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-muted">Matrix · the compounding dataset</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight lg:text-3xl">What survives quantization, measured</h1>
-        <p className="mt-1 max-w-2xl font-mono text-sm leading-relaxed text-muted">
-          Every audit's Nemotron scores accumulate here by model and precision. Syntax can be constrained — semantics must be measured. This table only grows.
-        </p>
+    <AppShell>
+      <div className="app-pad mx-auto max-w-shell">
+        <div className="max-w-2xl">
+          <h1 className="text-[26px] font-semibold tracking-[-0.02em]">Matrix</h1>
+          <p className="mt-1.5 text-[14px] leading-relaxed text-ink2">
+            What survives quantization, measured. Every run's Nemotron scores accumulate here by model and precision.
+            Syntax can be constrained — semantics must be measured. This table only grows.
+          </p>
+        </div>
 
-        <section aria-label="Precision quality matrix" className="mt-5">
-          <h2 className="font-mono text-sm font-bold">Precision × quality <span className="font-normal text-muted">(empirical, all audits)</span></h2>
+        <section aria-label="Precision quality matrix" className="mt-10">
+          <h2 className="text-[17px] font-semibold">Precision × quality</h2>
           {!loaded ? (
-            <p className="mt-2 font-mono text-xs text-muted">Loading matrix…</p>
+            <p className="mt-3 text-[14px] text-ink2">Loading the matrix…</p>
           ) : groups.length === 0 ? (
-            <p className="mt-2 rounded-xl border border-ink/15 bg-[#F5F1E9] p-4 font-mono text-xs text-muted">
-              No scored audits yet — mint one from /new and its Nemotron scores land here automatically.
-            </p>
+            <div className="mt-4 rounded-card border border-line bg-surface p-6">
+              <p className="text-[15px] font-medium">No scored runs yet</p>
+              <p className="mt-1 text-[14px] text-ink2">Mint one from the crash-test lab and its Nemotron scores land here automatically.</p>
+              <Link href="/#launch" className="btn btn-primary btn-round mt-4 h-10 px-4 text-sm">Open the crash-test lab</Link>
+            </div>
           ) : (
-            <div className="mt-2 overflow-x-auto rounded-xl border border-ink/15">
-              <table className="w-full min-w-[640px] bg-[#F5F1E9] font-mono text-[12px]">
+            <div className="mt-4 overflow-x-auto rounded-card border border-line bg-surface">
+              <table className="ttable min-w-[680px]">
                 <thead>
-                  <tr className="border-b border-ink/15 text-left text-muted">
-                    <th className="px-3 py-2">Model</th>
-                    <th className="px-3 py-2">Precision</th>
-                    <th className="px-3 py-2 text-right">Runs</th>
-                    <th className="px-3 py-2">Avg quality</th>
-                    <th className="px-3 py-2">Last verdict</th>
+                  <tr>
+                    <th scope="col">Model</th>
+                    <th scope="col">Precision</th>
+                    <th scope="col" className="!text-right">Runs</th>
+                    <th scope="col">Average quality</th>
+                    <th scope="col">Last verdict</th>
                   </tr>
                 </thead>
                 <tbody>
                   {groups.map((g) => (
-                    <tr key={`${g.model}::${g.precision}`} className="border-b border-ink/10 last:border-b-0">
-                      <td className="max-w-[280px] truncate px-3 py-2 font-bold" title={g.model}>{g.model}</td>
-                      <td className="px-3 py-2">{g.precision}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{g.n}</td>
-                      <td className="px-3 py-2">
-                        <span className="mr-2 inline-block h-2 w-24 overflow-hidden rounded bg-ink/10 align-middle" role="img" aria-label={`${Math.round(g.avg_quality * 100)} percent`}>
-                          <span className={`block h-full ${g.avg_quality >= 0.85 ? "bg-ship" : "bg-block"}`} style={{ width: `${Math.round(g.avg_quality * 100)}%` }} />
+                    <tr key={`${g.model}::${g.precision}`}>
+                      <td className="max-w-[280px] truncate font-medium" title={g.model}>{g.model}</td>
+                      <td className="text-ink2">{g.precision}</td>
+                      <td className="tnum">{g.n}</td>
+                      <td>
+                        <span className="flex items-center gap-2.5">
+                          <span className={`meter w-28 ${g.avg_quality >= 0.85 ? "meter-ship" : "meter-block"}`} role="img" aria-label={`${Math.round(g.avg_quality * 100)} percent`}>
+                            <span style={{ width: `${Math.round(g.avg_quality * 100)}%` }} />
+                          </span>
+                          <span className="mono text-[13px] tabular-nums">{(g.avg_quality * 100).toFixed(1)}%</span>
                         </span>
-                        <span className="tabular-nums">{(g.avg_quality * 100).toFixed(1)}%</span>
                       </td>
-                      <td className="px-3 py-2">
-                        {g.last_verdict ? <StatusPill status={g.cert_id && g.last_verdict === "SHIP" ? "SHIP" : g.last_verdict} simulated={g.simulated} /> : <span className="text-muted">—</span>}
+                      <td>
+                        {g.last_verdict ? <StatusPill status={g.cert_id && g.last_verdict === "SHIP" ? "SHIP" : g.last_verdict} simulated={g.simulated} /> : <span className="text-faint">—</span>}
                       </td>
                     </tr>
                   ))}
@@ -110,35 +115,35 @@ export default function Matrix() {
               </table>
             </div>
           )}
-          <div className="mt-3 rounded-xl border border-ship/30 bg-ship/5 p-3 font-mono text-[12px] leading-relaxed">
-            <strong>Finding #1:</strong> INT4-class quants routinely pass JSON-syntax checks while failing tool <em>semantics</em> — the gap this matrix exists to record. Structured decoding guarantees syntax; only measurement catches meaning.
+          <div className="mt-4 rounded-card bg-shipWash px-4 py-3.5 text-[13.5px] leading-relaxed text-ink">
+            <strong className="font-semibold">Finding:</strong> INT4-class quants routinely pass JSON-syntax checks while failing tool semantics — the gap this matrix exists to record. Structured decoding guarantees syntax; only measurement catches meaning.
           </div>
         </section>
 
-        <section aria-label="Release radar" className="mt-6">
-          <h2 className="font-mono text-sm font-bold">
-            Release radar{" "}
-            <span className="font-normal text-muted">
-              ({radarSource === "tavily-live" ? "live via Tavily" : radarSource === "cache" ? "cached" : "checking…"})
-            </span>
-          </h2>
+        <section aria-label="Release radar" className="mt-12">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-[17px] font-semibold">Release radar</h2>
+            <p className="text-[13px] text-ink2">
+              {radarSource === "tavily-live" ? "Live via Tavily" : radarSource === "cache" ? "Cached" : "Checking…"}
+            </p>
+          </div>
           {!loaded ? (
-            <p className="mt-2 font-mono text-xs text-muted">Scanning releases…</p>
+            <p className="mt-3 text-[14px] text-ink2">Scanning releases…</p>
           ) : radar.length === 0 ? (
-            <p className="mt-2 rounded-xl border border-ink/15 bg-[#F5F1E9] p-4 font-mono text-xs text-muted">Radar quiet right now.</p>
+            <p className="mt-4 rounded-card border border-line bg-surface p-5 text-[14px] text-ink2">The radar is quiet right now.</p>
           ) : (
-            <ul className="mt-2 space-y-1.5">
+            <ul className="mt-4 grid gap-2">
               {radar.slice(0, 10).map((r, i) => (
-                <li key={`${r.url}-${i}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ink/15 bg-[#F5F1E9] px-3 py-2">
+                <li key={`${r.url}-${i}`} className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-3">
                   <span className="min-w-0">
-                    <span className="block truncate font-mono text-xs font-bold">{r.model}</span>
-                    <a href={r.url} target="_blank" rel="noreferrer" className="block truncate font-mono text-[11px] text-muted underline-offset-4 hover:underline">
+                    <span className="block truncate text-[14px] font-medium">{r.model}</span>
+                    <a href={r.url} target="_blank" rel="noreferrer" className="block truncate text-[12.5px] text-ink2 underline decoration-line underline-offset-4 hover:text-ink">
                       {r.url}
                     </a>
                   </span>
                   <Link
-                    href={`/new?candidate_model=${encodeURIComponent(r.model)}`}
-                    className="shrink-0 cursor-pointer rounded-full border border-ink/25 px-3 py-1.5 font-mono text-[11px] font-bold transition-colors hover:border-ink"
+                    href={`/?candidate_model=${encodeURIComponent(r.model)}`}
+                    className="btn btn-ghost btn-round h-9 shrink-0 px-3.5 text-[13px]"
                   >
                     Re-audit →
                   </Link>
@@ -146,27 +151,27 @@ export default function Matrix() {
               ))}
             </ul>
           )}
-          <p className="mt-2 font-mono text-[11px] text-muted">Certificates carry their checkpoint — when the radar spots a successor, one click re-opens sizing for it.</p>
+          <p className="mt-3 text-[13px] text-ink2">Certificates carry their checkpoint — when the radar spots a successor, one click re-opens sizing for it.</p>
         </section>
 
-        <section aria-label="Embeddable badges" className="mt-6">
-          <h2 className="font-mono text-sm font-bold">SHIP badges <span className="font-normal text-muted">(for model READMEs)</span></h2>
+        <section aria-label="Embeddable badges" className="mt-12">
+          <h2 className="text-[17px] font-semibold">SHIP badges for model READMEs</h2>
           {groups.filter((g) => g.cert_id).length === 0 ? (
-            <p className="mt-2 rounded-xl border border-ink/15 bg-[#F5F1E9] p-4 font-mono text-xs text-muted">Badges appear alongside certified audits.</p>
+            <p className="mt-4 rounded-card border border-line bg-surface p-5 text-[14px] text-ink2">Badges appear alongside certified runs.</p>
           ) : (
-            <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
               {groups
                 .filter((g) => g.cert_id)
                 .slice(0, 6)
                 .map((g) => (
-                  <li key={`${g.model}::${g.precision}`} className="rounded-xl border border-ink/15 bg-[#F5F1E9] p-3">
-                    <img src={`/api/badge/${g.cert_id}`} alt={`SandboxProof badge for ${g.model}`} loading="lazy" className="h-auto w-full max-w-[340px]" />
+                  <li key={`${g.model}::${g.precision}`} className="rounded-card border border-line bg-surface p-4">
+                    <img src={`/api/badge/${g.cert_id}`} alt={`SandboxProof badge for ${g.model}`} loading="lazy" className="h-auto w-full max-w-[340px] rounded-control" />
                     <button
                       type="button"
                       onClick={() => g.cert_id && copySnippet(g.cert_id)}
-                      className="mt-2 min-h-[36px] cursor-pointer rounded-full border border-ink/25 px-3 py-1 font-mono text-[11px] font-bold transition-colors hover:border-ink"
+                      className="btn btn-ghost btn-round mt-3 h-9 px-3.5 text-[13px]"
                     >
-                      {g.cert_id && copied === g.cert_id ? "✓ Copied!" : "Copy embed snippet"}
+                      {g.cert_id && copied === g.cert_id ? "Copied" : "Copy embed snippet"}
                     </button>
                   </li>
                 ))}
@@ -174,6 +179,6 @@ export default function Matrix() {
           )}
         </section>
       </div>
-    </main>
+    </AppShell>
   );
 }

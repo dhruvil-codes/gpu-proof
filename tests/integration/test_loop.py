@@ -34,12 +34,12 @@ def test_full_simulated_loop_adapts_after_failure():
     cid = r.json()["id"]
     started = c.post(f"/certifications/{cid}/start").json()
     assert started["status"] == "RUNNING", started
-    # story: L40S OOM (MEMORY) -> H100 INT4 quality fail -> H100 FP8 pass
+    # story: lean max_tokens truncates structured output -> QUALITY failure -> planner raises max_tokens -> pass
     s = wait_done(c, cid)
     assert s["experiments"] >= 2, s
     exps = main.CERTS[cid]["experiments"]
     first, second = exps[0], exps[1]
-    assert first["plan"]["gpu_type"] == "L40S" and first["status"] == "OOM"
-    assert second["plan"]["gpu_type"] == "H100" and second["plan"] != first["plan"]
+    assert first["plan"]["max_tokens"] < 128 and first["failure"] == "QUALITY"
+    assert second["plan"]["max_tokens"] >= 128 and second["verdict"] == "SHIP"
     cert = c.get(f"/certifications/{cid}/certificate").json()
     assert cert["verdict"] == "SIMULATED" and "never produce a real certificate" in cert["note"]

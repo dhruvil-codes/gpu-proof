@@ -8,8 +8,8 @@ const GPUS: Record<string, { vram_gb: number; usd_hr: number; label: string }> =
   RTX4090: { vram_gb: 24, usd_hr: 0.9, label: "RTX 4090 24GB" },
   L40S: { vram_gb: 48, usd_hr: 1.35, label: "NVIDIA L40S 48GB" },
   A100: { vram_gb: 80, usd_hr: 2.1, label: "NVIDIA A100 80GB" },
-  H100: { vram_gb: 80, usd_hr: 3.2, label: "NVIDIA H100 80GB SXM5" },
-  H200: { vram_gb: 141, usd_hr: 3.95, label: "NVIDIA H200 141GB" },
+  H100: { vram_gb: 80, usd_hr: 4.5, label: "NVIDIA H100 80GB SXM5" },
+  H200: { vram_gb: 141, usd_hr: 5.4, label: "NVIDIA H200 141GB" },
 };
 
 type ModelInfo = { params_b: number; layers: number; hidden: number; slug: string; display: string; moe?: boolean };

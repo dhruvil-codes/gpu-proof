@@ -1,9 +1,9 @@
 # Demo script (≤3 min)
 
-0:00 — Landing: "Make your model prove it." Show prompt panel, Built-on row.
-0:20 — New Certification: current Qwen3-8B H100 FP8, candidate Nemotron-3-Nano-30B, workload twin digest, gates, $10 budget. Run.
-0:45 — Timeline Exp 1: L40S FP8, sandbox op ID + image UUID, OOM, classifier MEMORY. Planner reason: escalate to H100.
-1:15 — Exp 2: H100 INT4 passes perf, quality 0.62 < 0.85 gate. Planner: quantization regression → H100 FP8 tuned.
-1:45 — Exp 3: H100 FP8 all gates pass. Metrics: p95 latency, throughput, quality, cost/1M. Sandbox PROVEN chips on each card.
-2:15 — Certificate: SHIP (sandbox-measured) or SIMULATED (dev). Tavily evidence links, budget spent, failing gate if BLOCK.
-2:45 — Close: "Don't ask whether a new deployment should work. Make it prove it."
+0:00 — **Landing**: "Crash early. Ship with receipts." Show candidate model selector, sealed workload twin concept, Nebius Token Factory & Contree microVM architecture, and live Tavily pricing grounding.
+0:20 — **New Certification**: Select candidate `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, inspect sealed workload twin SHA-256 fingerprint, set SLA gates (P95 latency, tool accuracy >= 85%, error rate <= 5%), and observe safety budget guardrails ($10 per cert, $20 total). Click Start.
+0:45 — **Timeline Exp 0 (The Crash)**: Initial probe proposed by Nemotron-Ultra planner (`concurrency=1`, `max_tokens=64`). A fresh, isolated CPU microVM spawns on Nebius Contree (showing real operation UUID). Lean output budget truncates structured JSON tool calls -> QUALITY SLA breached (quality 0% < 85%). Nemotron classifier and planner diagnose truncated structured output.
+1:15 — **Timeline Exp 1 (The Autonomous Adaptation)**: Nemotron-Ultra planner adapts serving parameters, raising `max_tokens` to 512. A new disposable microVM spawns on Nebius Contree. The sealed twin is replayed against the live hosted endpoint. Full structured JSON tool calls are generated cleanly: quality 100%, tool accuracy 100%, zero errors.
+1:45 — **Audit Receipts**: Inspect microVM operation receipts directly on the timeline cards — real Contree operation UUIDs (`01a1885f-...`), real exit codes, and real measured costs ($0.0028/op, total cert spend < $0.01).
+2:15 — **Production Certificate**: The SHIP certificate is minted with a cryptographic seal. Review the turnkey Production Capacity Envelope: verified safe concurrency, safe context budget, output token guarantee, and unit economics ($/1k requests). Download the verifiable Model Passport PNG.
+2:45 — **Close**: "Don't guess whether an open-weight model can handle your agent workload in production. Make it prove it with receipts."

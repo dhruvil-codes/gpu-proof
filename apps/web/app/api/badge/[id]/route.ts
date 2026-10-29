@@ -2,6 +2,18 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+/* Badge palette mirrors the design system (paper ground, ink text, verdict tones). */
+const BG = "#F1F1ED";
+const INK = "#131313";
+const MUTED = "#6B6B66";
+const VERDICT: Record<string, string> = {
+  SHIP: "#247B50",
+  BLOCK: "#B3362A",
+  SIMULATED: "#6B6B66",
+  PENDING: "#131313",
+  UNKNOWN: "#6B6B66",
+};
+
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
@@ -28,15 +40,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   } catch {
     verdict = "UNKNOWN";
   }
-  const color = verdict === "SHIP" ? "#1E6B3A" : verdict === "BLOCK" ? "#B3261E" : verdict === "SIMULATED" ? "#666666" : "#1F1F1F";
-  const mark = verdict === "SHIP" ? "✓" : verdict === "BLOCK" ? "✗" : "◌";
+  const color = VERDICT[verdict] ?? INK;
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="340" height="92" role="img" aria-label="SandboxProof ${esc(verdict)}: ${esc(model)}">` +
-    `<rect x="0.5" y="0.5" width="339" height="91" rx="14" fill="#EFEBE4" stroke="#1F1F1F" stroke-width="1.5"/>` +
-    `<rect x="14" y="14" width="86" height="26" rx="13" fill="${color}"/>` +
-    `<text x="57" y="31" text-anchor="middle" font-family="monospace" font-size="13" font-weight="bold" fill="#ffffff">${mark} ${esc(verdict)}</text>` +
-    `<text x="14" y="60" font-family="monospace" font-size="14" font-weight="bold" fill="#1F1F1F">${esc(model.slice(0, 30))}</text>` +
-    `<text x="14" y="78" font-family="monospace" font-size="11" fill="#666666">SandboxProof certified${hw ? ` · ${esc(hw)}` : ""}</text>` +
+    `<rect x="0.5" y="0.5" width="339" height="91" rx="12" fill="${BG}" stroke="${INK}" stroke-width="1"/>` +
+    `<rect x="14" y="12" width="10" height="10" fill="#FF4D0A"/>` +
+    `<rect x="14" y="30" width="86" height="24" rx="12" fill="${color}"/>` +
+    `<text x="57" y="46" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12.5" font-weight="bold" fill="#ffffff">${esc(verdict)}</text>` +
+    `<text x="14" y="70" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="bold" fill="${INK}">${esc(model.slice(0, 30))}</text>` +
+    `<text x="14" y="84" font-family="Arial, Helvetica, sans-serif" font-size="10.5" fill="${MUTED}">SandboxProof certified${hw ? ` · ${esc(hw)}` : ""}</text>` +
     `</svg>`;
   return new NextResponse(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=300" } });
 }

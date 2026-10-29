@@ -1,6 +1,9 @@
-"""Decision layer: Nemotron Ultra planner + Nano classifier via Token Factory (OpenAI-compatible).
+"""Decision layer: Nemotron Ultra planner + Nano classifier via Token Factory.
 
-Strict JSON validation, deterministic fallbacks. Planner down -> Certification incomplete (never SHIP).
+The planner proposes a serving profile (concurrency, context budget, output
+budget) for the certification subject. It cannot change the subject model and
+it cannot bypass the deterministic policy engine. Planner down means
+"Certification incomplete", never a fabricated SHIP.
 """
 from __future__ import annotations
 
@@ -12,7 +15,11 @@ BASE_URL = "https://api.tokenfactory.nebius.com/v1"
 PLANNER_MODEL = os.environ.get("PLANNER_MODEL", "nvidia/Nemotron-3-Ultra-550b-a55b")
 CLASSIFIER_MODEL = os.environ.get("CLASSIFIER_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
 
-PLAN_SCHEMA_KEYS = {"gpu_type", "gpu_count", "precision", "engine", "batch_config", "reason"}
+PLAN_SCHEMA_KEYS = {"model", "concurrency", "context_len", "max_tokens", "reason"}
+
+MIN_CONCURRENCY, MAX_CONCURRENCY = 1, 32
+MIN_CONTEXT, MAX_CONTEXT = 512, 8192
+MIN_OUTPUT, MAX_OUTPUT = 16, 1024
 
 
 def _resolve_key(explicit: str | None = None) -> str:
@@ -52,21 +59,33 @@ def verify_models(api_key: str | None = None) -> dict:
     return out
 
 
+def _clamp(value, lo: int, hi: int, default: int) -> int:
+    try:
+        return max(lo, min(hi, int(value)))
+    except (TypeError, ValueError):
+        return default
+
+
 def _simulated_plan(context: dict) -> dict:
+    """Deterministic stand-in for local dev/tests. Same schema as live output."""
+    model = str(context.get("candidate") or "candidate-model")
     prev = context.get("previous", [])
-    had_memory = any(p.get("failure") == "MEMORY" for p in prev)
-    had_quality = any(p.get("failure") == "QUALITY" for p in prev)
-    if had_quality:
-        return {"gpu_type": "H100", "gpu_count": 1, "precision": "FP8",
-                "engine": "vLLM", "batch_config": 16,
-                "reason": "SIMULATED planner: quality regressed on INT4; retry H100 FP8 with tuned batch"}
-    if had_memory:
-        return {"gpu_type": "H100", "gpu_count": 1, "precision": "INT4",
-                "engine": "vLLM", "batch_config": 8,
-                "reason": "SIMULATED planner: OOM on L40S; escalate to H100 INT4"}
-    return {"gpu_type": "L40S", "gpu_count": 1, "precision": "FP8",
-            "engine": "vLLM", "batch_config": 8,
-            "reason": "SIMULATED planner: cheapest config first (L40S FP8)"}
+    failures = {str(p.get("failure") or "").upper() for p in prev}
+    if "LATENCY" in failures:
+        return {"model": model, "concurrency": 4, "context_len": 4096,
+                "max_tokens": 256,
+                "reason": "SIMULATED planner: p95 breached the gate; halve concurrency"}
+    if "QUALITY" in failures:
+        return {"model": model, "concurrency": 8, "context_len": 4096,
+                "max_tokens": 256,
+                "reason": "SIMULATED planner: output budget truncated structured output; raise max_tokens"}
+    if {"RELIABILITY", "INFRASTRUCTURE"} & failures:
+        return {"model": model, "concurrency": 4, "context_len": 2048,
+                "max_tokens": 256,
+                "reason": "SIMULATED planner: transient failures; reduce concurrency and context"}
+    return {"model": model, "concurrency": 16, "context_len": 4096,
+            "max_tokens": 64,
+            "reason": "SIMULATED planner: cheapest profile first (lean output budget)"}
 
 
 def propose_experiment(context: dict, api_key: str | None = None) -> dict:
@@ -75,29 +94,49 @@ def propose_experiment(context: dict, api_key: str | None = None) -> dict:
     # api_key is the per-run BYOK override (in-memory only); falls back to .env.
     if os.environ.get("USE_SIMULATOR", "true").lower() == "true":
         return _simulated_plan(context)
-    sys = ("You are SandboxProof planner. Return ONLY JSON with keys gpu_type (L40S|H100), "
-           "gpu_count (1), precision (FP8|INT4|FP16|BF16), engine (vLLM), batch_config (1-64), reason. "
-           "Prefer cheapest config likely to fit. After MEMORY failure, move up GPU/precision.")
+    candidate = str(context.get("candidate") or "")
+    sys = (
+        "You are the SandboxProof planner. Return ONLY a JSON object with keys: "
+        "model (must equal the candidate under test), concurrency (1-32), "
+        "context_len (512-8192), max_tokens (16-1024), reason (short string). "
+        "The harness replays a sealed workload twin against a hosted "
+        "OpenAI-compatible endpoint inside an isolated sandbox. Start with the "
+        "cheapest profile that could plausibly pass: low concurrency and a lean "
+        "output budget (e.g. max_tokens=64). If the previous experiment failed QUALITY, raise "
+        "max_tokens to 512 (truncated structured output is the usual cause). If it "
+        "failed LATENCY, reduce concurrency. If it failed RELIABILITY or "
+        "INFRASTRUCTURE, reduce concurrency and context. Never change the model."
+    )
     try:
         raw = _call(PLANNER_MODEL, [{"role": "system", "content": sys},
                                     {"role": "user", "content": json.dumps(context)}],
                     api_key=api_key)
         plan = json.loads(raw)
-    except Exception as e:  # noqa: BLE001 — planner down is a stop condition per PRD 7.13
-        raise RuntimeError(f"Certification incomplete. Reason: Planning service unavailable ({e})") from e
-    if not PLAN_SCHEMA_KEYS.issubset(plan.keys()):
-        # deterministic repair: fall back to safe L40S FP8 rather than failing hard
-        plan = {"gpu_type": "L40S", "gpu_count": 1, "precision": "FP8",
-                "engine": "vLLM", "batch_config": 8,
-                "reason": "invalid planner JSON; defaulted to cheapest safe config"}
-    plan["gpu_count"] = 1
-    if plan.get("engine") != "vLLM":
-        plan["engine"] = "vLLM"
+    except Exception as e:  # noqa: BLE001 — planner down is a stop condition
+        raise RuntimeError(
+            f"Certification incomplete. Reason: Planning service unavailable ({e})"
+        ) from e
+    if not isinstance(plan, dict) or not PLAN_SCHEMA_KEYS.issubset(plan.keys()):
+        plan = {
+            "model": candidate,
+            "concurrency": 8,
+            "context_len": 4096,
+            "max_tokens": 256,
+            "reason": "invalid planner JSON; defaulted to the safe profile",
+        }
+    plan["model"] = candidate or str(plan.get("model") or "")
+    plan["concurrency"] = _clamp(plan.get("concurrency"), MIN_CONCURRENCY,
+                                 MAX_CONCURRENCY, 8)
+    plan["context_len"] = _clamp(plan.get("context_len"), MIN_CONTEXT,
+                                 MAX_CONTEXT, 4096)
+    plan["max_tokens"] = _clamp(plan.get("max_tokens"), MIN_OUTPUT,
+                                MAX_OUTPUT, 256)
+    plan["reason"] = str(plan.get("reason") or "planner proposed a serving profile")[:300]
     return plan
 
 
 def fast_classify(summary: str, api_key: str | None = None) -> dict:
-    sys = ('Return ONLY JSON {"failure": "MEMORY|LATENCY|QUALITY|RELIABILITY|INFRASTRUCTURE|UNKNOWN", '
+    sys = ('Return ONLY JSON {"failure": "LATENCY|QUALITY|RELIABILITY|INFRASTRUCTURE|UNKNOWN", '
            '"action": "CONTINUE|STOP_SUCCESS|STOP_BUDGET|ESCALATE", "reason": "..."}')
     try:
         raw = _call(CLASSIFIER_MODEL, [{"role": "system", "content": sys},

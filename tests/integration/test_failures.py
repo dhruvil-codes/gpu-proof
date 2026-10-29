@@ -42,7 +42,7 @@ def test_planner_down_returns_incomplete_not_ship():
     import services.certification_loop as loop
     real = loop.propose_experiment
     try:
-        def boom(ctx):
+        def boom(ctx, **kw):
             raise RuntimeError("Certification incomplete. Reason: Planning service unavailable (down)")
         loop.propose_experiment = boom
         c.post(f"/certifications/{cid}/start")
@@ -52,8 +52,13 @@ def test_planner_down_returns_incomplete_not_ship():
         loop.propose_experiment = real
 
 
-def test_rejects_non_vllm_and_multi_gpu_policy():
+def test_rejects_out_of_bounds_policy():
     from services.experiment_policy import ExperimentProposal, validate_proposal
-    bad = ExperimentProposal("H100", 2, "FP8", "tensorrt", 8, "x")
-    r = validate_proposal(bad, experiment_index=0, cert_spend=0, total_spend=0, estimated_cost=1.0)
-    assert not r.allowed
+    bad_concurrency = ExperimentProposal("test-model", 64, 4096, 256, "excessive concurrency")
+    r = validate_proposal(bad_concurrency, experiment_index=0, cert_spend=0, total_spend=0, estimated_cost=1.0)
+    assert not r.allowed and any("concurrency" in x for x in r.reasons)
+
+    bad_model = ExperimentProposal("wrong-model", 8, 4096, 256, "divergent model")
+    r2 = validate_proposal(bad_model, experiment_index=0, cert_spend=0, total_spend=0, estimated_cost=0.01,
+                           allowed_model="test-model")
+    assert not r2.allowed and any("not the certification subject" in x for x in r2.reasons)

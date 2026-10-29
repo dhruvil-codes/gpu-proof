@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { TopNav } from "@/components/ui";
+import { AppShell, StatusPill } from "@/components/ui";
 
 const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 
@@ -17,7 +17,6 @@ type CertItem = {
 };
 type Metrics = { count?: number; latency?: number; quality?: number };
 type Filter = "ALL" | "SHIP" | "BLOCK" | "SIMULATED";
-const filters: Filter[] = ["ALL", "SHIP", "BLOCK", "SIMULATED"];
 
 function statusOf(item: CertItem) {
   return item.simulated ? "SIMULATED" : item.status.toUpperCase();
@@ -35,20 +34,12 @@ function dateOf(value?: string | number) {
   return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("en", { month: "short", day: "2-digit", year: "numeric" }).format(date);
 }
 
-function Stamp({ item }: { item: CertItem }) {
-  const status = statusOf(item);
-  const tone = status === "SHIP" ? "border-ship/30 bg-ship/10 text-ship"
-    : status.startsWith("BLOCK") ? "border-block/30 bg-block/10 text-block"
-    : status === "SIMULATED" ? "border-rule bg-paper text-muted"
-    : "border-orange/30 bg-orangeWash text-orangeDeep";
-  return <span className={`inline-flex shrink-0 justify-center border px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] ${tone}`}>{status}</span>;
-}
-
 export default function Dashboard() {
   const [items, setItems] = useState<CertItem[]>([]);
   const [metrics, setMetrics] = useState<Record<string, Metrics>>({});
   const [budget, setBudget] = useState({ spend: 0, cap: 20 });
   const [filter, setFilter] = useState<Filter>("ALL");
+  const filters: Filter[] = ["ALL", "SHIP", "BLOCK", "SIMULATED"];
 
   useEffect(() => {
     let alive = true;
@@ -100,86 +91,152 @@ export default function Dashboard() {
   const visible = items.filter((item) => filter === "ALL" || (filter === "BLOCK" ? statusOf(item).startsWith("BLOCK") : statusOf(item) === filter));
   const percent = budget.cap > 0 ? Math.min(100, Math.max(0, budget.spend / budget.cap * 100)) : 0;
 
-  return <main className="min-h-screen bg-paper text-ink">
-    <TopNav />
-    <div className="mx-auto max-w-wide border-x border-rule">
-      <header className="grid border-b border-rule lg:grid-cols-[192px_1fr]">
-        <div className="border-b border-rule px-6 py-5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted lg:border-b-0 lg:border-r">05 / Registry</div>
-        <div className="px-6 py-10 sm:px-10 sm:py-14">
-          <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em] text-orangeDeep"><span className="h-1.5 w-1.5 bg-orange" /> Audit archive</p>
-          <div className="mt-5 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-            <div><h1 className="text-[40px] font-medium leading-[1.05] tracking-[-0.055em] sm:text-[48px]">Certifications.</h1><p className="mt-4 max-w-xl text-[15px] leading-6 text-muted">A traceable record of model verdicts, experiments, and Nebius spend.</p></div>
-            <Link href="/new" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-5 rounded-sm bg-ink px-5 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-white transition-colors hover:bg-orange">New audit <span aria-hidden="true">↗</span></Link>
+  return (
+    <AppShell>
+      <div className="app-pad mx-auto max-w-shell">
+        {/* Title row */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-[26px] font-semibold tracking-[-0.02em]">Runs</h1>
+            <p className="mt-1 text-[14px] text-ink2">
+              {items.length} crash tests so far — ${budget.spend.toFixed(2)} of the ${budget.cap.toFixed(2)} ledger spent.
+            </p>
           </div>
+          <Link href="/#launch" className="btn btn-primary btn-round h-10 shrink-0 px-4 text-sm">New crash test</Link>
         </div>
-      </header>
 
-      <section aria-label="Certification totals" className="grid grid-cols-2 border-b border-rule lg:grid-cols-4">
-        {([
-          ["TOTAL RUNS", counts.ALL, "text-ink"],
-          ["SHIP / APPROVED", counts.SHIP, "text-ship"],
-          ["BLOCK / REJECTED", counts.BLOCK, "text-block"],
-          ["SIMULATED / DEV", counts.SIMULATED, "text-muted"],
-        ] as const).map(([label, value, tone], index) => <div key={label} className={`min-h-32 border-rule px-6 py-6 sm:px-8 ${index % 2 === 0 ? "border-r" : ""} ${index < 2 ? "border-b lg:border-b-0" : ""} ${index > 0 && index < 3 ? "lg:border-r" : ""}`}>
-          <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted">{label}</p>
-          <p className={`mt-4 font-mono text-[38px] leading-none tracking-[-0.06em] ${tone}`}>{String(value).padStart(2, "0")}</p>
-        </div>)}
-      </section>
-
-      <section aria-label="Nebius spend" className="grid border-b border-rule bg-white lg:grid-cols-[192px_1fr]">
-        <div className="border-b border-rule px-6 py-6 font-mono text-[11px] uppercase tracking-[0.08em] text-muted lg:border-b-0 lg:border-r">Budget ledger</div>
-        <div className="px-6 py-6 sm:px-10">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted">Nebius spend / total cap</p><p className="mt-2 font-mono text-[24px] leading-none tracking-[-0.04em]">${budget.spend.toFixed(2)} <span className="text-[15px] text-muted">/ ${budget.cap.toFixed(2)}</span></p></div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">{percent.toFixed(0)}% utilized</p>
+        {/* KPI strip: one container split by hairlines */}
+        <section aria-label="Totals" className="kpi-strip mt-8 rounded-card border border-line bg-surface" style={{ ["--kpi-n" as string]: 4 }}>
+          <div className="kpi-cell">
+            <p className="kpi-label">Total runs</p>
+            <p className="kpi-value mt-1.5 tabular-nums">{counts.ALL}</p>
           </div>
-          <div role="progressbar" aria-label="Nebius spend against total budget cap" aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100} className="mt-5 h-2 w-full bg-rule"><div className={`h-full transition-[width] ${percent >= 90 ? "bg-block" : "bg-orange"}`} style={{ width: `${percent}%` }} /></div>
-        </div>
-      </section>
-
-      <section aria-labelledby="registry-heading" className="px-6 py-10 sm:px-10 sm:py-12">
-        <div className="flex flex-col gap-6 border-b border-rule pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div><p className="font-mono text-[10px] uppercase tracking-[0.08em] text-orangeDeep">01 / Audit ledger</p><h2 id="registry-heading" className="mt-3 text-[32px] font-medium leading-9 tracking-[-0.055em]">All records</h2></div>
-          <p className="max-w-xs text-[13px] leading-[18px] text-muted">Simulated runs are labeled for development and cannot mint production certificates.</p>
-        </div>
-
-        <div className="mt-6 flex flex-wrap gap-px border border-rule bg-rule" role="group" aria-label="Filter certifications by status">
-          {filters.map((id) => <button key={id} type="button" onClick={() => setFilter(id)} aria-pressed={filter === id} className={`min-h-11 flex-1 px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors sm:flex-none sm:min-w-32 ${filter === id ? "bg-ink text-white" : "bg-white text-muted hover:text-ink"}`}>{id} <span className="ml-1 opacity-70">{counts[id]}</span></button>)}
-        </div>
-
-        {visible.length === 0 ? <div className="mt-6 border border-rule bg-white px-6 py-12 text-center">
-          <p className="text-lg font-medium tracking-tight">{items.length === 0 ? "No audit records yet." : `No ${filter.toLowerCase()} records yet.`}</p>
-          <p className="mt-2 text-[13px] leading-5 text-muted">{items.length === 0 ? "Run a sandbox audit to create the first record." : "Try another status filter to see more records."}</p>
-          {items.length === 0 && <Link href="/new" className="mt-6 inline-flex min-h-11 items-center border border-ink px-5 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] hover:bg-ink hover:text-white">Start an audit ↗</Link>}
-        </div> : <>
-          <div className="mt-6 hidden overflow-x-auto border border-rule bg-white md:block">
-            <table className="w-full min-w-[800px] table-fixed border-collapse text-left">
-              <caption className="sr-only">Historical certification records</caption>
-              <colgroup><col className="w-[31%]" /><col className="w-[16%]" /><col className="w-[14%]" /><col className="w-[11%]" /><col className="w-[12%]" /><col className="w-[16%]" /></colgroup>
-              <thead className="border-b border-rule bg-paper font-mono text-[10px] uppercase tracking-[0.08em] text-muted"><tr><th scope="col" className="px-4 py-4 font-medium">Model / record ID</th><th scope="col" className="px-4 py-4 font-medium">Verdict</th><th scope="col" className="px-4 py-4 font-medium">Date</th><th scope="col" className="px-4 py-4 font-medium">Runs</th><th scope="col" className="px-4 py-4 font-medium">Spend</th><th scope="col" className="px-4 py-4 font-medium">P95 / Quality</th></tr></thead>
-              <tbody>{visible.map((item) => {
-                const metric = metrics[item.id] ?? {};
-                return <tr key={item.id} className="group border-b border-rule last:border-b-0 hover:bg-orangeWash/30">
-                  <td className="px-4 py-5"><Link href={isFinished(item) ? `/certificate/${encodeURIComponent(item.id)}` : `/timeline/${encodeURIComponent(item.id)}`} className="block font-medium text-ink hover:text-orangeDeep"><span className="block truncate text-[14px]">{item.candidate || "Unspecified model"}</span><span className="mt-1 block truncate font-mono text-[10px] text-muted">{item.id} <span aria-hidden="true" className="text-orange opacity-0 group-hover:opacity-100">↗</span></span></Link></td>
-                  <td className="px-4 py-5"><Stamp item={item} /></td>
-                  <td className="px-4 py-5 font-mono text-[11px] text-inkSoft">{dateOf(item.created_at)}</td>
-                  <td className="px-4 py-5 font-mono text-[12px]">{metric.count ?? item.experiments ?? "—"}</td>
-                  <td className="px-4 py-5 font-mono text-[12px]">{typeof item.spend === "number" ? `$${item.spend.toFixed(2)}` : "—"}</td>
-                  <td className="px-4 py-5 font-mono text-[11px]">{typeof metric.latency === "number" ? `${Math.round(metric.latency)}ms` : "—"}<span className="mx-1 text-rule">/</span>{typeof metric.quality === "number" ? `${Math.round(metric.quality * 100)}%` : "—"}</td>
-                </tr>;
-              })}</tbody>
-            </table>
+          <div className="kpi-cell">
+            <p className="kpi-label">Shipped</p>
+            <p className="kpi-value mt-1.5 tabular-nums text-ship">{counts.SHIP}</p>
           </div>
-          <div className="mt-6 border-t border-rule md:hidden">{visible.map((item) => {
-            const metric = metrics[item.id] ?? {};
-            return <Link key={item.id} href={isFinished(item) ? `/certificate/${encodeURIComponent(item.id)}` : `/timeline/${encodeURIComponent(item.id)}`} className="block border-b border-rule bg-white px-4 py-5 transition-colors hover:bg-orangeWash/30">
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-[15px] font-medium leading-5">{item.candidate || "Unspecified model"}</p><p className="mt-1 truncate font-mono text-[10px] text-muted">{item.id}</p></div><Stamp item={item} /></div>
-              <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-rule pt-4 font-mono text-[11px]"><div><dt className="mb-1 text-[9px] uppercase tracking-[0.08em] text-muted">Date</dt><dd>{dateOf(item.created_at)}</dd></div><div><dt className="mb-1 text-[9px] uppercase tracking-[0.08em] text-muted">Experiments</dt><dd>{metric.count ?? item.experiments ?? "—"}</dd></div><div><dt className="mb-1 text-[9px] uppercase tracking-[0.08em] text-muted">Spend</dt><dd>{typeof item.spend === "number" ? `$${item.spend.toFixed(2)}` : "—"}</dd></div></dl>
-              <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.08em] text-orangeDeep">{isFinished(item) ? "View record" : "Watch live"} ↗</p>
-            </Link>;
-          })}</div>
-        </>}
-      </section>
-    </div>
-  </main>;
+          <div className="kpi-cell">
+            <p className="kpi-label">Blocked</p>
+            <p className="kpi-value mt-1.5 tabular-nums text-block">{counts.BLOCK}</p>
+          </div>
+          <div className="kpi-cell">
+            <p className="kpi-label">Ledger spent</p>
+            <p className="kpi-value mt-1.5 tabular-nums">
+              ${budget.spend.toFixed(2)}
+              <span className="text-[15px] font-normal text-ink2"> / ${budget.cap.toFixed(2)}</span>
+            </p>
+            <div className={`meter mt-2.5 ${percent >= 90 ? "meter-block" : ""}`} role="progressbar" aria-label="Nebius spend against total budget cap" aria-valuenow={Math.round(percent)} aria-valuemin={0} aria-valuemax={100}>
+              <span style={{ width: `${percent}%` }} />
+            </div>
+          </div>
+        </section>
+
+        {/* Registry */}
+        <section aria-labelledby="registry-heading" className="mt-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <h2 id="registry-heading" className="text-[17px] font-semibold">Registry</h2>
+            <p className="max-w-sm text-[13px] leading-snug text-ink2">
+              Simulated runs are labelled for development and cannot mint production certificates.
+            </p>
+          </div>
+
+          {/* Underline tabs */}
+          <div className="mt-5 border-b border-line" role="group" aria-label="Filter runs by verdict">
+            <div className="flex gap-1 overflow-x-auto">
+              {filters.map((id) => {
+                const active = filter === id;
+                const label = id === "ALL" ? "All" : id === "SIMULATED" ? "Simulated" : id;
+                return (
+                  <button key={id} type="button" onClick={() => setFilter(id)} aria-pressed={active}
+                    className={`relative shrink-0 px-3 pb-2.5 pt-1.5 text-[14px] transition-colors ${active ? "font-medium text-ink" : "text-ink2 hover:text-ink"}`}>
+                    {label} <span className="text-[12.5px] text-ink2 tabular-nums">{counts[id]}</span>
+                    {active && <span aria-hidden="true" className="absolute inset-x-2 bottom-0 h-0.5 bg-ink" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {visible.length === 0 ? (
+            <div className="mt-6 rounded-card border border-line bg-surface px-6 py-14 text-center">
+              <p className="text-[16px] font-medium">{items.length === 0 ? "No runs yet" : `No ${filter === "ALL" ? "" : filter.toLowerCase() + " "}runs here yet`}</p>
+              <p className="mx-auto mt-2 max-w-sm text-[14px] text-ink2">
+                {items.length === 0
+                  ? "Pick a model in the crash-test lab and launch the first certification."
+                  : "Try another verdict tab to see the rest of the registry."}
+              </p>
+              {items.length === 0 && <Link href="/#launch" className="btn btn-primary btn-round mt-6 h-10 px-4 text-sm">Open the crash-test lab</Link>}
+            </div>
+          ) : (
+            <>
+              {/* Desktop table */}
+              <div className="mt-4 hidden overflow-x-auto md:block">
+                <table className="ttable min-w-[840px]">
+                  <caption className="sr-only">Certification records</caption>
+                  <colgroup><col className="w-[30%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[10%]" /><col className="w-[11%]" /><col className="w-[13%]" /><col className="w-[12%]" /></colgroup>
+                  <thead>
+                    <tr>
+                      <th scope="col">Model / record</th>
+                      <th scope="col">Verdict</th>
+                      <th scope="col">Date</th>
+                      <th scope="col" className="!text-right">Exps</th>
+                      <th scope="col" className="!text-right">Spend</th>
+                      <th scope="col" className="!text-right">P95</th>
+                      <th scope="col" className="!text-right">Quality</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.map((item) => {
+                      const metric = metrics[item.id] ?? {};
+                      return (
+                        <tr key={item.id}>
+                          <td>
+                            <Link href={isFinished(item) ? `/certificate/${encodeURIComponent(item.id)}` : `/timeline/${encodeURIComponent(item.id)}`} className="group block max-w-[280px]">
+                              <span className="block truncate text-[14px] font-medium text-ink group-hover:text-accentInk">{item.candidate || "Unspecified model"}</span>
+                              <span className="mono block truncate text-[11.5px] text-ink2">{item.id}</span>
+                            </Link>
+                          </td>
+                          <td><StatusPill status={item.status} simulated={item.simulated} /></td>
+                          <td className="text-ink2">{dateOf(item.created_at)}</td>
+                          <td className="tnum">{metric.count ?? item.experiments ?? "—"}</td>
+                          <td className="tnum">{typeof item.spend === "number" ? `$${item.spend.toFixed(2)}` : "—"}</td>
+                          <td className="tnum">{typeof metric.latency === "number" ? `${Math.round(metric.latency).toLocaleString()} ms` : "—"}</td>
+                          <td className="tnum">{typeof metric.quality === "number" ? `${Math.round(metric.quality * 100)}%` : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile rows */}
+              <div className="mt-2 md:hidden">
+                {visible.map((item) => {
+                  const metric = metrics[item.id] ?? {};
+                  return (
+                    <Link key={item.id} href={isFinished(item) ? `/certificate/${encodeURIComponent(item.id)}` : `/timeline/${encodeURIComponent(item.id)}`}
+                      className="block border-b border-rule py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-[15px] font-medium">{item.candidate || "Unspecified model"}</p>
+                          <p className="mono mt-0.5 truncate text-[11.5px] text-ink2">{item.id}</p>
+                        </div>
+                        <StatusPill status={item.status} simulated={item.simulated} />
+                      </div>
+                      <dl className="mt-3 grid grid-cols-3 gap-3 text-[13px]">
+                        <div><dt className="text-[12px] text-ink2">Date</dt><dd className="mt-0.5">{dateOf(item.created_at)}</dd></div>
+                        <div><dt className="text-[12px] text-ink2">Experiments</dt><dd className="mt-0.5 tabular-nums">{metric.count ?? item.experiments ?? "—"}</dd></div>
+                        <div><dt className="text-[12px] text-ink2">Spend</dt><dd className="mt-0.5 tabular-nums">{typeof item.spend === "number" ? `$${item.spend.toFixed(2)}` : "—"}</dd></div>
+                      </dl>
+                      <p className="mt-3 text-[13px] font-medium text-accentInk">{isFinished(item) ? "View certificate" : "Watch live"} →</p>
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+    </AppShell>
+  );
 }

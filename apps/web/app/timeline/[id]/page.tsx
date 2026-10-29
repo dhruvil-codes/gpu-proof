@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { LiveRegion, StatusPill, TopNav } from "@/components/ui";
+import { AppShell, LiveRegion, StatusPill } from "@/components/ui";
 
 const API = process.env.NEXT_PUBLIC_API || "http://localhost:8000";
 const QUALITY_GATE = 0.85;
@@ -10,7 +10,16 @@ const ERROR_SLA = 0.05;
 
 type Experiment = {
   index: number;
-  plan: { gpu_type: string; precision: string; batch_config: string | number };
+  plan: {
+    model?: string;
+    concurrency?: number;
+    context_len?: number;
+    max_tokens?: number;
+    reason?: string;
+    gpu_type?: string;
+    precision?: string;
+    batch_config?: string | number;
+  };
   job_id: string;
   simulated?: boolean;
   provenance?: string;
@@ -35,36 +44,43 @@ function errPct(x: number): string {
 }
 
 function narrative(e: Experiment): Narrative {
-  if (e.status === "OOM") {
-    return {
-      tone: "bad",
-      badge: "🔴 Memory Capacity Exceeded (48GB VRAM)",
-      summary:
-        "L40S GPU ran out of memory under this model's KV cache. Nemotron Ultra planner diagnosed `MEMORY` failure and escalated to high-capacity 80GB H100.",
-    };
-  }
   const q = e.metrics?.quality_score;
-  if (typeof q === "number" && q < QUALITY_GATE) {
+  const p95 = e.metrics?.latency_p95_ms;
+  const maxTokens = e.plan?.max_tokens ?? 64;
+  const conc = e.plan?.concurrency ?? 16;
+  if (e.status === "QUALITY" || (typeof q === "number" && q < QUALITY_GATE)) {
     return {
       tone: "warn",
-      badge: `🟡 Quality Below SLA Gate (${pct(q)} vs 85% required)`,
+      badge: `Output truncated (${pct(q ?? 0)} quality vs 85% required)`,
       summary:
-        "H100 passed speed tests, but 4-bit compression degraded structured tool accuracy. Planner adapted to FP8 precision with tuned batching.",
+        `Lean output budget (max_tokens=${maxTokens}) truncated structured JSON tool calls. The Nemotron planner diagnosed a QUALITY failure and adapted max_tokens.`,
+    };
+  }
+  if (e.status === "LATENCY" || (typeof p95 === "number" && p95 > LATENCY_SLA_MS)) {
+    return {
+      tone: "bad",
+      badge: `Latency gate breached (P95 ${p95}ms > 2000ms)`,
+      summary:
+        `Concurrency (${conc} parallel streams) saturated endpoint capacity. The Nemotron planner diagnosed a LATENCY breach and throttled concurrency.`,
+    };
+  }
+  if (e.status === "OOM" || e.status === "INFRASTRUCTURE") {
+    return {
+      tone: "bad",
+      badge: "Sandbox execution failure",
+      summary:
+        "The sandbox replay encountered an unexpected failure. The Nemotron classifier diagnosed the issue for recovery.",
     };
   }
   if (typeof q === "number") {
     return {
       tone: "good",
-      badge: "🟢 All Production Gates Passed",
-      summary: `P95 Latency: ${e.metrics.latency_p95_ms}ms, Accuracy: ${pct(q)}, Error Rate: ${errPct(e.metrics.error_rate)}. Candidate meets all production criteria.`,
+      badge: "All production gates passed",
+      summary: `P95 latency ${e.metrics.latency_p95_ms} ms, accuracy ${pct(q)}, error rate ${errPct(e.metrics.error_rate)}. The candidate meets every production criterion.`,
     };
   }
-  return { tone: "pending", badge: "⚪ Awaiting results", summary: "Experiment is still running — metrics will appear here." };
+  return { tone: "pending", badge: "Awaiting results", summary: "The experiment is replaying in the sandbox microVM — metrics will appear here." };
 }
-
-// ---------------------------------------------------------------------------
-// Diagnosis helpers — turn cryptic "Exp N" rows into an explicit Watch Why story
-// ---------------------------------------------------------------------------
 
 function vramFor(gpuType: string): number {
   const g = (gpuType || "").toUpperCase();
@@ -88,55 +104,68 @@ function isLowBit(precision: string): boolean {
 type OutcomeKind = "oom" | "quality" | "pass" | "pending";
 
 function outcomeOf(e: Experiment): { kind: OutcomeKind; pill: string; detail: string } {
-  if (e.status === "OOM") {
-    const cap = vramFor(e.plan.gpu_type);
-    return {
-      kind: "oom",
-      pill: "FAILED — CUDA OUT OF MEMORY",
-      detail: `KV-cache allocation reached ${(cap * 1.075).toFixed(1)}GB / ${cap}GB.`,
-    };
-  }
   const q = e.metrics?.quality_score;
-  if (typeof q === "number" && q < QUALITY_GATE) {
+  const p95 = e.metrics?.latency_p95_ms;
+  const maxTokens = e.plan?.max_tokens ?? 64;
+  const conc = e.plan?.concurrency ?? 16;
+  if (e.status === "QUALITY" || (typeof q === "number" && q < QUALITY_GATE)) {
     return {
       kind: "quality",
-      pill: "FAILED — SCHEMA ACCURACY GATE",
-      detail: `Speed was ${e.metrics.latency_p95_ms}ms, but JSON tool accuracy collapsed to ${pct(q)} vs 85% required.`,
+      pill: "Failed — schema accuracy gate",
+      detail: `Output truncated due to lean max_tokens (${maxTokens}); JSON tool accuracy fell to ${pct(q ?? 0)} against the 85% gate.`,
+    };
+  }
+  if (e.status === "LATENCY" || (typeof p95 === "number" && p95 > LATENCY_SLA_MS)) {
+    return {
+      kind: "oom",
+      pill: "Failed — latency SLA gate",
+      detail: `P95 reached ${p95}ms under ${conc} concurrent streams (threshold 2,000ms).`,
+    };
+  }
+  if (e.status === "OOM") {
+    const cap = vramFor(e.plan.gpu_type || "");
+    return {
+      kind: "oom",
+      pill: "Failed — capacity exceeded",
+      detail: `Resource allocation reached capacity on ${e.plan.gpu_type || "target tier"}.`,
     };
   }
   if (typeof q === "number") {
     return {
       kind: "pass",
-      pill: "PASSED & CERTIFIED",
-      detail: `P95 ${e.metrics.latency_p95_ms}ms, ${pct(q)} tool accuracy, ${errPct(e.metrics.error_rate)} error rate.`,
+      pill: "Passed and certified",
+      detail: `P95 ${e.metrics.latency_p95_ms} ms, ${pct(q)} tool accuracy, ${errPct(e.metrics.error_rate)} error rate.`,
     };
   }
-  return { kind: "pending", pill: "RUNNING…", detail: "Sampling latency, accuracy, and error rate." };
+  return { kind: "pending", pill: "Running…", detail: "Sampling latency, accuracy, and error rate in microVM." };
 }
 
 function stageMeta(e: Experiment): { title: string; hypothesis: string } {
-  const gpu = e.plan.gpu_type;
-  const prec = e.plan.precision;
+  const conc = e.plan?.concurrency ?? 16;
+  const maxTokens = e.plan?.max_tokens ?? 64;
+  const ctx = e.plan?.context_len ?? 4096;
+  const gpu = e.plan?.gpu_type || "TokenFactory";
+  const prec = e.plan?.precision || "FP8";
   if (e.index === 0) {
     return {
-      title: "Cost-Minimum Baseline",
-      hypothesis: `Cheapest viable GPU (${gpu} ${prec}) — can the model fit and serve?`,
+      title: "Cost-minimum envelope",
+      hypothesis: `Cheapest profile (concurrency=${conc}, max_tokens=${maxTokens}) — does structured output complete accurately?`,
     };
   }
-  if (isLowBit(prec)) {
+  if (outcomeOf(e).kind === "quality" || (e.plan?.max_tokens && e.plan.max_tokens > 64)) {
     return {
-      title: "Aggressive Quantization",
-      hypothesis: `Shrink weights to ${prec} on ${gpu} to dodge OOM — does accuracy survive?`,
+      title: "Output budget expansion",
+      hypothesis: `Raise max_tokens to ${maxTokens} to prevent truncation — does structured tool calling recover?`,
     };
   }
   if (outcomeOf(e).kind === "pass") {
     return {
-      title: "Autonomous Sizing Fix",
-      hypothesis: `Right-size to ${gpu} ${prec} with tuned batching — do all gates pass?`,
+      title: "Capacity envelope certified",
+      hypothesis: `Serving profile (concurrency=${conc}, context=${ctx}, max_tokens=${maxTokens}) passes all SLA gates.`,
     };
   }
   return {
-    title: `Adaptive Retry ${e.index + 1}`,
+    title: `Adaptive retry ${e.index + 1}`,
     hypothesis: e.reason || `Planner adaptation on ${gpu} ${prec}.`,
   };
 }
@@ -148,16 +177,15 @@ function sortedExps(exps: Experiment[]): Experiment[] {
 function blockReasons(exps: Experiment[]): string {
   const hasOom = exps.some((e) => outcomeOf(e).kind === "oom");
   const hasQuality = exps.some((e) => outcomeOf(e).kind === "quality");
-  if (hasOom && hasQuality) return "OOM / QUALITY DEGRADATION";
-  if (hasOom) return "OOM — KV-CACHE EXCEEDED VRAM";
-  if (hasQuality) return "QUALITY DEGRADATION — BELOW 85% SLA GATE";
-  return "SLA GATE FAILURE";
+  if (hasOom && hasQuality) return "out of memory and quality degradation";
+  if (hasOom) return "the KV cache exceeded VRAM";
+  if (hasQuality) return "quality fell below the 85% gate";
+  return "an SLA gate failed";
 }
 
-/** Plain-English 1–2 sentence executive summary derived from actual stage data. */
 function executiveSummary(exps: Experiment[], status: string): string {
   if (exps.length === 0) {
-    return "Audit starting — the planner is provisioning the cheapest viable GPU to establish a cost baseline. Live container telemetry will appear below.";
+    return "The run is starting — the planner is provisioning the cheapest viable GPU to establish a cost baseline. Live container telemetry will appear below.";
   }
   const sorted = sortedExps(exps);
   const pass = [...sorted].reverse().find((e) => outcomeOf(e).kind === "pass");
@@ -168,14 +196,14 @@ function executiveSummary(exps: Experiment[], status: string): string {
 
   if (pass) {
     const vram = vramFor(pass.plan.gpu_type);
-    const s1 = `Model requires ${vram}GB VRAM (${pass.plan.gpu_type} ${pass.plan.precision}) to sustain ${pct(pass.metrics.quality_score)} tool accuracy under ${batch} concurrent requests.`;
+    const s1 = `The model needs ${vram} GB of VRAM (${pass.plan.gpu_type} ${pass.plan.precision}) to hold ${pct(pass.metrics.quality_score)} tool accuracy under ${batch} concurrent requests.`;
     const fails: string[] = [];
     if (ooms.length) {
       const o = ooms[0];
-      fails.push(`Nebius ${o.plan.gpu_type} ${vramFor(o.plan.gpu_type)}GB triggered OOM during KV-cache growth`);
+      fails.push(`the ${o.plan.gpu_type} (${vramFor(o.plan.gpu_type)} GB) ran out of memory as the KV cache grew`);
     }
     if (quals.length) {
-      fails.push(`${quals[0].plan.precision} quantization degraded tool schema accuracy below the 85% SLA gate`);
+      fails.push(`${quals[0].plan.precision} quantization degraded tool schema accuracy below the 85% gate`);
     }
     if (fails.length === 0) return s1;
     return `${s1} ${fails.join("; ")}.`;
@@ -183,23 +211,19 @@ function executiveSummary(exps: Experiment[], status: string): string {
   const bits: string[] = [];
   if (ooms.length) {
     const o = ooms[0];
-    bits.push(`${o.plan.gpu_type} ${vramFor(o.plan.gpu_type)}GB ran out of memory during KV-cache growth`);
+    bits.push(`${o.plan.gpu_type} (${vramFor(o.plan.gpu_type)} GB) ran out of memory during KV-cache growth`);
   }
   if (quals.length) {
     const q = quals[0];
     bits.push(
-      `${q.plan.precision} quantization held speed at ${q.metrics?.latency_p95_ms}ms but collapsed tool accuracy to ${pct(q.metrics?.quality_score)} vs the 85% gate`
+      `${q.plan.precision} quantization held speed at ${q.metrics?.latency_p95_ms} ms but collapsed tool accuracy to ${pct(q.metrics?.quality_score)} against the 85% gate`
     );
   }
   if (status === "BLOCK") {
-    return `Model is blocked from production: ${bits.join("; ") || "one or more SLA gates failed"}. Right-size VRAM or restore FP8 precision before re-audit.`;
+    return `Blocked from production: ${bits.join("; ") || "one or more SLA gates failed"}. Right-size VRAM or restore FP8 precision before re-running.`;
   }
-  return `Audit in progress (${sorted.length} stage${sorted.length > 1 ? "s" : ""} so far) — ${bits.join("; ") || "establishing the cost baseline"}. The planner is adapting GPU sizing and precision toward all-green gates.`;
+  return `In progress (${sorted.length} stage${sorted.length > 1 ? "s" : ""} so far) — ${bits.join("; ") || "establishing the cost baseline"}. The planner is adapting GPU sizing and precision toward all-green gates.`;
 }
-
-// ---------------------------------------------------------------------------
-// 1. Executive Verdict Banner (The Bottom Line)
-// ---------------------------------------------------------------------------
 
 function VerdictBanner({ status, exps, simulated }: { status: string; exps: Experiment[]; simulated?: boolean | null }) {
   const summary = executiveSummary(exps, status);
@@ -208,61 +232,39 @@ function VerdictBanner({ status, exps, simulated }: { status: string; exps: Expe
   const cert = pass ?? sorted[sorted.length - 1];
 
   if (status === "SHIP") {
-    const hw = cert ? `NEBIUS ${cert.plan.gpu_type} ${cert.plan.precision} CERTIFIED` : "NEBIUS H100 FP8 CERTIFIED";
+    const hw = cert ? `certified on Nebius ${cert.plan.gpu_type} ${cert.plan.precision}` : "";
     return (
-      <section
-        role="status"
-        aria-label="Executive verdict: ready to ship"
-        className="mt-6 rounded-sm border-2 border-ship bg-ship p-5 text-white  md:p-6"
-      >
-        <p className="text-[11px] font-bold uppercase tracking-widest text-white/75">The Bottom Line</p>
-        <p className="mt-1 text-lg font-bold leading-tight tracking-tight md:text-xl">
-          ✅ VERDICT: READY TO SHIP TO PRODUCTION ({hw})
-        </p>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/90">{summary}</p>
-        {simulated && (
-          <p className="mt-2 inline-block rounded-sm border border-white/40 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider">
-            Simulated run — dev-grade evidence
-          </p>
-        )}
+      <section role="status" aria-label="Verdict: ready to ship" className="mt-8 rounded-card bg-ship p-5 text-white md:p-6">
+        <p className="verdict text-[clamp(1.6rem,2.6vw,2.2rem)] leading-none">SHIP</p>
+        <p className="mt-2 text-[14px] font-medium">{hw ? `Ready for production — ${hw}.` : "Ready for production."}</p>
+        <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-white/85">{summary}</p>
+        {simulated && <p className="mt-3 inline-block rounded-full bg-white/15 px-3 py-1 text-[12px] font-medium">Simulated run — dev-grade evidence</p>}
       </section>
     );
   }
 
   if (status === "BLOCK") {
     return (
-      <section
-        role="status"
-        aria-label="Executive verdict: blocked from production"
-        className="mt-6 rounded-sm border-2 border-block bg-block p-5 text-white  md:p-6"
-      >
-        <p className="text-[11px] font-bold uppercase tracking-widest text-white/75">The Bottom Line</p>
-        <p className="mt-1 text-lg font-bold leading-tight tracking-tight md:text-xl">
-          ❌ VERDICT: BLOCKED FROM PRODUCTION ({blockReasons(sorted)})
-        </p>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/90">{summary}</p>
+      <section role="status" aria-label="Verdict: blocked from production" className="mt-8 rounded-card bg-block p-5 text-white md:p-6">
+        <p className="verdict text-[clamp(1.6rem,2.6vw,2.2rem)] leading-none">BLOCK</p>
+        <p className="mt-2 text-[14px] font-medium">Blocked from production — {blockReasons(sorted)}.</p>
+        <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-white/85">{summary}</p>
       </section>
     );
   }
 
   return (
-    <section
-      role="status"
-      aria-label="Executive verdict: audit in progress"
-      className="mt-6 rounded-sm border-2 border-ink bg-ink p-5 text-canvas  md:p-6"
-    >
-      <p className="text-[11px] font-bold uppercase tracking-widest text-canvas/60">The Bottom Line</p>
-      <p className="mt-1 text-lg font-bold leading-tight tracking-tight md:text-xl">
-        ◌ VERDICT PENDING — AUDIT IN PROGRESS{sorted.length > 0 ? ` (STAGE ${sorted.length} COMPLETE)` : ""}
+    <section role="status" aria-label="Verdict pending" className="mt-8 rounded-card bg-ink p-5 text-[#F1F1ED] md:p-6">
+      <p className="flex items-center gap-3 text-[14px] font-medium">
+        <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
+        Verdict pending{sorted.length > 0 ? ` — ${sorted.length} stage${sorted.length > 1 ? "s" : ""} complete` : ""}
       </p>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-canvas/85">{summary}</p>
+      <p className="mt-2 max-w-2xl text-[13.5px] leading-relaxed text-[#F1F1ED]/80">{summary}</p>
     </section>
   );
 }
 
-// ---------------------------------------------------------------------------
-// 3. Telemetry drawer pieces — memory waterfall, SLA gates, container logs
-// ---------------------------------------------------------------------------
+/* ——— Telemetry drawer pieces ——— */
 
 function MemoryWaterfall({ e }: { e: Experiment }) {
   const cap = vramFor(e.plan.gpu_type);
@@ -291,48 +293,29 @@ function MemoryWaterfall({ e }: { e: Experiment }) {
 
   return (
     <div aria-label="Memory waterfall">
-      <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">OOM autopsy / schematic memory pressure</p>
+      <p className="text-[13px] font-medium">Memory pressure (schematic)</p>
       <div
         role="img"
-        aria-label={
-          oom
-            ? `Illustrative allocation beyond ${cap}GB capacity after KV-cache growth`
-            : `Illustrative allocation within ${cap}GB capacity`
-        }
-        className="mt-2 flex h-4 w-full overflow-hidden rounded-sm border border-ink/30 bg-canvas"
+        aria-label={oom ? `Illustrative allocation beyond ${cap}GB capacity after KV-cache growth` : `Illustrative allocation within ${cap}GB capacity`}
+        className="mt-2 flex h-4 w-full overflow-hidden rounded-full border border-line bg-raised"
       >
         <span className="h-full bg-ink/70" style={{ width: `${wPct}%` }} title={`Model weights ${weights.toFixed(1)}GB`} />
-        <span
-          className={`h-full ${oom ? "bg-block" : "bg-ship"}`}
-          style={{ width: `${kPct}%` }}
-          title={`KV-cache ${kv.toFixed(1)}GB`}
-        />
-        <span className="h-full bg-muted/60" style={{ width: `${oPct}%` }} title={`Overhead ${over.toFixed(1)}GB`} />
+        <span className={`h-full ${oom ? "bg-block" : "bg-ship"}`} style={{ width: `${kPct}%` }} title={`KV-cache ${kv.toFixed(1)}GB`} />
+        <span className="h-full bg-[#C9C8C1]" style={{ width: `${oPct}%` }} title={`Overhead ${over.toFixed(1)}GB`} />
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
-        <span>
-          <span aria-hidden="true" className="mr-1 inline-block h-2 w-2 rounded-sm bg-ink/70" />
-          Weights {weights.toFixed(1)}GB
-        </span>
-        <span>
-          <span aria-hidden="true" className={`mr-1 inline-block h-2 w-2 rounded-sm ${oom ? "bg-block" : "bg-ship"}`} />
-          KV-cache {kv.toFixed(1)}GB
-        </span>
-        <span>
-          <span aria-hidden="true" className="mr-1 inline-block h-2 w-2 rounded-sm bg-muted/60" />
-          Overhead {over.toFixed(1)}GB
-        </span>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-ink2 tabular-nums">
+        <span><span aria-hidden="true" className="mr-1 inline-block h-2 w-2 rounded-full bg-ink/70" />Weights {weights.toFixed(1)} GB</span>
+        <span><span aria-hidden="true" className={`mr-1 inline-block h-2 w-2 rounded-full ${oom ? "bg-block" : "bg-ship"}`} />KV cache {kv.toFixed(1)} GB</span>
+        <span><span aria-hidden="true" className="mr-1 inline-block h-2 w-2 rounded-full bg-[#C9C8C1]" />Overhead {over.toFixed(1)} GB</span>
       </div>
       {oom ? (
-        <p className="mt-1.5 inline-block rounded-sm bg-block px-2 py-0.5 text-[11px] font-bold text-white">
-          ESTIMATED PRESSURE / {cap}GB LIMIT — CUDA OOM
+        <p className="mt-2 inline-block rounded-full bg-blockWash px-2.5 py-1 text-[12px] font-medium text-blockDeep">
+          Estimated pressure at the {cap} GB limit — CUDA OOM
         </p>
       ) : (
-        <p className="mt-1.5 text-[12px]">
-          Illustrative allocation <b className="font-mono">{usedPct}% of {cap}GB</b>. See runtime logs for measured values.
-        </p>
+        <p className="mt-2 text-[12.5px] text-ink2">Illustrative allocation, {usedPct}% of {cap} GB. Runtime logs hold the measured values.</p>
       )}
-      <p className="mt-2 font-mono text-[10px] text-muted">Segment sizes are schematic; the API does not report per-component VRAM or the exact breach token.</p>
+      <p className="mt-1.5 text-[11.5px] text-faint">Segment sizes are schematic; the API does not report per-component VRAM or the exact breach token.</p>
     </div>
   );
 }
@@ -343,45 +326,37 @@ function SlaGates({ e }: { e: Experiment }) {
   if (!measurable) {
     return (
       <div aria-label="SLA gate status">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-muted">SLA gate status</p>
-        <p className="mt-1.5 rounded-sm border border-dashed border-ink/30 p-2 text-[12px] text-muted">
-          No gate sampling — job hit CUDA OOM before latency / accuracy / error metrics could be recorded.
+        <p className="text-[13px] font-medium">SLA gates</p>
+        <p className="mt-2 rounded-control bg-raised px-3 py-2 text-[13px] text-ink2">
+          No gate sampling — the job hit CUDA OOM before latency, accuracy, and error metrics could be recorded.
         </p>
       </div>
     );
   }
   const rows = [
     {
-      gate: "P95 latency < 2,000ms",
-      observed: `${m.latency_p95_ms}ms`,
+      gate: "P95 latency ≤ 2,000 ms",
+      observed: `${m.latency_p95_ms} ms`,
       pass: typeof m.latency_p95_ms === "number" ? m.latency_p95_ms <= LATENCY_SLA_MS : null,
     },
-    {
-      gate: "Tool accuracy ≥ 85%",
-      observed: pct(m.quality_score),
-      pass: m.quality_score >= QUALITY_GATE,
-    },
-    {
-      gate: "Error rate ≤ 5%",
-      observed: errPct(m.error_rate),
-      pass: typeof m.error_rate === "number" ? m.error_rate <= ERROR_SLA : null,
-    },
+    { gate: "Tool accuracy ≥ 85%", observed: pct(m.quality_score), pass: m.quality_score >= QUALITY_GATE },
+    { gate: "Error rate ≤ 5%", observed: errPct(m.error_rate), pass: typeof m.error_rate === "number" ? m.error_rate <= ERROR_SLA : null },
   ];
   return (
     <div aria-label="SLA gate status">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-muted">SLA gate status</p>
-      <ul className="mt-1.5 space-y-1.5">
+      <p className="text-[13px] font-medium">SLA gates</p>
+      <ul className="mt-2 space-y-1.5">
         {rows.map((r) => (
-          <li key={r.gate} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-ink/20 bg-canvas px-2 py-1.5 text-[12px]">
-            <span className="font-bold">{r.gate}</span>
-            <span className="flex items-center gap-2">
-              <span className="font-mono text-muted">{r.observed}</span>
+          <li key={r.gate} className="flex flex-wrap items-center justify-between gap-2 rounded-control bg-raised px-3 py-2 text-[13px]">
+            <span className="font-medium">{r.gate}</span>
+            <span className="flex items-center gap-2.5">
+              <span className="mono text-ink2 tabular-nums">{r.observed}</span>
               {r.pass === null ? (
-                <span className="text-muted">—</span>
+                <span className="text-faint">—</span>
               ) : r.pass ? (
-                <span className="rounded-sm bg-ship px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Passed</span>
+                <span className="pill pill-ship">Passed</span>
               ) : (
-                <span className="rounded-sm bg-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Failed</span>
+                <span className="pill pill-block">Failed</span>
               )}
             </span>
           </li>
@@ -394,24 +369,19 @@ function SlaGates({ e }: { e: Experiment }) {
 function StageTelemetry({ e }: { e: Experiment }) {
   return (
     <div aria-label="Container logs">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-muted">Container logs</p>
-      <div className="mt-1.5 space-y-1 rounded-sm border border-ink/20 bg-canvas p-2 font-mono text-[11px] leading-relaxed">
-        <p>
-          <span className="text-muted">planner reason:</span> {e.reason}
-        </p>
+      <p className="text-[13px] font-medium">Container logs</p>
+      <div className="term mt-2 space-y-1 p-3">
+        <p><span className="text-termMuted">planner reason:</span> {e.reason}</p>
         {e.classifier && (
-          <p className="text-muted">
-            classifier: {e.classifier.failure} → {e.classifier.action} · {e.classifier.reason}
-          </p>
+          <p className="text-termMuted">classifier: {e.classifier.failure} → {e.classifier.action} · {e.classifier.reason}</p>
         )}
         <p>
-          status {e.status} · verdict {e.verdict} · p95 {e.metrics?.latency_p95_ms}ms · q {e.metrics?.quality_score} · err{" "}
-          {e.metrics?.error_rate}
+          status {e.status} · verdict {e.verdict} · p95 {e.metrics?.latency_p95_ms} ms · q {e.metrics?.quality_score} · err {e.metrics?.error_rate}
         </p>
         {e.log ? (
-          <pre className="max-h-40 overflow-auto border-t border-ink/20 pt-2">{e.log.slice(-1500)}</pre>
+          <pre className="max-h-44 overflow-auto border-t border-termRule pt-2 whitespace-pre-wrap break-words">{e.log.slice(-1500)}</pre>
         ) : (
-          <p className="border-t border-ink/20 pt-2 text-muted">No container log lines captured for this stage yet.</p>
+          <p className="border-t border-termRule pt-2 text-termMuted">No container log lines captured for this stage yet.</p>
         )}
       </div>
     </div>
@@ -420,14 +390,14 @@ function StageTelemetry({ e }: { e: Experiment }) {
 
 function CopyId({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
-  return <button type="button" onClick={async () => {
-    try { await navigator.clipboard.writeText(value); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setCopied(false); }
-  }} className="min-h-11 border border-rule px-3 font-mono text-[10px] uppercase tracking-[0.08em] hover:border-orange hover:text-orange">{copied ? "COPIED ✓" : `COPY ${label}`}</button>;
+  return (
+    <button type="button" onClick={async () => {
+      try { await navigator.clipboard.writeText(value); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setCopied(false); }
+    }} className="btn btn-ghost btn-round h-8 shrink-0 px-2.5 text-[12px]">{copied ? "Copied" : `Copy ${label}`}</button>
+  );
 }
 
-// ---------------------------------------------------------------------------
-// 2. "Watch Why" Diagnostic Journey — Transitions.dev collapsible accordions
-// ---------------------------------------------------------------------------
+/* ——— Stage cards ——— */
 
 function StageCard({
   e,
@@ -447,90 +417,82 @@ function StageCard({
   const meta = stageMeta(e);
   const o = outcomeOf(e);
   const n = narrative(e);
-  const vram = vramFor(e.plan.gpu_type);
+  const vram = vramFor(e.plan.gpu_type || "");
   const panelId = `stage-panel-${e.index}`;
   const btnId = `stage-btn-${e.index}`;
 
-  const ring =
-    o.kind === "oom"
-      ? "border-l-4 border-l-block"
-      : o.kind === "quality"
-        ? "border-l-4 border-l-[#B8860B]"
-        : o.kind === "pass"
-          ? "border-l-4 border-l-ship"
-          : "border-l-4 border-l-muted";
-  const dot = o.kind === "pass" ? "bg-ship" : o.kind === "oom" ? "bg-block" : o.kind === "quality" ? "bg-[#B8860B]" : "bg-muted";
-  const pill =
-    o.kind === "pass"
-      ? "bg-ship text-white"
-      : o.kind === "oom"
-        ? "bg-block text-white"
-        : o.kind === "quality"
-          ? "bg-[#B8860B] text-white"
-          : "bg-ink/10 text-ink";
+  const edge = o.kind === "oom" ? "border-l-block" : o.kind === "quality" ? "border-l-warn" : o.kind === "pass" ? "border-l-ship" : "border-l-[#C9C8C1]";
+  const dot = o.kind === "pass" ? "bg-ship" : o.kind === "oom" ? "bg-block" : o.kind === "quality" ? "bg-warn" : "bg-[#C9C8C1]";
+  const toneOf = (t: Narrative["tone"]) => (t === "bad" ? "text-blockDeep" : t === "warn" ? "text-warn" : t === "good" ? "text-ship" : "text-ink2");
+
+  const planDesc = e.plan.concurrency
+    ? `concurrency=${e.plan.concurrency} · max_tokens=${e.plan.max_tokens} · context=${e.plan.context_len || 4096}`
+    : `${e.plan.gpu_type} ${vram} GB ${e.plan.precision}`;
 
   return (
-    <li className="relative pl-8">
-      {/* timeline rail */}
-      <span aria-hidden="true" className="absolute bottom-0 left-[9px] top-0 w-px bg-ink/20" />
-      <span aria-hidden="true" className={`absolute left-[3px] top-6 h-[13px] w-[13px] rounded-sm border-2 border-canvas ${dot}`} />
-      <div className={`panel rounded-sm ${ring}`}>
+    <li className="relative pl-7">
+      <span aria-hidden="true" className={`absolute bottom-0 left-[5px] top-0 w-px bg-line ${isLatest ? "" : ""}`} />
+      <span aria-hidden="true" className={`absolute left-0 top-6 h-[11px] w-[11px] rounded-full border-2 border-surface ${dot}`} />
+      <div className={`rounded-card border border-line border-l-[3px] bg-surface ${edge}`}>
         <button
           type="button"
           id={btnId}
           aria-expanded={open}
           aria-controls={panelId}
           onClick={onToggle}
-          className="gp-chip flex w-full cursor-pointer items-start gap-3 p-4 text-left"
+          className="flex w-full cursor-pointer items-start gap-3 p-4 text-left sm:p-5"
         >
-          <span className="gp-chevron gp-chevron-right mt-1" data-open={open} aria-hidden="true">
-            <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <path
-                fillRule="evenodd"
-                d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </span>
+          <svg className={`mt-0.5 h-4 w-4 shrink-0 text-ink2 transition-transform duration-200 ${open ? "rotate-90" : ""}`} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+          </svg>
           <span className="min-w-0 flex-1">
-            <span className="block text-[10px] font-bold uppercase tracking-widest text-muted">
-              Stage {stageNo} of {total} · {meta.title}
-              {isLatest ? " · Latest" : ""}
+            <span className="block text-[12.5px] text-ink2">
+              Stage {stageNo} of {total} · {meta.title}{isLatest ? " · latest" : ""}
             </span>
-            <span className="mt-0.5 block text-[14px] font-bold leading-snug tracking-tight">
-              Stage {stageNo}: {meta.title} ({e.plan.gpu_type} {vram}GB {e.plan.precision}) → {o.kind === "pass" ? "PASSED" : o.kind === "pending" ? "RUNNING" : "FAILED"}
+            <span className="mt-0.5 block text-[15px] font-semibold leading-snug">
+              {planDesc} → {o.kind === "pass" ? "passed" : o.kind === "pending" ? "running" : "failed"}
             </span>
-            <span className="mt-0.5 block text-[12px] leading-relaxed text-muted">{meta.hypothesis}</span>
+            <span className="mt-0.5 block text-[13px] leading-relaxed text-ink2">{meta.hypothesis}</span>
             <span className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className={`rounded-sm px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${pill}`}>{o.pill}</span>
-              <span className="rounded-sm border border-ink/25 px-2 py-0.5 font-mono text-[10px] text-muted" title={e.sandbox?.operation_id ? `sandbox op ${e.sandbox.operation_id} · image ${e.sandbox.image_uuid || "disposable"} · job ${e.job_id}` : `job ${e.job_id}`}>
-                {e.plan.gpu_type} · {e.plan.precision} · batch {String(e.plan.batch_config)} · sandbox {(e.sandbox?.operation_id || e.job_id).slice(0, 12)}
-                {e.provenance === "sandbox-measured" ? " · PROVEN" : e.simulated ? " · SIM" : ""}
+              <span className={`pill ${o.kind === "pass" ? "pill-ship" : o.kind === "oom" ? "pill-block" : o.kind === "quality" ? "pill-warn" : "pill-neutral"}`}>{o.pill}</span>
+              <span className="mono rounded-full bg-raised px-2.5 py-1 text-[11px] text-ink2" title={e.sandbox?.operation_id ? `sandbox op ${e.sandbox.operation_id} · image ${e.sandbox.image_uuid || "disposable"} · job ${e.job_id}` : `job ${e.job_id}`}>
+                {e.plan.concurrency ? `concurrency ${e.plan.concurrency} · max_tokens ${e.plan.max_tokens}` : `${e.plan.gpu_type} · ${e.plan.precision}`} · op {(e.sandbox?.operation_id || e.job_id).slice(0, 12)}
+                {e.provenance === "sandbox-measured" ? " · sandbox-measured" : e.simulated ? " · sim" : ""}
               </span>
             </span>
-            <span className="mt-1.5 block text-[12px] font-semibold text-ink/80">{o.detail}</span>
+            <span className="mt-1.5 block text-[13px] font-medium">{o.detail}</span>
           </span>
         </button>
-        {/* Telemetry drawer */}
-        <div id={panelId} role="region" aria-labelledby={btnId} className="gp-accordion" data-open={open}>
-          <div className="gp-accordion-inner">
-            <div className="space-y-4 border-t border-ink/15 px-4 pb-4 pt-3">
+        <div id={panelId} role="region" aria-labelledby={btnId} className="acc" data-open={open}>
+          <div className="acc-inner">
+            <div className="space-y-4 border-t border-rule px-4 pb-5 pt-4 sm:px-5">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-widest text-muted">Watch why</p>
-                <p className="mt-1 inline-block rounded-sm px-2 py-1 text-[12px] font-bold">{n.badge}</p>
-                <p className="mt-1 text-[12px] leading-relaxed">{n.summary}</p>
+                <p className="text-[13px] font-medium">Watch why</p>
+                <p className={`mt-1 text-[13px] font-semibold ${toneOf(n.tone)}`}>{n.badge}</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-ink2">{n.summary}</p>
                 {e.classifier && (
-                  <p className="mt-1 text-[12px] text-muted">
-                    Planner next step: <b>{e.classifier.action}</b> — {e.classifier.reason}
+                  <p className="mt-1 text-[13px] text-ink2">
+                    Planner next step: <strong className="font-medium text-ink">{e.classifier.action}</strong> — {e.classifier.reason}
                   </p>
                 )}
               </div>
               <MemoryWaterfall e={e} />
               <SlaGates e={e} />
-              <div className="border-t border-rule pt-4 font-mono text-[11px]"><p className="mb-3 uppercase tracking-[0.08em] text-muted">MicroVM operation receipt</p>
-                <div className="flex flex-wrap items-center justify-between gap-2"><span className="break-all">OPERATION / {e.sandbox?.operation_id || e.job_id}</span><CopyId label="OP ID" value={e.sandbox?.operation_id || e.job_id} /></div>
-                {e.sandbox?.image_uuid && <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><span className="break-all">IMAGE / {e.sandbox.image_uuid}</span><CopyId label="IMAGE ID" value={e.sandbox.image_uuid} /></div>}
-                <p className="mt-2 text-muted">{e.provenance === "sandbox-measured" ? "NEBIUS SANDBOX / MEASURED" : e.simulated ? "SIMULATED / DEV GRADE" : "PROVENANCE NOT REPORTED"}</p>
+              <div>
+                <p className="text-[13px] font-medium">MicroVM operation receipt</p>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-control bg-raised px-3 py-2">
+                  <span className="mono break-all text-[12px]">{e.sandbox?.operation_id || e.job_id}</span>
+                  <CopyId label="op ID" value={e.sandbox?.operation_id || e.job_id} />
+                </div>
+                {e.sandbox?.image_uuid && (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-control bg-raised px-3 py-2">
+                    <span className="mono break-all text-[12px]">{e.sandbox.image_uuid}</span>
+                    <CopyId label="image ID" value={e.sandbox.image_uuid} />
+                  </div>
+                )}
+                <p className="mt-2 text-[12.5px] text-ink2">
+                  {e.provenance === "sandbox-measured" ? "Nebius sandbox — measured" : e.simulated ? "Simulated — dev grade" : "Provenance not reported"}
+                </p>
               </div>
               <StageTelemetry e={e} />
             </div>
@@ -547,8 +509,8 @@ function DiagnosticJourney({ exps }: { exps: Experiment[] }) {
 
   if (sorted.length === 0) {
     return (
-      <div className="panel animate-pulse rounded-sm p-6 text-sm text-muted">
-        Provisioning first experiment… planner → policy → sandbox run.
+      <div className="rounded-card border border-line bg-surface p-6 text-[14px] text-ink2">
+        Provisioning the first experiment… planner → policy → sandbox run.
       </div>
     );
   }
@@ -559,39 +521,20 @@ function DiagnosticJourney({ exps }: { exps: Experiment[] }) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[12px] text-muted">
+        <p className="max-w-xl text-[13.5px] text-ink2">
           Each stage is a planner hypothesis, not a random retry. Expand any stage for memory, gates, and container logs.
         </p>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setOpen(Object.fromEntries(sorted.map((e) => [e.index, true])))}
-            disabled={allOpen}
-            className="gp-chip cursor-pointer rounded-sm border border-ink/30 px-2 py-1 text-[11px] font-bold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-default disabled:opacity-40"
-          >
-            Expand all
-          </button>
-          <button
-            type="button"
-            onClick={() => setOpen({})}
-            disabled={sorted.every((e) => !isOpen(e.index))}
-            className="gp-chip cursor-pointer rounded-sm border border-ink/30 px-2 py-1 text-[11px] font-bold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-default disabled:opacity-40"
-          >
-            Collapse all
-          </button>
+          <button type="button" onClick={() => setOpen(Object.fromEntries(sorted.map((e) => [e.index, true])))} disabled={allOpen}
+            className="btn btn-ghost btn-round h-8 px-3 text-[12.5px] disabled:opacity-40">Expand all</button>
+          <button type="button" onClick={() => setOpen({})} disabled={sorted.every((e) => !isOpen(e.index))}
+            className="btn btn-ghost btn-round h-8 px-3 text-[12.5px] disabled:opacity-40">Collapse all</button>
         </div>
       </div>
-      <ol aria-label="Diagnostic journey" className="mt-3 space-y-3">
+      <ol aria-label="Diagnostic journey" className="mt-5 space-y-3">
         {sorted.map((e, i) => (
-          <StageCard
-            key={e.index}
-            e={e}
-            stageNo={i + 1}
-            total={sorted.length}
-            open={isOpen(e.index)}
-            onToggle={() => setOpen((p) => ({ ...p, [e.index]: !isOpen(e.index) }))}
-            isLatest={i === sorted.length - 1}
-          />
+          <StageCard key={e.index} e={e} stageNo={i + 1} total={sorted.length} open={isOpen(e.index)}
+            onToggle={() => setOpen((p) => ({ ...p, [e.index]: !isOpen(e.index) }))} isLatest={i === sorted.length - 1} />
         ))}
       </ol>
     </div>
@@ -604,60 +547,36 @@ function Stepper({ status, expCount }: { status: string; expCount: number }) {
   const finished = status !== "RUNNING" && status !== "CREATED";
   const running = !finished;
   const steps: { label: string; state: StepState }[] = [
-    { label: "Workload Twin Ready", state: "done" },
-    { label: "Autonomous GPU Benchmarking", state: finished ? "done" : "active" },
-    { label: "Deterministic Quality & SLA Audit", state: finished ? "done" : expCount > 0 ? "active" : "pending" },
-    { label: "Certificate Verdict", state: finished ? "done" : "pending" },
+    { label: "Workload twin ready", state: "done" },
+    { label: "Sandbox benchmarking", state: finished ? "done" : "active" },
+    { label: "Quality and SLA audit", state: finished ? "done" : expCount > 0 ? "active" : "pending" },
+    { label: "Certificate verdict", state: finished ? "done" : "pending" },
   ];
   const doneCount = steps.filter((s) => s.state === "done").length;
   const progressPct = Math.round((doneCount / steps.length) * 100);
   return (
-    <div className="mt-6">
-      <div
-        role="progressbar"
-        aria-label="Audit completion"
-        aria-valuemin={0}
-        aria-valuemax={steps.length}
-        aria-valuenow={doneCount}
-        className="mb-2 h-1 overflow-hidden rounded-sm bg-ink/10"
-      >
-        <div
-          aria-hidden="true"
-          className="h-full rounded-sm bg-ship transition-[width] duration-500 ease-out"
-          style={{ width: `${progressPct}%` }}
-        />
+    <div className="mt-8">
+      <div role="progressbar" aria-label="Run completion" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={doneCount} className="meter meter-ship">
+        <span style={{ width: `${progressPct}%`, transition: "width 500ms var(--ease)" }} />
       </div>
-      <ol aria-label="Audit progress" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <ol aria-label="Run progress" className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
         {steps.map((s, i) => (
-          <li
-            key={s.label}
-            aria-current={s.state === "active" ? "step" : undefined}
-            className={`gp-step rounded-sm border p-3 text-left ${s.state === "active" ? "gp-step-running border-2 border-ink bg-ink text-canvas" : s.state === "done" ? "border-ink bg-[#F5F1E9]" : "border-ink/30 bg-transparent text-muted"}`}
-          >
-            <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest">
+          <li key={s.label} aria-current={s.state === "active" ? "step" : undefined}>
+            <p className={`flex items-center gap-2 text-[13px] font-medium ${s.state === "pending" ? "text-faint" : "text-ink"}`}>
               {s.state === "done" ? (
-                <span key={`done-${i}`} aria-hidden="true" className="gp-pop inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-ship text-white">
-                  <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
-                    <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
-                  </svg>
+                <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ship text-white">
+                  <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor"><path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" /></svg>
                 </span>
               ) : s.state === "active" ? (
-                <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
-                  {running && i === 1 ? (
-                    <span className="inline-block h-4 w-4 animate-spin rounded-sm border-2 border-canvas/30 border-t-canvas" />
-                  ) : (
-                    <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-sm bg-canvas" />
-                  )}
-                </span>
+                <span aria-hidden="true" className={`pulse-dot inline-block h-2.5 w-2.5 shrink-0 rounded-full ${running && i === 1 ? "bg-accent text-accent" : "bg-ink"}`} />
               ) : (
-                <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-current text-[11px] tabular-nums leading-none">{i + 1}</span>
+                <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-line text-[11px] tabular-nums text-faint">{i + 1}</span>
               )}
-              Step {i + 1}
-            </span>
-            <span className="mt-1 block text-[12px] font-bold leading-snug">{s.label}</span>
-            <span className={`mt-0.5 block text-[11px] ${s.state === "active" ? "text-canvas/70" : "text-muted"}`}>
+              {s.label}
+            </p>
+            <p className={`mt-0.5 pl-7 text-[12px] ${s.state === "pending" ? "text-faint" : "text-ink2"}`}>
               {s.state === "done" ? "Complete" : s.state === "active" ? (running && i === 1 ? "Running…" : "In progress…") : "Pending"}
-            </span>
+            </p>
           </li>
         ))}
       </ol>
@@ -665,7 +584,7 @@ function Stepper({ status, expCount }: { status: string; expCount: number }) {
   );
 }
 
-// --- Live Telemetry Terminal ---
+/* ——— Live telemetry terminal ——— */
 
 type TeleLine = { key: number; time: string; tag: string; step: string; line: string; index: number };
 
@@ -686,13 +605,11 @@ function normalizeTag(tag: unknown, step: string): string {
 
 function tagColor(tag: string): string {
   const t = tag.toUpperCase();
-  if (t === "NEBIUS") return "text-inverseMuted";
-  if (t === "VLLM") return "text-orange";
-  if (t === "VRAM") return "text-orange";
-  if (t === "PLANNER") return "text-ship";
-  if (t === "OOM" || t === "WARN" || t === "ERROR") return "text-block";
-  if (t === "POLICY") return "text-orange";
-  return "text-zinc-400";
+  if (t === "NEBIUS") return "text-[#A6A69E]";
+  if (t === "VLLM" || t === "VRAM" || t === "POLICY") return "text-[#FF9B70]";
+  if (t === "PLANNER") return "text-[#7FD7A8]";
+  if (t === "OOM" || t === "WARN" || t === "ERROR") return "text-[#FF8A7A]";
+  return "text-[#A6A69E]";
 }
 
 function nowTime(): string {
@@ -707,6 +624,7 @@ export default function Timeline({ params }: { params: { id: string } }) {
   const [exps, setExps] = useState<Experiment[]>([]);
   const [status, setStatus] = useState("RUNNING");
   const [sim, setSim] = useState<boolean | null>(null);
+  const [candidate, setCandidate] = useState<string | null>(null);
   const [live, setLive] = useState("Connecting to live run events.");
   const [teleLines, setTeleLines] = useState<TeleLine[]>([]);
   const [follow, setFollow] = useState(true);
@@ -756,14 +674,14 @@ export default function Timeline({ params }: { params: { id: string } }) {
         }
         if (e.type === "plan") {
           setLive(`Experiment ${e.index + 1} planned: ${e.plan.gpu_type} ${e.plan.precision}. ${e.plan.reason}`);
-          pushLine("PLANNER", "diagnosis", `🧠 Planned exp ${e.index + 1}: ${e.plan.gpu_type} ${e.plan.precision} batch ${e.plan.batch_config} — ${e.plan.reason}`, e.index ?? -1);
+          pushLine("PLANNER", "diagnosis", `Planned exp ${e.index + 1}: ${e.plan.gpu_type} ${e.plan.precision} batch ${e.plan.batch_config} — ${e.plan.reason}`, e.index ?? -1);
         }
         if (e.type === "policy") setLive(e.allowed ? `Policy approved experiment ${e.index + 1} (est $${e.estimated_cost}).` : `Policy refused: ${e.reasons.join("; ")}`);
         if (e.type === "policy") {
           pushLine(
             e.allowed ? "POLICY" : "WARN",
             "provision",
-            e.allowed ? `✅ Policy approved exp ${e.index + 1} (est $${e.estimated_cost}).` : `⛔ Policy refused exp ${e.index + 1}: ${(e.reasons || []).join("; ")}`,
+            e.allowed ? `Policy approved exp ${e.index + 1} (est $${e.estimated_cost}).` : `Policy refused exp ${e.index + 1}: ${(e.reasons || []).join("; ")}`,
             e.index ?? -1
           );
         }
@@ -774,16 +692,16 @@ export default function Timeline({ params }: { params: { id: string } }) {
           pushLine(
             done.status === "OOM" ? "OOM" : "PLANNER",
             "diagnosis",
-            `■ Exp ${done.index + 1} finished: ${done.status} · ${done.verdict} · p95 ${done.metrics?.latency_p95_ms}ms · q ${done.metrics?.quality_score}`,
+            `Exp ${done.index + 1} finished: ${done.status} · ${done.verdict} · p95 ${done.metrics?.latency_p95_ms}ms · q ${done.metrics?.quality_score}`,
             done.index ?? -1
           );
         }
         if (e.type === "done") {
           setStatus(e.status);
           setLive(`Certification ${e.status}.`);
-          pushLine(e.status === "SHIP" ? "PLANNER" : "WARN", "diagnosis", `🏁 Certification ${e.status}.`, -1);
+          pushLine(e.status === "SHIP" ? "PLANNER" : "WARN", "diagnosis", `Certification ${e.status}.`, -1);
           es.close();
-          fetch(`${API}/certifications/${params.id}`).then((r) => r.json()).then((j) => { setSim(j.simulated); }).catch(() => {});
+          fetch(`${API}/certifications/${params.id}`).then((r) => r.json()).then((j) => { setSim(j.simulated); setCandidate(j.candidate_model ?? j.candidate ?? null); }).catch(() => {});
         }
       } catch {}
     };
@@ -830,112 +748,111 @@ export default function Timeline({ params }: { params: { id: string } }) {
         setLive(`Certification ${j.status}.`);
       }
       if (!dead && j.simulated !== undefined) setSim(j.simulated);
+      if (!dead) setCandidate(j.candidate_model ?? j.candidate ?? null);
     }).catch(() => {});
     return () => { dead = true; es.close(); };
   }, [params.id]);
+
   const finished = status !== "RUNNING" && status !== "CREATED";
   const lastExp = exps.length > 0 ? sortedExps(exps)[sortedExps(exps).length - 1] : null;
   const activeJobId = lastExp ? (lastExp.sandbox?.operation_id || lastExp.job_id) : "waiting for sandbox…";
-  return (<main className="min-h-screen bg-paper text-ink">
-    <TopNav />
-    <div className="mx-auto max-w-[1280px] border-x border-rule px-6 py-8 md:px-12 md:py-12">
-      <LiveRegion message={live} />
-      <div className="flex flex-wrap items-start justify-between gap-6 border-b border-rule pb-10">
-        <div><p className="font-mono text-[11px] uppercase tracking-[0.08em] text-orange">03 / LIVE EXPERIMENT · {params.id}</p>
-        <h1 className="mt-5 text-[clamp(42px,6vw,72px)] font-semibold leading-[1.04] tracking-[-0.055em]">Watch the model<br /><span className="text-orange">earn its verdict.</span></h1>
-        <p className="mt-5 max-w-xl text-base leading-7 text-muted">Every attempt has a hardware receipt and a measurable outcome. Follow the microVM run as it happens.</p></div>
-        <StatusPill status={status} simulated={sim ?? undefined} />
-      </div>
-      <Stepper status={status} expCount={exps.length} />
-      <VerdictBanner status={status} exps={exps} simulated={sim} />
-      <section aria-label="Latest measured metrics" className="mt-8 grid border-l border-t border-rule sm:grid-cols-2 lg:grid-cols-4">
-        {([
-          ["TTFT", lastExp?.metrics?.ttft_ms, "ms"],
-          ["TOKENS / SECOND", lastExp?.metrics?.tokens_per_second, ""],
-          ["P95 LATENCY", lastExp?.metrics?.latency_p95_ms, "ms"],
-          ["MEMORY UTILIZATION", lastExp?.metrics?.memory_utilization === undefined ? undefined : lastExp.metrics.memory_utilization * 100, "%"],
-        ] as const).map(([label, value, unit]) => <div key={label} className="min-h-32 border-b border-r border-rule bg-white p-5"><p className="font-mono text-[11px] tracking-[0.08em] text-muted">{label}</p><p className="mt-6 font-mono text-3xl">{typeof value === "number" ? `${value.toFixed(unit === "%" ? 1 : 0)}${unit}` : "—"}</p></div>)}
-      </section>
-      <p className="mt-2 font-mono text-[10px] text-muted">A dash means the runtime did not report that metric. {sim ? "Simulated run · dev-grade evidence." : "Measured values are drawn from recorded sandbox telemetry."}</p>
-      <section aria-label="Live telemetry terminal" className="mt-6 overflow-hidden rounded-sm border border-ink bg-ink text-zinc-200 ">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-darkRule bg-[#1B1B1A] px-3 py-2">
-          <div className="flex min-w-0 items-center gap-3">
-            <span aria-hidden="true" className="flex items-center gap-1.5">
-              <span className="inline-block h-2.5 w-2.5 bg-orange" />
-            </span>
-            <span className="truncate font-mono text-[11px] text-inverseMuted">MICROVM / OPERATION {activeJobId}</span>
+
+  return (
+    <AppShell>
+      <div className="app-pad mx-auto max-w-shell">
+        <LiveRegion message={live} />
+
+        {/* Title row */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="truncate text-[26px] font-semibold tracking-[-0.02em]">{candidate || "Live run"}</h1>
+            <p className="mono mt-1 truncate text-[12.5px] text-ink2">{params.id}</p>
+            <p className="mt-2 max-w-xl text-[14px] text-ink2">
+              Every attempt carries a hardware receipt and a measurable outcome. Follow the microVM run as it happens.
+            </p>
           </div>
-          {finished ? (
-            <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-zinc-500">
-              <span aria-hidden="true" className="inline-block h-2 w-2 rounded-sm bg-zinc-500" />
-              Stream ended
-            </span>
-          ) : (
-            <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-green-400">
-              <span className="relative flex h-2 w-2" aria-hidden="true">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-sm bg-green-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-sm bg-green-500" />
-              </span>
-              <span className="animate-pulse">Live streaming</span>
-            </span>
-          )}
+          <StatusPill status={status} simulated={sim ?? undefined} />
         </div>
-        <div
-          ref={termRef}
-          role="log"
-          aria-label="Live sandbox telemetry"
-          className="h-72 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed"
-        >
-          {teleLines.length === 0 && (
-            <p className="text-zinc-500">$ awaiting sandbox output… planner → policy → sandbox run.</p>
-          )}
-          {teleLines.map((l) => (
-            <div key={l.key} className="gp-log-line whitespace-pre-wrap break-words">
-              <span className="text-zinc-600">[{l.time}]</span>{" "}
-              <span className={`font-bold ${tagColor(l.tag)}`}>[{l.tag}]</span>{" "}
-              <span className="text-zinc-200">{l.line}</span>
+
+        <Stepper status={status} expCount={exps.length} />
+        <VerdictBanner status={status} exps={exps} simulated={sim} />
+
+        {/* Latest measured metrics */}
+        <section aria-label="Latest measured metrics" className="kpi-strip mt-8 rounded-card border border-line bg-surface max-sm:grid-cols-2" style={{ ["--kpi-n" as string]: 4 }}>
+          {([
+            ["TTFT", lastExp?.metrics?.ttft_ms, "ms", 0],
+            ["Tokens / second", lastExp?.metrics?.tokens_per_second, "", 1],
+            ["P95 latency", lastExp?.metrics?.latency_p95_ms, "ms", 0],
+            ["Memory utilization", lastExp?.metrics?.memory_utilization === undefined ? undefined : lastExp.metrics.memory_utilization * 100, "%", 1],
+          ] as const).map(([label, value, unit, decimals]) => (
+            <div key={label} className="kpi-cell">
+              <p className="kpi-label">{label}</p>
+              <p className="kpi-value mt-1.5 tabular-nums">{typeof value === "number" ? `${value.toFixed(decimals)}${unit === "ms" ? " ms" : unit}` : "—"}</p>
             </div>
           ))}
-          {!finished && teleLines.length > 0 && (
-            <span aria-hidden="true" className="mt-1 inline-block h-3.5 w-2 animate-pulse bg-green-400" />
-          )}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-darkRule bg-[#1B1B1A] px-3 py-2">
-          <label className="flex cursor-pointer items-center gap-2 font-mono text-[11px] text-zinc-400">
-            <input
-              type="checkbox"
-              checked={follow}
-              onChange={(e) => setFollow(e.target.checked)}
-              className="h-3.5 w-3.5 accent-orange"
-            />
-            Follow output
-          </label>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[11px] text-zinc-600">{teleLines.length} lines</span>
-            <button
-              type="button"
-              onClick={copyLogs}
-              className="gp-chip cursor-pointer rounded-sm border border-white/20 px-2 py-1 font-mono text-[11px] text-zinc-300 transition-[transform,border-color,color] duration-200 hover:border-white/40 hover:text-white "
-            >
-              {copied ? "Copied!" : "Copy Logs"}
-            </button>
+        </section>
+        <p className="mt-2 text-[12.5px] text-ink2">
+          A dash means the runtime did not report that metric. {sim ? "Simulated run — dev-grade evidence." : "Measured values come from recorded sandbox telemetry."}
+        </p>
+
+        {/* Live telemetry terminal */}
+        <section aria-label="Live telemetry terminal" className="term mt-6 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-termRule px-4 py-2.5">
+            <span className="mono flex min-w-0 items-center gap-2.5 truncate text-[12px] text-termMuted">
+              <span aria-hidden="true" className="inline-block h-2.5 w-2.5 bg-accent" />
+              microVM / operation {activeJobId}
+            </span>
+            {finished ? (
+              <span className="flex items-center gap-2 text-[12px] text-[#8A8A84]">
+                <span aria-hidden="true" className="inline-block h-1.5 w-1.5 rounded-full bg-[#8A8A84]" />
+                Stream ended
+              </span>
+            ) : (
+              <span className="flex items-center gap-2 text-[12px] text-[#7FD7A8]">
+                <span className="pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-[#7FD7A8] text-[#7FD7A8]" aria-hidden="true" />
+                Live streaming
+              </span>
+            )}
           </div>
+          <div ref={termRef} role="log" aria-label="Live sandbox telemetry" className="h-80 overflow-y-auto p-4">
+            {teleLines.length === 0 && <p className="text-[#8A8A84]">$ awaiting sandbox output… planner → policy → sandbox run.</p>}
+            {teleLines.map((l) => (
+              <div key={l.key} className="log-line whitespace-pre-wrap break-words">
+                <span className="text-[#6E6E68]">[{l.time}]</span> <span className={`font-medium ${tagColor(l.tag)}`}>[{l.tag}]</span> <span>{l.line}</span>
+              </div>
+            ))}
+            {!finished && teleLines.length > 0 && <span aria-hidden="true" className="mt-1 inline-block h-3.5 w-2 animate-pulse bg-[#7FD7A8]" />}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-termRule px-4 py-2.5">
+            <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-termMuted">
+              <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} className="h-3.5 w-3.5 accent-[#FF4D0A]" />
+              Follow output
+            </label>
+            <div className="flex items-center gap-3">
+              <span className="text-[12px] text-[#6E6E68] tabular-nums">{teleLines.length} lines</span>
+              <button type="button" onClick={copyLogs}
+                className="btn btn-onDarkGhost btn-round h-8 px-3 text-[12px]">{copied ? "Copied" : "Copy logs"}</button>
+            </div>
+          </div>
+        </section>
+
+        {/* Diagnostic journey */}
+        <section aria-label="Diagnostic journey" className="mt-12">
+          <h2 className="d-md">Failure is a data point.</h2>
+          <div className="mt-5" aria-live="off">
+            <DiagnosticJourney exps={exps} />
+          </div>
+        </section>
+
+        <div className="mt-10 flex flex-wrap items-center gap-3">
+          {finished ? (
+            <Link href={`/certificate/${params.id}`} className="btn btn-primary btn-round h-11 px-5 text-sm">View the certificate</Link>
+          ) : (
+            <span className="rounded-full bg-raised px-4 py-2.5 text-[13.5px] text-ink2">The certificate appears when the run finishes…</span>
+          )}
+          <Link href="/dashboard" className="btn btn-ghost btn-round h-11 px-5 text-sm">All runs</Link>
         </div>
-      </section>
-      <section aria-label="Watch why diagnostic journey" className="mt-12 border-t border-rule pt-12">
-        <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-orange">01 / EXPERIMENT LEDGER</p><h2 className="mt-3 text-[clamp(30px,4vw,48px)] font-medium leading-tight tracking-[-0.055em]">Failure is a data point.</h2>
-        <div className="mt-4" aria-live="off">
-          <DiagnosticJourney exps={exps} />
-        </div>
-      </section>
-      <div className="mt-6 flex flex-wrap items-center gap-3">
-        {finished ? (
-          <Link href={`/certificate/${params.id}`} className="btn-dark gp-chip inline-block min-h-[44px] cursor-pointer rounded-sm px-6 py-3 text-sm font-bold transition-[transform,background-color] duration-200 ">View Official Certificate →</Link>
-        ) : (
-          <span className="chip inline-block min-h-[44px] px-5 py-3 text-sm text-muted">Certificate will appear when the audit finishes…</span>
-        )}
-        <Link href="/dashboard" className="chip gp-chip inline-block min-h-[44px] cursor-pointer px-5 py-3 text-sm transition-[transform,border-color] duration-200 ">Dashboard</Link>
       </div>
-    </div>
-  </main>);
+    </AppShell>
+  );
 }

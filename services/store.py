@@ -89,5 +89,19 @@ def list_experiments(cid: str) -> list[dict]:
 
 def list_certs() -> list[dict]:
     with _lock:
-        rows = _DB.execute("SELECT id,status,spend,simulated FROM certifications ORDER BY rowid DESC LIMIT 50").fetchall()
-    return [{"id": r[0], "status": r[1], "spend": r[2], "simulated": None if r[3] is None else bool(r[3])} for r in rows]
+        rows = _DB.execute(
+            "SELECT id,status,spend,simulated,config,created_at FROM certifications ORDER BY rowid DESC LIMIT 50"
+        ).fetchall()
+    out = []
+    for r in rows:
+        try:
+            config = json.loads(r[4]) if r[4] else {}
+        except Exception:
+            config = {}
+        out.append({
+            "id": r[0], "status": r[1], "spend": r[2],
+            "simulated": None if r[3] is None else bool(r[3]),
+            "candidate_model": config.get("candidate_model"),
+            "created_at": r[5],
+        })
+    return out

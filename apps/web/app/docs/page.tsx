@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
-import { SiteFooter, TopNav } from "@/components/ui";
+import { AppShell } from "@/components/ui";
 
 /* ==========================================================================
    Docs — the only guide you need for setting up an AI lab.
@@ -14,15 +14,15 @@ import { SiteFooter, TopNav } from "@/components/ui";
    ========================================================================== */
 
 const SECTIONS = [
-  { id: "start", num: "01", label: "What SandboxProof does" },
-  { id: "lab", num: "02", label: "Build your AI lab" },
-  { id: "vram", num: "03", label: "VRAM, simply" },
-  { id: "serve", num: "04", label: "How serving works" },
-  { id: "sandbox", num: "05", label: "Sandboxing" },
-  { id: "money", num: "06", label: "What things cost" },
-  { id: "verdict", num: "07", label: "SHIP vs BLOCK" },
-  { id: "modes", num: "08", label: "Simulator vs Live" },
-  { id: "words", num: "09", label: "Words & FAQ" },
+  { id: "start", label: "What SandboxProof does" },
+  { id: "lab", label: "Build your AI lab" },
+  { id: "vram", label: "VRAM, simply" },
+  { id: "serve", label: "How serving works" },
+  { id: "sandbox", label: "Sandboxing" },
+  { id: "money", label: "What things cost" },
+  { id: "verdict", label: "SHIP vs BLOCK" },
+  { id: "modes", label: "Simulator vs Live" },
+  { id: "words", label: "Words & FAQ" },
 ];
 
 const WEIGHTS: Array<[string, string, string, string]> = [
@@ -105,9 +105,9 @@ function IsoStack() {
   const scale = 196 / Math.max(total, usable, 1);
   const hw = 0.866 * W, hd = 0.5 * D;
   const slabs = [
-    { id: "weights", gb: weights, h: Math.max(6, weights * scale), top: "#1F1F1F", side: "#1F1F1F", label: "Weights" },
-    { id: "kv", gb: kv, h: Math.max(6, kv * scale), top: oom ? "#B3261E" : "#1E6B3A", side: oom ? "#B3261E" : "#1E6B3A", label: "KV-cache" },
-    { id: "rt", gb: 1.8, h: Math.max(6, 1.8 * scale), top: "#3B82F6", side: "#3B82F6", label: "Runtime" },
+    { id: "weights", gb: weights, h: Math.max(6, weights * scale), top: "#131313", side: "#131313", label: "Weights" },
+    { id: "kv", gb: kv, h: Math.max(6, kv * scale), top: oom ? "#B3362A" : "#247B50", side: oom ? "#B3362A" : "#247B50", label: "KV-cache" },
+    { id: "rt", gb: 1.8, h: Math.max(6, 1.8 * scale), top: "#FF4D0A", side: "#FF4D0A", label: "Runtime" },
   ];
   let cursor = BASE;
   const drawn = slabs.map((s) => {
@@ -123,46 +123,46 @@ function IsoStack() {
   });
 
   return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-ink/25 bg-canvas">
-      <p className="border-b border-ink/15 px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
+    <div className="mt-4 overflow-hidden rounded-card border border-line bg-surface data-ui bg-bg">
+      <p className="border-b border-rule px-4 py-2.5 text-[13px] text-ink2">
         Try it — drag the sliders, the stack redraws live
       </p>
       <div className="grid gap-2 p-4 sm:grid-cols-[1fr_210px]">
         <svg viewBox="0 0 320 280" role="img" aria-label={`Isometric VRAM stack: ${total}GB of ${usable}GB usable`} className="mx-auto w-full max-w-[320px]">
-          <polygon points={`${CX},${boxTop - hd} ${CX + hw},${boxTop} ${CX},${boxTop + hd} ${CX - hw},${boxTop}`} fill="none" stroke={oom ? "#B3261E" : "#1F1F1F"} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.7" />
+          <polygon points={`${CX},${boxTop - hd} ${CX + hw},${boxTop} ${CX},${boxTop + hd} ${CX - hw},${boxTop}`} fill="none" stroke={oom ? "#B3362A" : "#131313"} strokeWidth="1.5" strokeDasharray="5 4" opacity="0.7" />
           {[
             `${CX + hw},${boxTop} ${CX + hw},${BASE}`,
             `${CX},${boxTop + hd} ${CX},${BASE + hd}`,
             `${CX - hw},${boxTop} ${CX - hw},${BASE}`,
           ].map((p, i) => (
-            <polyline key={i} points={p} fill="none" stroke={oom ? "#B3261E" : "#1F1F1F"} strokeWidth="1" strokeDasharray="4 4" opacity="0.45" />
+            <polyline key={i} points={p} fill="none" stroke={oom ? "#B3362A" : "#131313"} strokeWidth="1" strokeDasharray="4 4" opacity="0.45" />
           ))}
-          <text x={CX + hw + 4} y={boxTop + 4} fontSize="10" fill={oom ? "#B3261E" : "#1F1F1F"} style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fontWeight="bold">{usable}GB</text>
+          <text x={CX + hw + 4} y={boxTop + 4} fontSize="11.5" fill={oom ? "#B3362A" : "#131313"} style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fontWeight="bold">{usable}GB</text>
           {drawn.map((s) => {
             const f = faces(s.topY, s.h);
             const hot = hover === s.id;
             return (
               <g key={s.id} onMouseEnter={() => setHover(s.id)} onMouseLeave={() => setHover(null)} onClick={() => setHover(s.id)} style={{ cursor: "pointer" }}>
-                <polygon points={f.right} fill={s.side} opacity="0.82" stroke={hot ? "#3B82F6" : "#1F1F1F"} strokeWidth={hot ? 2.5 : 1} />
-                <polygon points={f.left} fill={s.side} opacity="0.6" stroke={hot ? "#3B82F6" : "#1F1F1F"} strokeWidth={hot ? 2.5 : 1} />
-                <polygon points={f.top} fill={s.top === "#1F1F1F" ? "#3a3a3a" : s.top} opacity="0.95" stroke={hot ? "#3B82F6" : "#1F1F1F"} strokeWidth={hot ? 2.5 : 1} />
+                <polygon points={f.right} fill={s.side} opacity="0.82" stroke={hot ? "#FF4D0A" : "#131313"} strokeWidth={hot ? 2.5 : 1} />
+                <polygon points={f.left} fill={s.side} opacity="0.6" stroke={hot ? "#FF4D0A" : "#131313"} strokeWidth={hot ? 2.5 : 1} />
+                <polygon points={f.top} fill={s.top === "#131313" ? "#3d3d3b" : s.top} opacity="0.95" stroke={hot ? "#FF4D0A" : "#131313"} strokeWidth={hot ? 2.5 : 1} />
               </g>
             );
           })}
-          <text x={CX - hw - 4} y={cursor - 6} fontSize="11" textAnchor="end" fill={oom ? "#B3261E" : "#1E6B3A"} style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fontWeight="bold">
-            {oom ? `BLOCK ✗ ${total}GB` : `SHIP ✓ ${total}GB`}
+          <text x={CX - hw - 4} y={cursor - 6} fontSize="12" textAnchor="end" fill={oom ? "#B3362A" : "#247B50"} style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fontWeight="bold">
+            {oom ? `BLOCK ${total}GB` : `SHIP ${total}GB`}
           </text>
         </svg>
         <div className="min-w-0">
-          <ul className="space-y-1.5 font-mono text-[11px]">
+          <ul className="space-y-1.5 text-[12.5px]">
             {drawn.map((s) => (
-              <li key={s.id} onMouseEnter={() => setHover(s.id)} onMouseLeave={() => setHover(null)} className={`flex justify-between rounded-lg border px-2 py-1.5 ${hover === s.id ? "border-[#3B82F6] bg-[#3B82F6]/5" : "border-ink/15"}`}>
+              <li key={s.id} onMouseEnter={() => setHover(s.id)} onMouseLeave={() => setHover(null)} className={`flex justify-between rounded-lg border px-2 py-1.5 ${hover === s.id ? "border-[#FF4D0A] bg-[#FF4D0A]/5" : "border-line"}`}>
                 <span className="font-bold">{s.label}</span>
                 <span className="tabular-nums">{s.gb}GB</span>
               </li>
             ))}
           </ul>
-          <div className="mt-3 space-y-2.5 font-mono text-[11px]">
+          <div className="mt-3 space-y-2.5 text-[12.5px]">
             <div>
               <label htmlFor="iso-p" className="flex justify-between font-bold"><span>Params</span><span>{paramsB}B</span></label>
               <input id="iso-p" type="range" min={1} max={70} value={paramsB} onChange={(e) => setParamsB(Number(e.target.value))} className="mt-0.5 w-full cursor-pointer" />
@@ -177,12 +177,12 @@ function IsoStack() {
             </div>
             <div className="flex gap-1">
               {(["BF16", "FP8", "INT4"] as const).map((p) => (
-                <button key={p} type="button" onClick={() => setPrec(p)} aria-pressed={prec === p} className={`min-h-[32px] flex-1 cursor-pointer rounded-lg border font-mono text-[10px] font-bold ${prec === p ? "border-ink bg-ink text-canvas" : "border-ink/25"}`}>{p}</button>
+                <button key={p} type="button" onClick={() => setPrec(p)} aria-pressed={prec === p} className={`min-h-[32px] flex-1 cursor-pointer rounded-control border text-[12px] font-medium ${prec === p ? "border-ink bg-ink text-[#F1F1ED]" : "border-line"}`}>{p}</button>
               ))}
             </div>
             <div className="flex gap-1">
               {(Object.keys(GPU) as (keyof typeof GPU)[]).map((g) => (
-                <button key={g} type="button" onClick={() => setGpuKey(g)} aria-pressed={gpuKey === g} className={`min-h-[32px] flex-1 cursor-pointer rounded-lg border font-mono text-[10px] font-bold ${gpuKey === g ? "border-ink bg-ink text-canvas" : "border-ink/25"}`}>{g}</button>
+                <button key={g} type="button" onClick={() => setGpuKey(g)} aria-pressed={gpuKey === g} className={`min-h-[32px] flex-1 cursor-pointer rounded-control border text-[12px] font-medium ${gpuKey === g ? "border-ink bg-ink text-[#F1F1ED]" : "border-line"}`}>{g}</button>
               ))}
             </div>
           </div>
@@ -233,36 +233,36 @@ function IsoServing() {
   const detail = SERVE.find((n) => n.id === sel);
   const order = ["gateway", "router", "prefill", "decode", "kv", "gpu"];
   return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-ink/25 bg-canvas">
-      <p className="flex items-center justify-between border-b border-ink/15 px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
+    <div className="mt-4 overflow-hidden rounded-card border border-line bg-surface data-ui bg-bg">
+      <p className="flex items-center justify-between border-b border-rule px-4 py-2.5 text-[13px] text-ink2">
         <span>Request line → KV interchange — tap a station</span>
         <span className="hidden gap-3 sm:flex" aria-hidden="true">
           <span>● request</span>
           <span className="text-ship">● KV line</span>
         </span>
       </p>
-      <svg viewBox="0 0 640 330" role="img" aria-label="Serving pipeline as a metro map" className="w-full">
+      <div className="overflow-x-auto"><svg viewBox="0 0 640 330" role="img" aria-label="Serving pipeline as a metro map" className="w-full min-w-[640px]">
         <defs>
           <pattern id="serve-dots" width="24" height="24" patternUnits="userSpaceOnUse">
-            <circle cx="1.6" cy="1.6" r="1.3" fill="#1F1F1F" opacity="0.22" />
+            <circle cx="1.6" cy="1.6" r="1.3" fill="#131313" opacity="0.22" />
           </pattern>
         </defs>
         <rect x="0" y="0" width="640" height="330" fill="url(#serve-dots)" />
         {/* request line */}
-        <path d="M90,110 H410 L490,190 V250 H150" fill="none" stroke="#1F1F1F" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M90,110 H410 L490,190 V250 H150" fill="none" stroke="#131313" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
         {/* KV line */}
-        <path d="M330,158 V274" fill="none" stroke="#1E6B3A" strokeWidth="5" strokeLinecap="round" />
-        <circle cx="330" cy="158" r="4" fill="#1E6B3A" />
-        <circle cx="330" cy="274" r="4" fill="#1E6B3A" />
-        <text x={330} y={148} textAnchor="middle" fontSize="9" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fill="#1E6B3A">HBM</text>
-        <text x={342} y={270} fontSize="9" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fill="#1E6B3A">SSD</text>
+        <path d="M330,158 V274" fill="none" stroke="#247B50" strokeWidth="5" strokeLinecap="round" />
+        <circle cx="330" cy="158" r="4" fill="#247B50" />
+        <circle cx="330" cy="274" r="4" fill="#247B50" />
+        <text x={330} y={148} textAnchor="middle" fontSize="12" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fill="#247B50">HBM</text>
+        <text x={342} y={270} fontSize="12" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fill="#247B50">SSD</text>
         {/* termini */}
-        <rect x="82" y="102" width="9" height="16" rx="2" fill="#1F1F1F" />
-        <rect x="145" y="242" width="9" height="16" rx="2" fill="#1F1F1F" />
+        <rect x="82" y="102" width="9" height="16" rx="2" fill="#131313" />
+        <rect x="145" y="242" width="9" height="16" rx="2" fill="#131313" />
         {/* looping trains */}
         <path id="serve-route" d="M90,110 H410 L490,190 V250 H150" fill="none" stroke="none" />
         {[0, -5].map((b, i) => (
-          <rect key={i} x="-13" y="-5" width="26" height="10" rx="5" fill="#EFEBE4" stroke="#1F1F1F" strokeWidth="1.5" className="flow-dot">
+          <rect key={i} x="-13" y="-5" width="26" height="10" rx="5" fill="#F1F1ED" stroke="#131313" strokeWidth="1.5" className="flow-dot">
             <animateMotion dur="10s" begin={`${b}s`} repeatCount="indefinite" rotate="auto">
               <mpath href="#serve-route" />
             </animateMotion>
@@ -283,26 +283,26 @@ function IsoServing() {
             >
               {interchange ? (
                 <>
-                  <circle cx={s.x} cy={s.y} r="13" fill="#EFEBE4" stroke="#1F1F1F" strokeWidth="4" />
-                  <circle cx={s.x} cy={s.y} r="4.5" fill={hot ? "#1F1F1F" : "#1E6B3A"} />
+                  <circle cx={s.x} cy={s.y} r="13" fill="#F1F1ED" stroke="#131313" strokeWidth="4" />
+                  <circle cx={s.x} cy={s.y} r="4.5" fill={hot ? "#131313" : "#247B50"} />
                 </>
               ) : (
                 <>
-                  <circle cx={s.x} cy={s.y} r={hot ? 12 : 9} fill={hot ? "#1F1F1F" : "#EFEBE4"} stroke="#1F1F1F" strokeWidth="3" />
-                  {hot && <circle cx={s.x} cy={s.y} r="4" fill="#EFEBE4" />}
+                  <circle cx={s.x} cy={s.y} r={hot ? 12 : 9} fill={hot ? "#131313" : "#F1F1ED"} stroke="#131313" strokeWidth="3" />
+                  {hot && <circle cx={s.x} cy={s.y} r="4" fill="#F1F1ED" />}
                 </>
               )}
-              <text x={s.x + lb.dx} y={s.y + lb.dy} textAnchor={lb.anchor ?? "middle"} fontSize="12" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fontWeight="bold" fill="#1F1F1F">
+              <text x={s.x + lb.dx} y={s.y + lb.dy} textAnchor={lb.anchor ?? "middle"} fontSize="12" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fontWeight="bold" fill="#131313">
                 {SERVE.find((n) => n.id === id)?.t}
               </text>
-              <text x={s.x + lb.dx} y={s.y + lb.dy + (lb.dy < 0 ? -13 : 13)} textAnchor={lb.anchor ?? "middle"} fontSize="9" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fill="#666666">
+              <text x={s.x + lb.dx} y={s.y + lb.dy + (lb.dy < 0 ? -13 : 13)} textAnchor={lb.anchor ?? "middle"} fontSize="12" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fill="#6B6B66">
                 {lb.sub}
               </text>
             </motion.g>
           );
         })}
-      </svg>
-      <div className="border-t border-dotted border-ink/30 px-4 py-2.5 font-mono text-[12px] leading-relaxed" aria-live="polite">
+      </svg></div>
+      <div className="border-t border-line px-4 py-3 text-[13.5px] leading-relaxed" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
             key={sel}
@@ -311,7 +311,7 @@ function IsoServing() {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           >
-            <strong>{detail?.t}:</strong> <span className="text-muted">{detail?.d}</span>
+            <strong>{detail?.t}:</strong> <span className="text-ink2">{detail?.d}</span>
           </motion.p>
         </AnimatePresence>
       </div>
@@ -338,14 +338,14 @@ function IsoLab() {
   const LY = [112, 140, 196, 224, 252];
   const CX = 290, CY = 168;
   return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-ink/25 bg-canvas">
-      <p className="border-b border-ink/15 px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
+    <div className="mt-4 overflow-hidden rounded-card border border-line bg-surface data-ui bg-bg">
+      <p className="border-b border-rule px-4 py-2.5 text-[13px] text-ink2">
         Each ring holds everything inside it — tap a ring
       </p>
-      <svg viewBox="0 0 640 320" role="img" aria-label="AI lab tiers as nested containment" className="w-full">
+      <div className="overflow-x-auto"><svg viewBox="0 0 640 320" role="img" aria-label="AI lab tiers as nested containment" className="w-full min-w-[640px]">
         <defs>
           <pattern id="lab-dots" width="24" height="24" patternUnits="userSpaceOnUse">
-            <circle cx="1.6" cy="1.6" r="1.3" fill="#1F1F1F" opacity="0.22" />
+            <circle cx="1.6" cy="1.6" r="1.3" fill="#131313" opacity="0.22" />
           </pattern>
         </defs>
         <rect x="0" y="0" width="640" height="320" fill="url(#lab-dots)" />
@@ -365,24 +365,24 @@ function IsoLab() {
             >
               <polygon
                 points={`${CX},${CY - hy} ${CX + hx},${CY} ${CX},${CY + hy} ${CX - hx},${CY}`}
-                fill={hot ? "#1F1F1F" : "#EFEBE4"}
-                stroke="#1F1F1F"
+                fill={hot ? "#131313" : "#F1F1ED"}
+                stroke="#131313"
                 strokeWidth={hot ? 2.5 : 1.3}
                 strokeDasharray={hot ? "none" : "7 4"}
                 className={hot ? "" : "flow-line"}
               />
-              <line x1={leftSide ? CX - hx : CX + hx} y1={CY} x2={LX[i]} y2={LY[i]} stroke="#1F1F1F" strokeWidth="1" strokeDasharray="3 3" opacity="0.55" />
-              <circle cx={LX[i]} cy={LY[i]} r="2.5" fill={hot ? "#1F1F1F" : "#EFEBE4"} stroke="#1F1F1F" strokeWidth="1.2" />
-              <text x={LX[i] + (leftSide ? -10 : 10)} y={LY[i] + 4} textAnchor={leftSide ? "end" : "start"} fontSize="11" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fontWeight="bold" fill={hot ? "#1F1F1F" : "#666666"}>
+              <line x1={leftSide ? CX - hx : CX + hx} y1={CY} x2={LX[i]} y2={LY[i]} stroke="#131313" strokeWidth="1" strokeDasharray="3 3" opacity="0.55" />
+              <circle cx={LX[i]} cy={LY[i]} r="2.5" fill={hot ? "#131313" : "#F1F1ED"} stroke="#131313" strokeWidth="1.2" />
+              <text x={LX[i] + (leftSide ? -10 : 10)} y={LY[i] + 4} textAnchor={leftSide ? "end" : "start"} fontSize="12" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fontWeight="bold" fill={hot ? "#131313" : "#6B6B66"}>
                 {SHORT[i]}
               </text>
             </motion.g>
           );
         })}
-        <circle cx={CX} cy={CY} r="5" fill="#1F1F1F" />
-        <text x={CX} y={308} textAnchor="middle" fontSize="9.5" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fill="#666666">inner rings live inside outer rings — tap any ring</text>
-      </svg>
-      <div className="border-t border-dotted border-ink/30 px-4 py-2.5 font-mono text-[12px] leading-relaxed" aria-live="polite">
+        <circle cx={CX} cy={CY} r="5" fill="#131313" />
+        <text x={CX} y={308} textAnchor="middle" fontSize="12" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fill="#6B6B66">inner rings live inside outer rings — tap any ring</text>
+      </svg></div>
+      <div className="border-t border-line px-4 py-3 text-[13.5px] leading-relaxed" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
             key={sel}
@@ -391,10 +391,10 @@ function IsoLab() {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           >
-            <strong>{d.t}:</strong> <span className="text-muted">{d.e} — {d.p}</span>
+            <strong>{d.t}:</strong> <span className="text-ink2">{d.e} — {d.p}</span>
           </motion.p>
         </AnimatePresence>
-        <p className="mt-0.5 font-mono text-[12px] text-muted">Bottleneck: {d.b}</p>
+        <p className="mt-0.5 text-[13px] text-ink2">Bottleneck: {d.b}</p>
       </div>
     </div>
   );
@@ -451,8 +451,8 @@ function IsoSandboxFlow() {
     setRun(false);
   };
   return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-ink/25 bg-canvas">
-      <p className="flex items-center justify-between border-b border-ink/15 px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
+    <div className="mt-4 overflow-hidden rounded-card border border-line bg-surface data-ui bg-bg">
+      <p className="flex items-center justify-between border-b border-rule px-4 py-2.5 text-[13px] text-ink2">
         <span>Ruler of one hour — playhead on loop</span>
         <button
           type="button"
@@ -464,25 +464,25 @@ function IsoSandboxFlow() {
             }
           }}
           aria-pressed={run}
-          className="cursor-pointer rounded-full border border-ink/25 px-2.5 py-0.5 text-[10px] transition-colors hover:border-ink"
+          className="cursor-pointer rounded-full border border-line px-2.5 py-1 text-[12px] transition-colors hover:border-ink"
         >
-          {run ? "❚❚ running" : "▶ paused"}
+          {run ? "Pause" : "Play"}
         </button>
       </p>
-      <svg viewBox="0 0 640 210" role="img" aria-label="Sandbox hour ruler timeline" className="w-full">
+      <div className="overflow-x-auto"><svg viewBox="0 0 640 210" role="img" aria-label="Sandbox hour ruler timeline" className="w-full min-w-[640px]">
         <defs>
           <pattern id="flow-dots" width="24" height="24" patternUnits="userSpaceOnUse">
-            <circle cx="1.6" cy="1.6" r="1.3" fill="#1F1F1F" opacity="0.22" />
+            <circle cx="1.6" cy="1.6" r="1.3" fill="#131313" opacity="0.22" />
           </pattern>
         </defs>
         <rect x="0" y="0" width="640" height="210" fill="url(#flow-dots)" />
         {/* ruler */}
-        <line x1={X0} y1={RY} x2={X1} y2={RY} stroke="#1F1F1F" strokeWidth="2" />
+        <line x1={X0} y1={RY} x2={X1} y2={RY} stroke="#131313" strokeWidth="2" />
         {Array.from({ length: 13 }, (_, i) => i * 5).map((m) => (
           <g key={m}>
-            <line x1={x(m)} y1={RY} x2={x(m)} y2={RY + (m % 10 === 0 ? 10 : 6)} stroke="#1F1F1F" strokeWidth="1.2" />
+            <line x1={x(m)} y1={RY} x2={x(m)} y2={RY + (m % 10 === 0 ? 10 : 6)} stroke="#131313" strokeWidth="1.2" />
             {m % 10 === 0 && (
-              <text x={x(m)} y={RY + 24} textAnchor="middle" fontSize="9" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fill="#666666">
+              <text x={x(m)} y={RY + 24} textAnchor="middle" fontSize="12" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fill="#6B6B66">
                 {m === 0 ? "0" : `${m}′`}
               </text>
             )}
@@ -500,8 +500,8 @@ function IsoSandboxFlow() {
               whileTap={{ scale: 0.96 }}
               transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
             >
-              <rect x={x(s.w0) + 1} y={RY - 44} width={Math.max(20, x(s.w1) - x(s.w0) - 2)} height={26} rx={7} fill={hot ? "#1F1F1F" : "#EFEBE4"} stroke="#1F1F1F" strokeWidth={hot ? 2 : 1.3} />
-              <text x={(x(s.w0) + x(s.w1)) / 2} y={RY - 27} textAnchor="middle" fontSize="10" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fontWeight="bold" fill={hot ? "#EFEBE4" : "#1F1F1F"}>
+              <rect x={x(s.w0) + 1} y={RY - 44} width={Math.max(20, x(s.w1) - x(s.w0) - 2)} height={26} rx={7} fill={hot ? "#131313" : "#F1F1ED"} stroke="#131313" strokeWidth={hot ? 2 : 1.3} />
+              <text x={(x(s.w0) + x(s.w1)) / 2} y={RY - 27} textAnchor="middle" fontSize="11.5" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fontWeight="bold" fill={hot ? "#F1F1ED" : "#131313"}>
                 {s.t}
               </text>
             </motion.g>
@@ -509,17 +509,17 @@ function IsoSandboxFlow() {
         })}
         {/* swap instant marker */}
         <g onClick={() => tap(2, 18)} style={{ cursor: "pointer" }}>
-          <polygon points={`${x(18)},${RY - 9} ${x(18) + 7},${RY} ${x(18)},${RY + 9} ${x(18) - 7},${RY}`} fill="#3B82F6" stroke="#1F1F1F" strokeWidth="1.2" />
-          <text x={x(18)} y={RY + 40} textAnchor="middle" fontSize="9.5" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fontWeight="bold" fill="#1F1F1F">swap</text>
+          <polygon points={`${x(18)},${RY - 9} ${x(18) + 7},${RY} ${x(18)},${RY + 9} ${x(18) - 7},${RY}`} fill="#FF4D0A" stroke="#131313" strokeWidth="1.2" />
+          <text x={x(18)} y={RY + 40} textAnchor="middle" fontSize="12" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fontWeight="bold" fill="#131313">swap</text>
         </g>
         {/* playhead */}
-        <line x1={x(min)} y1={RY - 52} x2={x(min)} y2={RY} stroke="#B3261E" strokeWidth="2" />
-        <polygon points={`${x(min)},${RY - 60} ${x(min) + 6},${RY - 50} ${x(min) - 6},${RY - 50}`} fill="#B3261E" />
-        <text x={Math.min(Math.max(x(min), X0 + 18), X1 - 18)} y={RY - 64} textAnchor="middle" fontSize="10" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fontWeight="bold" fill="#B3261E">
+        <line x1={x(min)} y1={RY - 52} x2={x(min)} y2={RY} stroke="#B3362A" strokeWidth="2" />
+        <polygon points={`${x(min)},${RY - 60} ${x(min) + 6},${RY - 50} ${x(min) - 6},${RY - 50}`} fill="#B3362A" />
+        <text x={Math.min(Math.max(x(min), X0 + 18), X1 - 18)} y={RY - 64} textAnchor="middle" fontSize="11.5" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fontWeight="bold" fill="#B3362A">
           {min}′
         </text>
-      </svg>
-      <div className="border-t border-dotted border-ink/30 px-4 py-2.5 font-mono text-[12px] leading-relaxed" aria-live="polite">
+      </svg></div>
+      <div className="border-t border-line px-4 py-3 text-[13.5px] leading-relaxed" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
             key={show}
@@ -528,7 +528,7 @@ function IsoSandboxFlow() {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           >
-            <strong>{FLOW[show].t}:</strong> <span className="text-muted">{FLOW[show].d}</span>
+            <strong>{FLOW[show].t}:</strong> <span className="text-ink2">{FLOW[show].d}</span>
           </motion.p>
         </AnimatePresence>
       </div>
@@ -547,17 +547,17 @@ function IsoGates() {
   const { idx: phase, auto, go, resume } = useLoop(4, 1300);
   const sealed = phase === 3;
   return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-ink/25 bg-canvas">
-      <p className="flex items-center justify-between border-b border-ink/15 px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
+    <div className="mt-4 overflow-hidden rounded-card border border-line bg-surface data-ui bg-bg">
+      <p className="flex items-center justify-between border-b border-rule px-4 py-2.5 text-[13px] text-ink2">
         <span>Three gates, then the seal — on loop</span>
-        <button type="button" onClick={() => (auto ? go(phase) : resume())} aria-pressed={auto} className="cursor-pointer rounded-full border border-ink/25 px-2.5 py-0.5 text-[10px] transition-colors hover:border-ink">
-          {auto ? "❚❚ looping" : "▶ paused"}
+        <button type="button" onClick={() => (auto ? go(phase) : resume())} aria-pressed={auto} className="cursor-pointer rounded-full border border-line px-2.5 py-1 text-[12px] transition-colors hover:border-ink">
+          {auto ? "Pause loop" : "Resume"}
         </button>
       </p>
-      <svg viewBox="0 0 640 240" role="img" aria-label="SHIP gates diagram" className="w-full">
+      <div className="overflow-x-auto"><svg viewBox="0 0 640 240" role="img" aria-label="SHIP gates diagram" className="w-full min-w-[640px]">
         <defs>
           <pattern id="gates-dots" width="24" height="24" patternUnits="userSpaceOnUse">
-            <circle cx="1.6" cy="1.6" r="1.3" fill="#1F1F1F" opacity="0.22" />
+            <circle cx="1.6" cy="1.6" r="1.3" fill="#131313" opacity="0.22" />
           </pattern>
         </defs>
         <rect x="0" y="0" width="640" height="240" fill="url(#gates-dots)" />
@@ -579,28 +579,28 @@ function IsoGates() {
               whileTap={{ scale: 0.96 }}
               transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
             >
-              <path d={`M${cx - r},${cy} A${r},${r} 0 0 1 ${cx + r},${cy}`} fill="none" stroke="#1F1F1F" strokeWidth="3" opacity="0.2" strokeLinecap="round" />
+              <path d={`M${cx - r},${cy} A${r},${r} 0 0 1 ${cx + r},${cy}`} fill="none" stroke="#131313" strokeWidth="3" opacity="0.2" strokeLinecap="round" />
               {lit && (
-                <path d={`M${cx - r},${cy} A${r},${r} 0 0 1 ${px(frac, r)},${py(frac, r)}`} fill="none" stroke="#1E6B3A" strokeWidth="5" strokeLinecap="round" />
+                <path d={`M${cx - r},${cy} A${r},${r} 0 0 1 ${px(frac, r)},${py(frac, r)}`} fill="none" stroke="#247B50" strokeWidth="5" strokeLinecap="round" />
               )}
               {[0, 0.5, 1].map((t, k) => (
-                <line key={k} x1={px(t, r - 7)} y1={py(t, r - 7)} x2={px(t, r + 1)} y2={py(t, r + 1)} stroke="#1F1F1F" strokeWidth="1.4" />
+                <line key={k} x1={px(t, r - 7)} y1={py(t, r - 7)} x2={px(t, r + 1)} y2={py(t, r + 1)} stroke="#131313" strokeWidth="1.4" />
               ))}
               <motion.line
                 x1={cx} y1={cy}
                 animate={{ x2: nx, y2: ny }}
                 transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                stroke="#1F1F1F" strokeWidth="2.5" strokeLinecap="round"
+                stroke="#131313" strokeWidth="2.5" strokeLinecap="round"
               />
-              <circle cx={cx} cy={cy} r="5" fill="#1F1F1F" />
-              <text x={cx} y={cy + 24} textAnchor="middle" fontSize="12" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fontWeight="bold" fill={lit ? "#1E6B3A" : "#1F1F1F"}>
+              <circle cx={cx} cy={cy} r="5" fill="#131313" />
+              <text x={cx} y={cy + 24} textAnchor="middle" fontSize="12" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fontWeight="bold" fill={lit ? "#247B50" : "#131313"}>
                 {g.t}
               </text>
-              <text x={cx} y={cy + 38} textAnchor="middle" fontSize="10" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fill="#666666">{g.v}</text>
+              <text x={cx} y={cy + 38} textAnchor="middle" fontSize="11.5" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fill="#6B6B66">{g.v}</text>
               {lit && (
                 <g key={`badge-${phase}`} className="gp-pop">
-                  <circle cx={cx + r - 4} cy={cy - r - 6} r="10" fill="#1E6B3A" stroke="#EFEBE4" strokeWidth="2" />
-                  <text x={cx + r - 4} y={cy - r - 2} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#EFEBE4">✓</text>
+                  <circle cx={cx + r - 4} cy={cy - r - 6} r="10" fill="#247B50" stroke="#F1F1ED" strokeWidth="2" />
+                  <path d={`M${cx + r - 9},${cy - r - 6} l3.5,3.5 l6,-7`} fill="none" stroke="#F1F1ED" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                 </g>
               )}
             </motion.g>
@@ -608,12 +608,12 @@ function IsoGates() {
         })}
         {sealed && (
           <g className="gp-pop">
-            <rect x={218} y={8} width={204} height={26} rx={13} fill="#1E6B3A" />
-            <text x={320} y={25} textAnchor="middle" fontSize="12" style={{ fontFamily: "var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace" }} fontWeight="bold" fill="#fff">SHIP ✓ sealed</text>
+            <rect x={218} y={8} width={204} height={26} rx={13} fill="#247B50" />
+            <text x={320} y={25} textAnchor="middle" fontSize="12" style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }} fontWeight="bold" fill="#fff">SHIP — sealed</text>
           </g>
         )}
-      </svg>
-      <div className="border-t border-dotted border-ink/30 px-4 py-2.5 font-mono text-[12px] leading-relaxed" aria-live="polite">
+      </svg></div>
+      <div className="border-t border-line px-4 py-3 text-[13.5px] leading-relaxed" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
             key={sealed ? "seal" : phase}
@@ -623,9 +623,9 @@ function IsoGates() {
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           >
             {sealed ? (
-              <><strong>Seal:</strong> <span className="text-muted">all three gates green — sealed with a SHA-256 workload digest.</span></>
+              <><strong>Seal:</strong> <span className="text-ink2">all three gates green — sealed with a SHA-256 workload digest.</span></>
             ) : (
-              <><strong>{GATEINFO[phase].t} {GATEINFO[phase].v}:</strong> <span className="text-muted">{GATEINFO[phase].d}</span></>
+              <><strong>{GATEINFO[phase].t} {GATEINFO[phase].v}:</strong> <span className="text-ink2">{GATEINFO[phase].d}</span></>
             )}
           </motion.p>
         </AnimatePresence>
@@ -634,17 +634,11 @@ function IsoGates() {
   );
 }
 
-function H2({ n, id, children }: { n: string; id: string; children: React.ReactNode }) {
+function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return (
-    <div>
-      <p className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
-        <span className="inline-block rounded-full border border-ink px-2 py-0.5 text-ink">{n}</span>
-        SandboxProof guide
-      </p>
-      <h2 id={id} className="mt-2 scroll-mt-24 text-2xl tracking-tight md:text-3xl">
-        {children}
-      </h2>
-    </div>
+    <h2 id={id} className="scroll-mt-24 text-[22px] font-semibold tracking-[-0.02em] md:text-[26px]">
+      {children}
+    </h2>
   );
 }
 
@@ -682,122 +676,100 @@ export default function DocsPage() {
   }, []);
 
   return (
-    <main>
-      <TopNav />
-
-      {/* Hero with portfolio dot grid */}
-      <section className="relative overflow-hidden border-b border-ink px-6 pb-10 pt-14">
-        <div aria-hidden="true" className="blueprint-grid pointer-events-none absolute inset-0" />
-        <div className="relative mx-auto max-w-5xl">
-          <p className="inline-flex items-center gap-2 rounded-full border border-ink bg-canvas px-3.5 py-1 font-mono text-[11px] font-bold uppercase tracking-widest">
-            <span className="inline-block h-2 w-2 rounded-full bg-ship" />
-            The only guide you need for your AI lab
+    <AppShell>
+      <div className="app-pad mx-auto max-w-shell">
+        <div className="max-w-2xl">
+          <h1 className="text-[26px] font-semibold tracking-[-0.02em]">Will it run? Will it ship?</h1>
+          <p className="mt-2 text-[14.5px] leading-relaxed text-ink2">
+            Everything SandboxProof knows — what it measures, how serving and sandboxing actually work,
+            what things cost, and the best setup for a laptop or a production fleet — in plain words,
+            with diagrams you can touch.
           </p>
-          <h1 className="mt-5 max-w-3xl text-3xl font-extrabold leading-[1.15] tracking-tight md:text-5xl">
-            Will it run? Will it ship?
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted">
-            Everything SandboxProof knows — what it is, what it measures, how serving and sandboxing
-            actually work, what things cost, and the best setup for a small laptop or a production
-            fleet — in plain words, with pictures you can touch.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3 text-xs font-bold">
-            <Link href="/new" className="btn-dark min-h-[44px] cursor-pointer rounded-lg px-5 py-2.5 transition-all hover:-translate-y-px">
-              Verify Hardware Fit →
-            </Link>
-            <Link href="/sandbox" className="panel min-h-[44px] cursor-pointer rounded-lg border border-ink px-5 py-2.5 transition-all hover:-translate-y-px">
-              Open the Sandbox →
-            </Link>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link href="/#launch" className="btn btn-primary btn-round h-10 px-4 text-sm">Verify hardware fit</Link>
+            <Link href="/sandbox-console" className="btn btn-ghost btn-round h-10 px-4 text-sm">Open the sandbox console</Link>
           </div>
         </div>
-      </section>
 
-      {/* Ruled columns: vertical rules frame the content, hairlines divide sections */}
-      <div className="mx-auto max-w-5xl border-x border-ink/15">
-        <div className="grid gap-0 lg:grid-cols-[250px_1fr]">
-          {/* Left rail: progress + scrollspy TOC */}
-          <aside aria-label="Guide progress and sections" className="border-b border-ink/15 lg:border-b-0 lg:border-r">
-            <div className="flex gap-3 p-4 lg:sticky lg:top-20">
-              <div className="relative w-1 shrink-0 overflow-hidden rounded-full bg-ink/10" aria-hidden="true">
-                <div className="absolute inset-x-0 top-0 bg-ship transition-[height]" style={{ height: `${Math.round(progress * 100)}%` }} />
-              </div>
-              <nav className="min-w-0 flex-1" aria-label="On this page">
-                <p className="flex items-center justify-between font-mono text-[11px] font-bold uppercase tracking-widest text-muted">
+        <div className="mt-12 grid gap-10 lg:grid-cols-[240px_1fr]">
+          <aside aria-label="Guide progress and sections">
+            <div className="lg:sticky lg:top-24">
+              <nav aria-label="On this page">
+                <p className="flex items-center justify-between text-[13px] text-ink2">
                   On this page
                   <span className="tabular-nums text-ship">{Math.round(progress * 100)}%</span>
                 </p>
-                <ol className="mt-3 space-y-1">
+                <ol className="mt-3 space-y-0.5 border-l border-line">
                   {SECTIONS.map((s) => (
                     <li key={s.id}>
                       <a
                         href={`#${s.id}`}
                         aria-current={active === s.id ? "location" : undefined}
-                        className={`flex cursor-pointer items-baseline gap-2 rounded px-2 py-1.5 text-[12px] font-bold leading-snug transition-colors ${active === s.id ? "bg-ink text-canvas" : "hover:bg-ink hover:text-canvas"}`}
+                        className={`-ml-px block cursor-pointer border-l-2 py-1.5 pl-3 text-[13.5px] leading-snug transition-colors ${active === s.id ? "border-ink font-medium text-ink" : "border-transparent text-ink2 hover:text-ink"}`}
                       >
-                        <span className={`font-mono text-[11px] ${active === s.id ? "text-canvas/70" : "text-muted"}`}>{s.num}</span>
-                        <span>{s.label}</span>
+                        {s.label}
                       </a>
                     </li>
                   ))}
                 </ol>
-                <div className="mt-4 border-t border-dotted border-ink/30 pt-3 font-mono text-[11px] leading-relaxed text-muted">
-                  <p>Gates: ≤2000ms · ≥85% · ≤5%</p>
-                  <p className="mt-1">Total = W + KV + 1.8GB</p>
+                <div className="mt-5 border-t border-line pt-3 text-[12.5px] leading-relaxed text-ink2 tabular-nums">
+                  <p>Gates: ≤2000 ms · ≥85% · ≤5%</p>
+                  <p className="mt-1">Total = W + KV + 1.8 GB</p>
                 </div>
-                <Link href="/usage" className="chip mt-3 block cursor-pointer rounded-lg px-4 py-2.5 text-center font-mono text-xs font-bold transition-all hover:-translate-y-px">
+                <Link href="/usage" className="btn btn-ghost btn-round mt-4 h-9 w-full px-3 text-[13px]">
                   Usage &amp; spend →
                 </Link>
               </nav>
             </div>
           </aside>
 
-          {/* Article: hairline-ruled sections, text-first */}
-          <div className="min-w-0 px-5 py-2 md:px-8">
-            <section aria-label="What SandboxProof does" className="border-b border-ink/15 py-8">
-              <H2 n="01" id="start">What SandboxProof does</H2>
+          {/* Article */}
+          <div className="min-w-0">
+            <section aria-label="What SandboxProof does" className="py-10">
+              <H2 id="start">What SandboxProof does</H2>
               <p className="mt-4 text-sm leading-relaxed">
                 Picking an open model is guesswork: <em>will 32B fit my GPU? Will tool calls survive
                 quantization? What does a million queries cost?</em> SandboxProof replaces guessing with
                 measurement — size it, try it, prove it.
               </p>
-              <div className="mt-4 font-mono text-[13px]">
-                <p className="border-t border-ink/15 py-2.5"><strong>Size it</strong> <span className="text-muted">— exact VRAM math before you download anything. → <Link href="/new" className="font-bold underline-offset-4 hover:underline">Verify Hardware Fit</Link></span></p>
-                <p className="border-t border-ink/15 py-2.5"><strong>Try it</strong> <span className="text-muted">— an hour on a cloud GPU with live telemetry. → <Link href="/sandbox" className="font-bold underline-offset-4 hover:underline">Live Sandbox</Link></span></p>
-                <p className="border-y border-ink/15 py-2.5"><strong>Prove it</strong> <span className="text-muted">— a sealed SHIP / BLOCK certificate anyone can re-check.</span></p>
+              <div className="mt-4 text-[14px] leading-relaxed">
+                <p className="border-t border-line py-2.5"><strong>Size it</strong> <span className="text-ink2">— exact VRAM math before you download anything. → <Link href="/new" className="font-bold underline-offset-4 hover:underline">Verify Hardware Fit</Link></span></p>
+                <p className="border-t border-line py-2.5"><strong>Try it</strong> <span className="text-ink2">— an hour on a cloud GPU with live telemetry. → <Link href="/sandbox-console" className="font-bold underline-offset-4 hover:underline">Live Sandbox</Link></span></p>
+                <p className="border-t border-line py-2.5 border-b border-b-line"><strong>Prove it</strong> <span className="text-ink2">— a sealed SHIP / BLOCK certificate anyone can re-check.</span></p>
               </div>
-              <p className="mt-4 border-t border-dotted border-ink/30 pt-3 font-mono text-[12px] text-muted">Integrations: Token Factory Sandboxes (isolated runs) · Hugging Face (models + live specs) · hosted-endpoint replay telemetry · BYOK keys that never leave your browser.</p>
+              <p className="mt-4 border-t border-line pt-3 text-[13px] text-ink2">Integrations: Token Factory Sandboxes (isolated runs) · Hugging Face (models + live specs) · hosted-endpoint replay telemetry · BYOK keys that never leave your browser.</p>
             </section>
 
-            <section aria-label="Build your AI lab" className="border-b border-ink/15 py-8">
-              <H2 n="02" id="lab">Build your AI lab</H2>
+            <section aria-label="Build your AI lab" className="py-10">
+              <H2 id="lab">Build your AI lab</H2>
               <p className="mt-4 text-sm leading-relaxed">
                 Match the machine to the model class. Small systems want small models at 4-bit; big
                 Apple memory wants 70B; production wants scheduling, not just GPUs.
               </p>
-              <div className="mt-4 font-mono text-[13px]">
+              <div className="mt-4 text-[14px] leading-relaxed">
                 {TIERS.map((t) => (
-                  <details key={t[0]} className="group border-t border-ink/15 py-2.5 last:border-b">
+                  <details key={t[0]} className="group border-t border-line py-2.5 last:border-b">
                     <summary className="cursor-pointer list-none font-bold [&::-webkit-details-marker]:hidden">
-                      <span className="text-muted">▸</span> {t[0]} <span className="font-normal text-muted">— {t[1]}</span>
+                      <span className="text-ink2">▸</span> {t[0]} <span className="font-normal text-ink2">— {t[1]}</span>
                     </summary>
-                    <p className="mt-1.5 pl-5 text-muted">{t[2]}</p>
+                    <p className="mt-1.5 pl-5 text-ink2">{t[2]}</p>
                   </details>
                 ))}
               </div>
               <IsoLab />
-              <p className="mt-4 border-t border-dotted border-ink/30 pt-3 font-mono text-[12px] text-muted">Best small-system rule: 16GB Mac ≈ an 8B machine with 12B upside — macOS keeps ~30% of the pool. Best production rule: never compare hourly prices alone; compare cost per thousand queries at your SLO.</p>
+              <p className="mt-4 border-t border-line pt-3 text-[13px] text-ink2">Best small-system rule: 16GB Mac ≈ an 8B machine with 12B upside — macOS keeps ~30% of the pool. Best production rule: never compare hourly prices alone; compare cost per thousand queries at your SLO.</p>
             </section>
 
-            <section aria-label="VRAM simply" className="border-b border-ink/15 py-8">
-              <H2 n="03" id="vram">VRAM, simply</H2>
+            <section aria-label="VRAM simply" className="py-10">
+              <H2 id="vram">VRAM, simply</H2>
               <p className="mt-4 text-sm leading-relaxed">
                 Three chunks must fit: <strong>weights</strong> (static), <strong>KV-cache</strong> (grows
                 with context × users), <strong>runtime</strong> (~1.8GB flat, plus room for your OS).
               </p>
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[420px] font-mono text-[12px]">
+                <table className="ttable w-full min-w-[420px] !text-[13.5px]">
                   <thead>
-                    <tr className="border-b border-ink/25 text-left text-muted">
+                    <tr className="border-b border-line text-left text-ink2">
                       <th className="py-1.5 pr-3">Params</th>
                       <th className="py-1.5 pr-3">BF16</th>
                       <th className="py-1.5 pr-3">FP8</th>
@@ -806,64 +778,64 @@ export default function DocsPage() {
                   </thead>
                   <tbody>
                     {WEIGHTS.map((w) => (
-                      <tr key={w[0]} className="border-b border-dotted border-ink/25 last:border-b-0">
+                      <tr key={w[0]} className="border-b border-dotted border-line last:border-b-0">
                         <td className="py-1.5 pr-3 font-bold">{w[0]}</td>
-                        <td className="py-1.5 pr-3 tabular-nums">{w[1]}</td>
-                        <td className="py-1.5 pr-3 tabular-nums">{w[2]}</td>
+                        <td className="py-1.5 pr-3 tabular-nums !text-right">{w[1]}</td>
+                        <td className="py-1.5 pr-3 tabular-nums !text-right">{w[2]}</td>
                         <td className="py-1.5 tabular-nums">{w[3]}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 font-mono text-[12px] text-muted">A 70B INT4 checkpoint (35GB) can leave more KV headroom than a 32B BF16 one (64GB) on the same card.</p>
+              <p className="mt-3 text-[13px] text-ink2">A 70B INT4 checkpoint (35GB) can leave more KV headroom than a 32B BF16 one (64GB) on the same card.</p>
               <IsoStack />
             </section>
 
-            <section aria-label="How serving works" className="border-b border-ink/15 py-8">
-              <H2 n="04" id="serve">How serving works</H2>
+            <section aria-label="How serving works" className="py-10">
+              <H2 id="serve">How serving works</H2>
               <p className="mt-4 text-sm leading-relaxed">
                 Production inference is a scheduling problem, not a GPU problem. The stack that wins in
                 2026: continuous batching, paged KV-cache, split prefill/decode, tiered KV storage,
                 speculative decoding, and structured outputs — in vLLM, SGLang and TensorRT-LLM alike.
               </p>
               <IsoServing />
-              <div className="mt-4 font-mono text-[13px]">
-                <p className="border-t border-ink/15 py-2"><strong>vLLM</strong> <span className="text-muted">— PagedAttention kills KV fragmentation; prefix caching reuses shared prompts.</span></p>
-                <p className="border-t border-ink/15 py-2"><strong>SGLang</strong> <span className="text-muted">— prefill and decode run in separate pools with KV transfer between them.</span></p>
-                <p className="border-t border-ink/15 py-2"><strong>Structured output</strong> <span className="text-muted">— the server enforces JSON schema. Syntax guaranteed; correctness still must be measured.</span></p>
-                <p className="border-y border-ink/15 py-2"><strong>Speed math</strong> <span className="text-muted">— TTFT = first token − request · ITL = token − previous token · decode ≈ bandwidth ÷ active weights.</span></p>
+              <div className="mt-4 text-[14px] leading-relaxed">
+                <p className="border-t border-line py-2"><strong>vLLM</strong> <span className="text-ink2">— PagedAttention kills KV fragmentation; prefix caching reuses shared prompts.</span></p>
+                <p className="border-t border-line py-2"><strong>SGLang</strong> <span className="text-ink2">— prefill and decode run in separate pools with KV transfer between them.</span></p>
+                <p className="border-t border-line py-2"><strong>Structured output</strong> <span className="text-ink2">— the server enforces JSON schema. Syntax guaranteed; correctness still must be measured.</span></p>
+                <p className="border-y border-line py-2"><strong>Speed math</strong> <span className="text-ink2">— TTFT = first token − request · ITL = token − previous token · decode ≈ bandwidth ÷ active weights.</span></p>
               </div>
             </section>
 
-            <section aria-label="Sandboxing" className="border-b border-ink/15 py-8">
-              <H2 n="05" id="sandbox">Sandboxing</H2>
+            <section aria-label="Sandboxing" className="py-10">
+              <H2 id="sandbox">Sandboxing</H2>
               <p className="mt-4 text-sm leading-relaxed">
                 A sandbox is a one-hour benchmark experiment, not a playground. Weights are staged
                 before the clock starts; the container stays alive while only the server process
                 restarts to hot-swap models — that is why swaps take seconds, and why Multi-LoRA
                 (one base + tiny adapters) beats full weight swaps in production.
               </p>
-              <div className="mt-4 font-mono text-[13px]">
-                <p className="border-t border-ink/15 py-2"><strong>0–5 min</strong> <span className="text-muted">— nvidia-smi, clocks, VRAM sanity.</span></p>
-                <p className="border-t border-ink/15 py-2"><strong>5–48 min</strong> <span className="text-muted">— one model per block, concurrency 1 → 32. Find the Pareto frontier, not one tok/s number.</span></p>
-                <p className="border-t border-ink/15 py-2"><strong>48–56 min</strong> <span className="text-muted">— winner config A/B (quant, prefix cache, speculation).</span></p>
-                <p className="border-y border-ink/15 py-2"><strong>56–60 min</strong> <span className="text-muted">— persist metrics, traces, logs. Export mints the certificate.</span></p>
+              <div className="mt-4 text-[14px] leading-relaxed">
+                <p className="border-t border-line py-2"><strong>0–5 min</strong> <span className="text-ink2">— nvidia-smi, clocks, VRAM sanity.</span></p>
+                <p className="border-t border-line py-2"><strong>5–48 min</strong> <span className="text-ink2">— one model per block, concurrency 1 → 32. Find the Pareto frontier, not one tok/s number.</span></p>
+                <p className="border-t border-line py-2"><strong>48–56 min</strong> <span className="text-ink2">— winner config A/B (quant, prefix cache, speculation).</span></p>
+                <p className="border-y border-line py-2"><strong>56–60 min</strong> <span className="text-ink2">— persist metrics, traces, logs. Export mints the certificate.</span></p>
               </div>
               <IsoSandboxFlow />
             </section>
 
-            <section aria-label="What things cost" className="border-b border-ink/15 py-8">
-              <H2 n="06" id="money">What things cost</H2>
+            <section aria-label="What things cost" className="py-10">
+              <H2 id="money">What things cost</H2>
               <p className="mt-4 text-sm leading-relaxed">
                 October 2026 Nebius PAYG rates. The number that matters is cost per 1,000 queries at
-                your SLO: <span className="font-mono text-[13px]">C = 1000 × $/hr ÷ (3600 × queries/sec)</span> —
+                your SLO: <span className="mono text-[14px]">C = 1000 × $/hr ÷ (3600 × queries/sec)</span> —
                 a $1.35 L40S can beat a $4.50 H100 for a quiet 8B service.
               </p>
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[420px] font-mono text-[12px]">
+                <table className="ttable w-full min-w-[420px] !text-[13.5px]">
                   <thead>
-                    <tr className="border-b border-ink/25 text-left text-muted">
+                    <tr className="border-b border-line text-left text-ink2">
                       <th className="py-1.5 pr-3">GPU</th>
                       <th className="py-1.5 pr-3">Rate</th>
                       <th className="py-1.5">Good for</th>
@@ -871,25 +843,25 @@ export default function DocsPage() {
                   </thead>
                   <tbody>
                     {RATES.map((r) => (
-                      <tr key={r[0]} className="border-b border-dotted border-ink/25 last:border-b-0">
+                      <tr key={r[0]} className="border-b border-dotted border-line last:border-b-0">
                         <td className="py-1.5 pr-3 font-bold">{r[0]}</td>
-                        <td className="py-1.5 pr-3 tabular-nums">{r[1]}</td>
-                        <td className="py-1.5 text-muted">{r[2]}</td>
+                        <td className="py-1.5 pr-3 tabular-nums !text-right">{r[1]}</td>
+                        <td className="py-1.5 text-ink2">{r[2]}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 border-t border-dotted border-ink/30 pt-3 font-mono text-[12px] text-muted">Safety caps are backend-enforced: $10 per audit, $20 project total. See <Link href="/usage" className="font-bold underline-offset-4 hover:underline">Usage</Link> for your ledger.</p>
+              <p className="mt-3 border-t border-line pt-3 text-[13px] text-ink2">Safety caps are backend-enforced: $10 per audit, $20 project total. See <Link href="/usage" className="font-bold underline-offset-4 hover:underline">Usage</Link> for your ledger.</p>
             </section>
 
-            <section aria-label="SHIP vs BLOCK" className="border-b border-ink/15 py-8">
-              <H2 n="07" id="verdict">SHIP vs BLOCK</H2>
+            <section aria-label="SHIP vs BLOCK" className="py-10">
+              <H2 id="verdict">SHIP vs BLOCK</H2>
               <p className="mt-4 text-sm leading-relaxed">A model ships only if it passes all three gates under replayed real traffic:</p>
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[420px] font-mono text-[12px]">
+                <table className="ttable w-full min-w-[420px] !text-[13.5px]">
                   <thead>
-                    <tr className="border-b border-ink/25 text-left text-muted">
+                    <tr className="border-b border-line text-left text-ink2">
                       <th className="py-1.5 pr-3">Gate</th>
                       <th className="py-1.5 pr-3">Must be</th>
                       <th className="py-1.5">Plain meaning</th>
@@ -897,47 +869,47 @@ export default function DocsPage() {
                   </thead>
                   <tbody>
                     {GATES.map((g) => (
-                      <tr key={g[0]} className="border-b border-dotted border-ink/25 last:border-b-0">
+                      <tr key={g[0]} className="border-b border-dotted border-line last:border-b-0">
                         <td className="py-1.5 pr-3 font-bold">{g[0]}</td>
                         <td className="py-1.5 pr-3">{g[1]}</td>
-                        <td className="py-1.5 text-muted">{g[2]}</td>
+                        <td className="py-1.5 text-ink2">{g[2]}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 font-mono text-[13px]">
-                <span className="rounded bg-ship px-2 py-0.5 text-[11px] font-bold text-white">SHIP ✓</span>{" "}
-                <span className="text-muted">safe to deploy.</span>{" "}
-                <span className="rounded bg-block px-2 py-0.5 text-[11px] font-bold text-white">BLOCK ✗</span>{" "}
-                <span className="text-muted">the verdict names the fix.</span>
+              <p className="mt-3 text-[14px]">
+                <span className="pill pill-ship">SHIP</span>{" "}
+                <span className="text-ink2">safe to deploy.</span>{" "}
+                <span className="pill pill-block">BLOCK</span>{" "}
+                <span className="text-ink2">the verdict names the fix.</span>
               </p>
               <IsoGates />
             </section>
 
-            <section aria-label="Simulator vs Live" className="border-b border-ink/15 py-8">
-              <H2 n="08" id="modes">Simulator vs Live</H2>
-              <div className="mt-4 font-mono text-[13px]">
-                <p className="border-t border-ink/15 py-2.5"><strong>🧪 Simulator (current)</strong> <span className="text-muted">— deterministic, instant, $0.00 always. Verdicts read SIMULATED, dev-grade only.</span></p>
-                <p className="border-y border-ink/15 py-2.5"><strong>⚡ Live (later cutover)</strong> <span className="text-muted">— real Nebius GPUs billed to a key, $10/audit + $20 total caps. One explicit switch, never automatic.</span></p>
+            <section aria-label="Simulator vs Live" className="py-10">
+              <H2 id="modes">Simulator vs Live</H2>
+              <div className="mt-4 text-[14px] leading-relaxed">
+                <p className="border-t border-line py-2.5"><strong>Simulator (current)</strong> <span className="text-ink2">— deterministic, instant, $0.00 always. Verdicts read SIMULATED, dev-grade only.</span></p>
+                <p className="border-t border-line py-2.5 border-b border-b-line"><strong>Live (later cutover)</strong> <span className="text-ink2">— real Nebius GPUs billed to a key, $10/audit + $20 total caps. One explicit switch, never automatic.</span></p>
               </div>
             </section>
 
-            <section aria-label="Words and FAQ" className="py-8">
-              <H2 n="09" id="words">Words &amp; FAQ</H2>
+            <section aria-label="Words and FAQ" className="py-10">
+              <H2 id="words">Words &amp; FAQ</H2>
               <dl className="mt-4">
                 {WORDS.map((w) => (
-                  <div key={w[0]} className="grid gap-1 border-t border-ink/15 py-2.5 last:border-b sm:grid-cols-[150px_1fr]">
-                    <dt className="font-mono text-[12px] font-bold">{w[0]}</dt>
-                    <dd className="text-sm leading-relaxed text-muted">{w[1]}</dd>
+                  <div key={w[0]} className="grid gap-1 border-t border-line py-2.5 last:border-b sm:grid-cols-[150px_1fr]">
+                    <dt className="text-[13.5px] font-semibold">{w[0]}</dt>
+                    <dd className="text-sm leading-relaxed text-ink2">{w[1]}</dd>
                   </div>
                 ))}
               </dl>
               <div className="mt-6">
                 {FAQS.map((f) => (
-                  <details key={f[0]} className="border-t border-dotted border-ink/30 py-3 last:border-b">
-                    <summary className="cursor-pointer font-mono text-sm font-bold">{f[0]}</summary>
-                    <p className="mt-2 text-sm leading-relaxed text-muted">{f[1]}</p>
+                  <details key={f[0]} className="border-t border-line py-3 last:border-b">
+                    <summary className="cursor-pointer text-[14.5px] font-medium">{f[0]}</summary>
+                    <p className="mt-2 text-sm leading-relaxed text-ink2">{f[1]}</p>
                   </details>
                 ))}
               </div>
@@ -945,8 +917,6 @@ export default function DocsPage() {
           </div>
         </div>
       </div>
-
-      <SiteFooter />
-    </main>
+    </AppShell>
   );
 }

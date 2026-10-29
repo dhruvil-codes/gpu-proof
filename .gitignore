@@ -53,8 +53,13 @@ Thumbs.db
 
 # Benchmark outputs & caches
 *.log
-runs/
+/runs/
+!docs/runs/
+!docs/runs/**
 benchmarks_cache/
 artifacts/
 *.db
 npm*.log
+.taste-skill/
+.agents/
+.devin/

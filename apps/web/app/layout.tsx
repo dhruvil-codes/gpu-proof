@@ -1,9 +1,34 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const sans = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-jetbrains-mono", display: "swap" });
+/* Display face: Gambarino (Fontshare, OFL-equivalent licence) — the certificate face.
+   Self-hosted so the build never depends on a CDN. */
+const display = localFont({
+  src: "./fonts/Gambarino-400.woff2",
+  weight: "400",
+  variable: "--font-display",
+  display: "swap",
+});
+
+const sans = localFont({
+  src: [
+    { path: "./fonts/GeneralSans-400.woff2", weight: "400" },
+    { path: "./fonts/GeneralSans-500.woff2", weight: "500" },
+    { path: "./fonts/GeneralSans-600.woff2", weight: "600" },
+  ],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+/* Mono is reserved for real code: telemetry, IDs, commands, digests. */
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "SandboxProof — Prove model swaps in isolated sandboxes | Nebius x NVIDIA Hackathon",
@@ -32,5 +57,11 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (<html lang="en"><body className={`${sans.variable} ${mono.variable} font-sans bg-paper text-ink`}><div className="frame">{children}</div></body></html>);
+  return (
+    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
+      <body className="bg-bg text-ink antialiased">
+        {children}
+      </body>
+    </html>
+  );
 }

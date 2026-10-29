@@ -1,0 +1,107 @@
+﻿{
+    "certification":  "cert-5a086ff3",
+    "verdict":  "SIMULATED",
+    "note":  "simulator output is dev-only and can never produce a real certificate",
+    "experiments":  [
+                        {
+                            "index":  0,
+                            "plan":  {
+                                         "gpu_type":  "L40S",
+                                         "gpu_count":  1,
+                                         "precision":  "FP8",
+                                         "engine":  "vLLM",
+                                         "batch_config":  8,
+                                         "reason":  "SIMULATED planner: cheapest config first (L40S FP8)"
+                                     },
+                            "job_id":  "sim-job-0001",
+                            "simulated":  true,
+                            "metrics":  {
+                                            "quality_score":  0.0,
+                                            "error_rate":  1.0,
+                                            "latency_p95_ms":  0,
+                                            "ttft_p95_ms":  0,
+                                            "requests_per_s":  0.0,
+                                            "tokens_per_s":  0.0,
+                                            "total_tokens":  0,
+                                            "simulated":  true
+                                        },
+                            "log":  "SIMULATED ... CUDA out of memory (L40S 48GB, Nano-30B FP8) ... FAILED",
+                            "failure":  "MEMORY",
+                            "verdict":  "BLOCK",
+                            "reason":  "SIMULATED planner: cheapest config first (L40S FP8)",
+                            "state":  "EVALUATING",
+                            "classifier":  {
+                                               "failure":  "MEMORY",
+                                               "action":  "CONTINUE",
+                                               "reason":  "deterministic fallback (classifier unavailable or invalid JSON)"
+                                           },
+                            "status":  "OOM"
+                        },
+                        {
+                            "index":  1,
+                            "plan":  {
+                                         "gpu_type":  "H100",
+                                         "gpu_count":  1,
+                                         "precision":  "INT4",
+                                         "engine":  "vLLM",
+                                         "batch_config":  8,
+                                         "reason":  "SIMULATED planner: OOM on L40S; escalate to H100 INT4"
+                                     },
+                            "job_id":  "sim-job-0001",
+                            "simulated":  true,
+                            "metrics":  {
+                                            "count":  100,
+                                            "success_rate":  1.0,
+                                            "error_rate":  0.01,
+                                            "ttft_p50_ms":  180.0,
+                                            "ttft_p95_ms":  180.0,
+                                            "latency_p50_ms":  900.0,
+                                            "latency_p95_ms":  900.0,
+                                            "requests_per_s":  1.667,
+                                            "tokens_per_s":  466.67,
+                                            "total_tokens":  28000,
+                                            "quality_score":  0.62,
+                                            "simulated":  true
+                                        },
+                            "log":  "SIMULATED ... vLLM ready ... benchmark ok ... PASSED",
+                            "failure":  null,
+                            "verdict":  "BLOCK",
+                            "reason":  "SIMULATED planner: OOM on L40S; escalate to H100 INT4",
+                            "state":  "COMPLETED",
+                            "status":  "COMPLETED"
+                        },
+                        {
+                            "index":  2,
+                            "plan":  {
+                                         "gpu_type":  "H100",
+                                         "gpu_count":  1,
+                                         "precision":  "FP8",
+                                         "engine":  "vLLM",
+                                         "batch_config":  16,
+                                         "reason":  "SIMULATED planner: quality regressed on INT4; retry H100 FP8 with tuned batch"
+                                     },
+                            "job_id":  "sim-job-0001",
+                            "simulated":  true,
+                            "metrics":  {
+                                            "count":  100,
+                                            "success_rate":  1.0,
+                                            "error_rate":  0.01,
+                                            "ttft_p50_ms":  180.0,
+                                            "ttft_p95_ms":  180.0,
+                                            "latency_p50_ms":  900.0,
+                                            "latency_p95_ms":  900.0,
+                                            "requests_per_s":  1.667,
+                                            "tokens_per_s":  466.67,
+                                            "total_tokens":  28000,
+                                            "quality_score":  0.93,
+                                            "simulated":  true
+                                        },
+                            "log":  "SIMULATED ... vLLM ready ... benchmark ok ... PASSED",
+                            "failure":  null,
+                            "verdict":  "SHIP",
+                            "reason":  "SIMULATED planner: quality regressed on INT4; retry H100 FP8 with tuned batch",
+                            "state":  "COMPLETED",
+                            "status":  "COMPLETED"
+                        }
+                    ]
+}

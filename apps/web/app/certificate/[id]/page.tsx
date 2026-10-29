@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { TopNav } from "@/components/ui";
+import { AppShell } from "@/components/ui";
 import { ModelPassport } from "@/components/ModelPassport";
 import { downloadPassportPng, passportShareUrl, type PassportData } from "@/lib/passport";
 import { QRCodeSVG } from "qrcode.react";
@@ -90,20 +90,6 @@ function fallbackServingCommand(candidate: string, precision: string): string {
   );
 }
 
-function Seal({ tone }: { tone: "ship" | "block" | "sim" }) {
-  const bg = tone === "ship" ? "bg-ship" : tone === "block" ? "bg-block" : "bg-ink";
-  return (
-    <span aria-hidden="true" className={`inline-flex h-14 w-14 items-center justify-center rounded-sm ${bg} text-white `}>
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2l8 3.5v5.2c0 5-3.4 8.6-8 10.3-4.6-1.7-8-5.3-8-10.3V5.5L12 2z" />
-        {tone === "block"
-          ? (<><path d="M12 7v6" /><circle cx="12" cy="16.5" r="0.5" fill="currentColor" /></>)
-          : (<path d="M8.5 12l2.5 2.5 4.5-5" />)}
-      </svg>
-    </span>
-  );
-}
-
 export default function Certificate({ params }: { params: { id: string } }) {
   const [d, setD] = useState<CertData | null>(null);
   const [phase, setPhase] = useState<{ status?: string; experiments?: number; simulated?: boolean | null }>({});
@@ -145,51 +131,52 @@ export default function Certificate({ params }: { params: { id: string } }) {
       { label: "Workload twin ready", done: true },
       { label: st === "CREATED" ? "Queued — benchmark starting" : "Benchmarking on GPU", done: st !== "CREATED", active: st === "RUNNING" && expCount === 0 },
       { label: expCount > 0 ? `${expCount} experiment${expCount === 1 ? "" : "s"} measured` : "Measuring latency · accuracy · errors", done: expCount > 0, active: st === "RUNNING" && expCount > 0 },
-      { label: "Verdict & cryptographic seal", done: false, active: false },
+      { label: "Verdict and cryptographic seal", done: false, active: false },
     ];
     return (
-      <main>
-        <TopNav />
-        <div className="mx-auto max-w-xl px-6 py-12 text-center">
-          <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center rounded-sm border-2 border-ink/20">
+      <AppShell>
+        <div className="mx-auto max-w-xl px-6 py-16 text-center">
+          <span aria-hidden="true" className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-line bg-surface">
             {terminalIdle ? (
-              <span className="font-mono text-xl font-bold text-block">!</span>
+              <span className="text-xl font-semibold text-blockDeep">!</span>
             ) : (
-              <span className="inline-block h-6 w-6 animate-spin rounded-sm border-2 border-ink/20 border-t-ink" />
+              <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-line border-t-ink" />
             )}
           </span>
-          <h1 className="mt-4 text-2xl tracking-tight">
-            {terminalIdle ? "Audit ended without a verdict" : "Minting your certificate…"}
+          <h1 className="mt-5 text-[22px] font-semibold tracking-[-0.02em]">
+            {terminalIdle ? "The run ended without a verdict" : "Minting the certificate…"}
           </h1>
-          <p className="mt-1 font-mono text-[12px] text-muted">
+          <p className="mono mt-1 text-[12.5px] text-ink2">
             {params.id} · {terminalIdle ? `status ${st}` : `status ${st} · elapsed ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`}
           </p>
-          <ol aria-label="Audit progress" className="panel mx-auto mt-6 max-w-md space-y-2 rounded-sm p-4 text-left">
+          <ol aria-label="Run progress" className="mx-auto mt-7 max-w-md space-y-2.5 rounded-card border border-line bg-surface p-5 text-left">
             {steps.map((s, i) => (
-              <li key={s.label} className="flex items-center gap-2.5 text-[13px]">
+              <li key={s.label} className="flex items-center gap-3 text-[14px]">
                 <span
                   aria-hidden="true"
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border text-[10px] font-bold ${s.done ? "border-ship bg-ship text-white" : s.active ? "border-ink bg-ink text-canvas" : "border-ink/25 text-muted"}`}
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${s.done ? "bg-ship text-white" : s.active ? "bg-ink text-[#F1F1ED]" : "border border-line text-faint"}`}
                 >
-                  {s.done ? "✓" : s.active ? "◌" : i + 1}
+                  {s.done ? (
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" /></svg>
+                  ) : s.active ? (
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+                  ) : (
+                    i + 1
+                  )}
                 </span>
-                <span className={s.done || s.active ? "font-bold" : "text-muted"}>{s.label}</span>
+                <span className={s.done || s.active ? "font-medium" : "text-ink2"}>{s.label}</span>
               </li>
             ))}
           </ol>
-          <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
             {!terminalIdle && (
-              <Link href={`/timeline/${params.id}`} className="btn-dark min-h-[44px] cursor-pointer rounded-sm px-5 py-2.5 text-sm font-bold">
-                Watch it live →
-              </Link>
+              <Link href={`/timeline/${params.id}`} className="btn btn-primary btn-round h-11 px-5 text-sm">Watch it live</Link>
             )}
-            <Link href="/dashboard" className="chip inline-block min-h-[44px] cursor-pointer px-5 py-2.5 text-sm">
-              Dashboard
-            </Link>
+            <Link href="/dashboard" className="btn btn-ghost btn-round h-11 px-5 text-sm">All runs</Link>
           </div>
-          <p className="mt-3 font-mono text-[11px] text-muted">This view turns into the sealed certificate automatically — no refresh needed.</p>
+          <p className="mt-4 text-[13px] text-ink2">This view turns into the sealed certificate automatically — no refresh needed.</p>
         </div>
-      </main>
+      </AppShell>
     );
   }
 
@@ -229,7 +216,7 @@ export default function Certificate({ params }: { params: { id: string } }) {
   const maxConcurrency = d.deployment?.operational_limits?.max_safe_concurrency ?? 24;
   const concurrencyNote =
     d.deployment?.operational_limits?.max_safe_concurrency_note ||
-    `${maxConcurrency} parallel streams before P95 breaches 2,000ms.`;
+    `${maxConcurrency} parallel streams before P95 breaches 2,000 ms.`;
   const maxContext = d.deployment?.operational_limits?.max_context_tokens ?? 8192;
   const contextNote =
     d.deployment?.operational_limits?.max_context_note ||
@@ -281,344 +268,277 @@ export default function Certificate({ params }: { params: { id: string } }) {
 
   const kpis = [
     {
-      icon: "⚡",
-      label: "Response Latency (P95)",
-      value: typeof p95 === "number" ? `${p95}ms` : "—",
-      delta: typeof p95 !== "number" ? "No measurement" : p95 <= 2000 ? `vs. 2,000ms SLA target (-${margin}% margin)` : `vs. 2,000ms SLA target (+${latencyOverPct}% over SLA)`,
-      tertiary: "Target: < 2,000ms",
+      label: "Response latency (P95)",
+      value: typeof p95 === "number" ? `${p95.toLocaleString()} ms` : "—",
+      note: typeof p95 !== "number" ? "No measurement" : p95 <= 2000 ? `${margin}% inside the 2,000 ms target` : `${latencyOverPct}% over the 2,000 ms target`,
       pass: passLatency,
     },
     {
-      icon: "🎯",
-      label: "Tool Schema Accuracy",
+      label: "Tool schema accuracy",
       value: typeof q === "number" ? `${(q * 100).toFixed(1)}%` : "—",
-      delta: qualityDeltaPp === null ? "No measurement" : `vs. 85.0% required (${qualityDeltaPp >= 0 ? "+" : ""}${qualityDeltaPp.toFixed(1)}% margin)`,
-      tertiary: "Target: > 85%",
+      note: qualityDeltaPp === null ? "No measurement" : `${qualityDeltaPp >= 0 ? "+" : ""}${qualityDeltaPp.toFixed(1)} points against the 85% gate`,
       pass: passQuality,
     },
     {
-      icon: "🛡️",
-      label: "Reliability (Error Rate)",
+      label: "Reliability (error rate)",
       value: typeof err === "number" ? `${(err * 100).toFixed(1)}%` : "—",
-      delta: "vs. 5.0% cap",
-      tertiary: "Target: < 5%",
+      note: "Against the 5% cap",
       pass: passError,
     },
     {
-      icon: "💵",
-      label: "Cost Efficiency",
+      label: "Cost efficiency",
       value: `$${costPer1k.toFixed(4)} / 1k`,
-      delta: `$${monthly1m.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / month at 1M queries`,
-      tertiary: d.spend_usd !== undefined ? `Budget spent: $${Number(d.spend_usd).toFixed(2)}` : "Nebius L40S → H100",
+      note: `$${monthly1m.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / month at 1M queries`,
       pass: null as boolean | null,
     },
   ];
 
   const gates = [
-    { gate: "Response Latency (P95)", observed: typeof p95 === "number" ? `${p95} ms` : "—", req: "≤ 2,000 ms", pass: passLatency },
-    { gate: "Output Quality & Schema Accuracy", observed: typeof q === "number" ? `${(q * 100).toFixed(1)}%` : "—", req: "≥ 85%", pass: passQuality },
-    { gate: "Reliability (Error Rate)", observed: typeof err === "number" ? `${(err * 100).toFixed(1)}%` : "—", req: "≤ 5%", pass: passError },
+    { gate: "Response latency (P95)", observed: typeof p95 === "number" ? `${p95} ms` : "—", req: "≤ 2,000 ms", pass: passLatency },
+    { gate: "Output quality and schema accuracy", observed: typeof q === "number" ? `${(q * 100).toFixed(1)}%` : "—", req: "≥ 85%", pass: passQuality },
+    { gate: "Reliability (error rate)", observed: typeof err === "number" ? `${(err * 100).toFixed(1)}%` : "—", req: "≤ 5%", pass: passError },
   ];
 
-  function statusBadgeClass(pass: boolean | null) {
-    if (pass === true) return "border border-ship/40 bg-ship/10 text-ship px-2 py-0.5 text-[11px] font-mono font-bold rounded-sm";
-    if (pass === false) return "border border-block/40 bg-block/10 text-block px-2 py-0.5 text-[11px] font-mono font-bold rounded-sm";
-    return "border border-ink/20 bg-ink/5 text-muted px-2 py-0.5 text-[11px] font-mono font-bold rounded-sm";
-  }
+  const verdictWord = ship ? "SHIP" : sim ? "SIMULATED" : "BLOCK";
+  const verdictColor = ship ? "text-ship" : sim ? "text-warn" : "text-block";
 
-  return (<main className="min-h-screen bg-paper text-ink">
-    <TopNav />
-    <style>{`@media print {
-      @page { margin: 10mm; size: A4; }
-      nav, button, .no-print { display: none !important; }
-      body { background: #fff !important; color: #000 !important; }
-      main { padding: 0 !important; }
-      .frame { border: none !important; margin: 0 !important; }
-      .print-page { max-width: 100% !important; padding: 0 !important; font-size: 10pt; line-height: 1.4; }
-      .print-card { box-shadow: none !important; break-inside: avoid; border: 1px solid #000 !important; }
-      .print-break { break-inside: avoid; }
-      h1 { font-size: 20pt !important; line-height: 1.2 !important; }
-      h2 { font-size: 11pt !important; }
-      a { text-decoration: none !important; color: inherit !important; }
-      pre, code, .hash-digest { word-break: break-all; overflow-wrap: anywhere; white-space: pre-wrap; font-size: 8pt !important; }
-      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    }`}</style>
-    {/* Clean top bar: navigation + print, hidden on paper */}
-    <div className="no-print mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-2 px-6 pt-5">
-      <Link
-        href="/dashboard"
-        className="chip inline-block min-h-[44px] cursor-pointer px-4 py-2.5 text-xs font-bold transition-colors hover:border-ink"
-        aria-label="Return to dashboard"
-      >
-        ← Return to Dashboard
-      </Link>
-      <button
-        type="button"
-        onClick={() => window.print()}
-        className="btn-dark min-h-[44px] cursor-pointer rounded-sm px-4 py-2.5 text-xs font-bold transition-all "
-      >
-        Print / Save PDF
-      </button>
-    </div>
-    <div className="print-page mx-auto max-w-[1120px] border-x border-rule px-6 py-8 md:px-10">
-      {/* Header + seal */}
-      <div className="text-left">
-        <Seal tone={tone} />
-        <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.08em] text-orange">04 / OFFICIAL CERTIFICATE</p><h1 className="mt-4 text-[clamp(42px,6vw,72px)] font-semibold leading-[1.04] tracking-[-0.055em]">The proof is in<br /><span className="text-orange">the receipt.</span></h1>
-        <p className="mt-5 text-sm text-muted">SandboxProof · Nebius Token Factory Sandboxes · Deterministic audit, never vibes</p>
-      </div>
+  return (
+    <AppShell>
+      <style>{`@media print {
+        @page { margin: 10mm; size: A4; }
+        nav, button, header, footer, .no-print { display: none !important; }
+        body { background: #fff !important; color: #000 !important; }
+        .app-sheet { border: 0 !important; margin: 0 !important; border-radius: 0 !important; }
+        .print-page { max-width: 100% !important; padding: 0 !important; font-size: 10pt; line-height: 1.4; }
+        .print-card { break-inside: avoid; border: 1px solid #000 !important; }
+        .print-break { break-inside: avoid; }
+        h1 { font-size: 20pt !important; line-height: 1.2 !important; }
+        h2 { font-size: 11pt !important; }
+        a { text-decoration: none !important; color: inherit !important; }
+        pre, code, .hash-digest { word-break: break-all; overflow-wrap: anywhere; white-space: pre-wrap; font-size: 8pt !important; }
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      }`}</style>
 
-      {/* Metadata bar */}
-      <dl className="print-card panel mt-6 grid grid-cols-2 gap-3 rounded-sm p-4 text-left md:grid-cols-4">
-        <div><dt className="text-[10px] uppercase tracking-widest text-muted">Certification ID</dt><dd className="hash-digest mt-0.5 truncate font-mono text-[12px] font-bold" title={params.id}>{params.id}</dd></div>
-        <div><dt className="text-[10px] uppercase tracking-widest text-muted">Issued</dt><dd className="mt-0.5 text-[12px] font-bold">{issuedAt.toLocaleString()}</dd></div>
-        <div><dt className="text-[10px] uppercase tracking-widest text-muted">Workload Fingerprint</dt><dd className="hash-digest mt-0.5 truncate font-mono text-[12px] font-bold" title={primaryDigest}>{primaryDigest}</dd></div>
-        <div><dt className="text-[10px] uppercase tracking-widest text-muted">Nebius Region</dt><dd className="mt-0.5 text-[12px] font-bold">{REGION}</dd></div>
-      </dl>
-
-      {/* Verdict banner */}
-      <div
-        role="status"
-        aria-label={`verdict ${d.verdict}`}
-        className={`print-card mt-4 rounded-sm border p-5 text-left md:p-6 ${ship ? "border-ship bg-ship text-white" : sim ? "border-ink bg-paper" : "border-block bg-block text-white"}`}
-      >
-        {ship && (<><p className="text-xl font-bold tracking-tight md:text-2xl">🟢 SHIP FOR PRODUCTION</p>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed">Verified shield — the candidate model passed every SLA gate and is safe for deployment. Latency, quality, reliability, and cost evidence are attached below.</p></>)}
-        {!ship && !sim && (<><p className="text-xl font-bold tracking-tight md:text-2xl">🔴 BLOCK — HIGH PRODUCTION RISK</p>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed">The candidate failed one or more SLA gates and must not ship in its current configuration. Failed gates:</p>
-          <ul className="mt-2 space-y-1 text-sm">
-            {(d.failing_gates ?? []).map((g) => (<li key={g.metric} className="font-mono text-[12px]">✕ {g.metric}: observed {String(g.observed)} vs required {String(g.threshold)}{g.detail ? ` — ${g.detail}` : ""}</li>))}
-            {(d.failing_gates ?? []).length === 0 && (<li className="text-sm">See the evidence scorecard below for the failing gate.</li>)}
-          </ul></>)}
-        {sim && (<><p className="text-xl font-bold tracking-tight md:text-2xl">⚪ SIMULATED AUDIT</p>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">Dev-grade evidence only — policy checks passed in simulation. See provenance and scorecard below.</p></>)}
-      </div>
-
-      {/* Provenance badge — single source of truth, no duplicate disclaimer */}
-      <div className="mt-4">
-        {sim ? (
-          <div className="rounded-sm border border-ink/40 bg-ink/5 p-4 text-left">
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-warning" />
-              <span className="font-bold text-xs uppercase tracking-wider">Deterministic Hardware Simulation · Dev-Grade</span>
-            </div>
-            <p className="mt-1 text-[12px] text-muted">
-              Validated via deterministic simulation. For a production-grade certificate, re-run with live sandbox execution enabled.
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-sm border border-ship/40 bg-ship/5 p-4 text-left">
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-ship" />
-              <span className="font-bold text-xs uppercase tracking-wider text-ship">Nebius Sandbox Verified · Production-Grade</span>
-            </div>
-            <p className="mt-1 text-[12px] text-muted">
-              Executed in isolated Nebius Sandbox microVMs with measured runtime telemetry and operation lineage.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Reproducible benchmark audit fingerprint */}
-      <section aria-label="Reproducible benchmark audit fingerprint" className="print-card panel print-break mt-4 rounded-sm p-4 text-left md:p-5">
-        <div className="flex items-center gap-2">
-          <span aria-hidden="true">🔒</span>
-          <h2 className="font-mono text-sm font-medium uppercase tracking-[0.08em]">REPRODUCIBLE BENCHMARK AUDIT FINGERPRINT</h2>
+      <div className="print-page mx-auto max-w-[1120px]">
+        {/* Toolbar */}
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 pb-2">
+          <Link href="/dashboard" className="btn btn-ghost btn-round h-10 px-4 text-sm" aria-label="Return to all runs">← All runs</Link>
+          <button type="button" onClick={() => window.print()} className="btn btn-primary btn-round h-10 px-4 text-sm">Print / save PDF</button>
         </div>
-        <p className="mt-2 text-[12px] leading-relaxed text-ink/80">{digestExplanation}</p>
-        <dl className="mt-3 grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
-          <div>
-            <dt className="text-[10px] uppercase tracking-widest text-muted">Workload Fingerprint</dt>
-            <dd className="hash-digest mt-0.5 break-all font-mono text-[12px] font-bold" title={primaryDigest}>{primaryDigest}</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-widest text-muted">Replayed Requests</dt>
-            <dd className="mt-0.5 font-bold">{replayCount !== null ? `${replayCount} requests · temperature 0.0` : "temperature 0.0 · seeded prompts"}</dd>
-          </div>
-        </dl>
-        {d.twin_digest && (
-          <p className="mt-2 font-mono text-[11px] text-muted">twin sha256:{d.twin_digest} · evidence {fnvDigest}</p>
-        )}
-        <div className="no-print mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => copyText(primaryDigest, setCopiedHash)}
-            className="cursor-pointer rounded-sm border border-ink px-3 py-2 text-[12px] font-bold transition-colors hover:bg-ink hover:text-white"
-            aria-live="polite"
-          >
-            {copiedHash ? "✓ Copied!" : "Copy Audit Fingerprint"}
-          </button>
-          <span className="hash-digest font-mono text-[11px] text-muted">{primaryDigest}</span>
-        </div>
-        <p className="mt-2 hidden font-mono text-[11px] text-muted print:block">{primaryDigest}</p>
-      </section>
 
-      {/* KPI cards — sleek compact editorial */}
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((k) => (
-          <div key={k.label} className="print-card panel flex flex-col rounded-sm p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{k.label}</p>
-              <span aria-hidden="true" className="text-sm leading-none">{k.icon}</span>
+        <div className="px-5 pb-14 pt-4 sm:px-8">
+          {/* Letterhead */}
+          <header className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="flex items-center gap-2.5">
+                <span className="inline-block h-3 w-3 bg-accent" aria-hidden="true" />
+                <span className="font-display text-[20px] leading-none">SandboxProof</span>
+                <span className="text-[13px] text-ink2">· Certificate of crash-test</span>
+              </p>
+              <h1 className="mt-5 max-w-xl text-[clamp(1.7rem,3.4vw,2.4rem)] font-semibold leading-tight tracking-[-0.02em]">
+                {candidateModel}
+              </h1>
+              <p className="mt-1.5 text-[14px] text-ink2">
+                {sim ? "Simulated replay against deterministic model adapter." : `Tested against a sealed workload twin in isolated Nebius Contree sandboxes — ${REGION}.`}
+              </p>
             </div>
-            <p className="mt-1.5 font-mono text-lg font-bold tracking-tight text-ink">{k.value}</p>
-            <p className="mt-1 truncate text-[11px] leading-snug text-ink/70" title={k.delta}>{k.delta}</p>
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="truncate text-[11px] text-muted">{k.tertiary}</span>
-              {k.pass !== null && (
-                <span className={statusBadgeClass(k.pass)}>{k.pass ? "PASSED" : "FAILED"}</span>
+            <dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-[13px] sm:grid-cols-4 sm:text-right">
+              <div><dt className="text-[12px] text-ink2">Certification</dt><dd className="mono mt-0.5 font-medium" title={params.id}>{params.id}</dd></div>
+              <div><dt className="text-[12px] text-ink2">Issued</dt><dd className="mt-0.5 font-medium tabular-nums">{issuedAt.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</dd></div>
+              <div><dt className="text-[12px] text-ink2">Workload digest</dt><dd className="mono mt-0.5 max-w-[22ch] truncate font-medium" title={primaryDigest}>{primaryDigest}</dd></div>
+              <div><dt className="text-[12px] text-ink2">Spend</dt><dd className="mt-0.5 font-medium tabular-nums">${Number(spendUsd ?? 0).toFixed(2)}</dd></div>
+            </dl>
+          </header>
+
+          {/* Verdict — the loudest element on the document */}
+          <div role="status" aria-label={`Verdict ${d.verdict}`} className={`print-card mt-9 rounded-card p-6 sm:p-8 ${ship ? "bg-ship text-white" : sim ? "bg-surface text-ink border border-line" : "bg-block text-white"}`}>
+            <p className={`verdict leading-[0.9] ${verdictColor} ${sim ? "" : "!text-white"}`} style={{ fontSize: "clamp(3.4rem, 8vw, 7rem)" }}>{verdictWord}</p>
+            {ship && (
+              <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-white/90">
+                The candidate passed every SLA gate and is cleared for deployment. Latency, quality, reliability, and cost evidence are attached below.
+              </p>
+            )}
+            {!ship && !sim && (
+              <div className="mt-4 max-w-2xl text-[15px] leading-relaxed text-white/90">
+                <p>The candidate failed one or more SLA gates and must not ship in its current configuration. Failed gates:</p>
+                <ul className="mt-2 space-y-1 text-[13.5px]">
+                  {(d.failing_gates ?? []).map((g) => (
+                    <li key={g.metric} className="mono">{g.metric}: observed {String(g.observed)} vs required {String(g.threshold)}{g.detail ? ` — ${g.detail}` : ""}</li>
+                  ))}
+                  {(d.failing_gates ?? []).length === 0 && <li>See the scorecard below for the failing gate.</li>}
+                </ul>
+              </div>
+            )}
+            {sim && (
+              <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink2">
+                Deterministic simulation only — policy checks passed in simulation. Dev-grade evidence; re-run with live sandbox execution for a production-grade certificate.
+              </p>
+            )}
+          </div>
+
+          {/* Provenance strip */}
+          <div className={`print-card mt-4 flex flex-wrap items-center gap-3 rounded-card border px-4 py-3 ${sim ? "border-warn/40 bg-warnWash" : "border-ship/30 bg-shipWash"}`}>
+            <span aria-hidden="true" className={`inline-block h-2 w-2 rounded-full ${sim ? "bg-warn" : "bg-ship"}`} />
+            <span className={`text-[13.5px] font-medium ${sim ? "text-warn" : "text-ship"}`}>
+              {sim ? "Deterministic hardware simulation — dev-grade" : "Nebius sandbox verified — production-grade"}
+            </span>
+            <span className="text-[13px] text-ink2">
+              {sim ? "Validated via deterministic simulation." : "Executed in isolated microVMs with measured runtime telemetry and operation lineage."}
+            </span>
+          </div>
+
+          {/* Evidence scorecard */}
+          <div className="print-card mt-8 overflow-x-auto rounded-card border border-line bg-surface">
+            <table className="ttable min-w-[560px]">
+              <caption className="px-5 pb-1 pt-4 text-left text-[15px] font-semibold">Evidence scorecard — measured against the gates</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Gate</th>
+                  <th scope="col" className="!text-right">Observed</th>
+                  <th scope="col" className="!text-right">Requirement</th>
+                  <th scope="col" className="!text-right">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gates.map((g) => (
+                  <tr key={g.gate}>
+                    <td className="font-medium">{g.gate}</td>
+                    <td className="tnum">{g.observed}</td>
+                    <td className="tnum text-ink2">{g.req}</td>
+                    <td className="!text-right">
+                      {g.pass === null ? <span className="text-faint">—</span> : g.pass ? <span className="pill pill-ship">Passed</span> : <span className="pill pill-block">Failed</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {d.spend_usd !== undefined && (
+              <p className="border-t border-rule px-5 py-3 text-[12.5px] text-ink2 tabular-nums">Budget spent: ${Number(d.spend_usd).toFixed(2)} — caps $10 per certification, $20 total.</p>
+            )}
+          </div>
+
+          {/* KPI strip */}
+          <section aria-label="Measured results" className="kpi-strip mt-4 rounded-card border border-line bg-surface max-sm:grid-cols-2" style={{ ["--kpi-n" as string]: 4 }}>
+            {kpis.map((k) => (
+              <div key={k.label} className="kpi-cell">
+                <p className="kpi-label">{k.label}</p>
+                <p className="kpi-value mt-1.5 tabular-nums">{k.value}</p>
+                <p className="mt-1 text-[12.5px] text-ink2">{k.note}</p>
+                {k.pass !== null && <p className="mt-2">{k.pass ? <span className="pill pill-ship">Passed</span> : <span className="pill pill-block">Failed</span>}</p>}
+              </div>
+            ))}
+          </section>
+
+          {/* Workload fingerprint */}
+          <section aria-label="Reproducible benchmark audit fingerprint" className="print-card print-break mt-8 rounded-card border border-line bg-surface p-5 sm:p-6">
+            <h2 className="text-[16px] font-semibold">Reproducible workload fingerprint</h2>
+            <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-ink2">{digestExplanation}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-control bg-raised px-3.5 py-3">
+                <p className="text-[12px] text-ink2">Workload fingerprint</p>
+                <p className="mono hash-digest mt-1 break-all text-[12.5px] font-medium" title={primaryDigest}>{primaryDigest}</p>
+              </div>
+              <div className="rounded-control bg-raised px-3.5 py-3">
+                <p className="text-[12px] text-ink2">Replayed requests</p>
+                <p className="mt-1 text-[13.5px] font-medium tabular-nums">{replayCount !== null ? `${replayCount} requests · temperature 0.0` : "temperature 0.0 · seeded prompts"}</p>
+              </div>
+            </div>
+            {d.twin_digest && <p className="mono mt-3 break-all text-[11.5px] text-ink2">twin sha256:{d.twin_digest} · evidence {fnvDigest}</p>}
+            <div className="no-print mt-4 flex flex-wrap items-center gap-3">
+              <button type="button" onClick={() => copyText(primaryDigest, setCopiedHash)} className="btn btn-ghost btn-round h-9 px-3.5 text-[13px]" aria-live="polite">
+                {copiedHash ? "Copied" : "Copy fingerprint"}
+              </button>
+            </div>
+          </section>
+
+          {/* Production deployment blueprint */}
+          <section aria-label="Production deployment blueprint" className="print-card print-break mt-4 rounded-card border border-line bg-surface p-5 sm:p-6">
+            <h2 className="text-[16px] font-semibold">Production deployment blueprint</h2>
+            <p className="mt-1.5 max-w-2xl text-[13.5px] text-ink2">
+              Certified hardware, a ready-to-run serving command, operational limits, and economics.
+              {sim ? " Simulation values shown; re-run live for production-grade numbers." : ""}
+            </p>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-control bg-raised p-3.5">
+                <dt className="text-[12px] text-ink2">Certified hardware</dt>
+                <dd className="mt-1 text-[14px] font-semibold">{certifiedHardware}</dd>
+                <dd className="mono mt-1 text-[12px] text-ink2">{candidateModel} · {planPrecision} · {lastExp?.plan?.engine || d.deployment?.engine || "vLLM"}</dd>
+              </div>
+              <div className="rounded-control bg-raised p-3.5">
+                <dt className="text-[12px] text-ink2">Economics</dt>
+                <dd className="mono mt-1 text-[14px] font-semibold tabular-nums">${costPer1k.toFixed(4)} / 1k queries</dd>
+                <dd className="mt-1 text-[12px] text-ink2">
+                  ${monthly1m.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / month at 1M queries · {economicsBasis}
+                </dd>
+              </div>
+            </dl>
+            <div className="mt-4">
+              <p className="text-[12px] text-ink2">Ready-to-run serving command</p>
+              <pre className="term hash-digest mt-1.5 overflow-auto p-3.5">{servingCommand}</pre>
+              <div className="no-print mt-2.5">
+                <button type="button" onClick={() => copyText(servingCommand, setCopiedCmd)} className="btn btn-ghost btn-round h-9 px-3.5 text-[13px]" aria-live="polite">
+                  {copiedCmd ? "Copied" : "Copy command"}
+                </button>
+              </div>
+            </div>
+            <ul className="mt-4 space-y-2 text-[13.5px] leading-relaxed">
+              <li className="rounded-control bg-raised p-3.5">
+                <strong className="font-semibold">Max safe concurrency: {maxConcurrency} streams.</strong> <span className="text-ink2">{concurrencyNote}</span>
+              </li>
+              <li className="rounded-control bg-raised p-3.5">
+                <strong className="font-semibold">Max context length: {maxContext.toLocaleString()} tokens.</strong> <span className="text-ink2">{contextNote}</span>
+              </li>
+            </ul>
+          </section>
+
+          {/* Seal */}
+          <div className="print-card mt-4 rounded-card border border-line bg-surface p-5 sm:p-6">
+            <h2 className="text-[16px] font-semibold">Official seal</h2>
+            <div className="mt-4 grid gap-6 md:grid-cols-[1fr_150px]">
+              <dl className="grid grid-cols-1 gap-3 text-[13.5px] sm:grid-cols-2">
+                <div><dt className="text-[12px] text-ink2">Issued by</dt><dd className="mt-0.5 font-medium">SandboxProof Policy Engine v1.0</dd></div>
+                <div><dt className="text-[12px] text-ink2">Engine</dt><dd className="mt-0.5 font-medium">vLLM PagedAttention</dd></div>
+                <div><dt className="text-[12px] text-ink2">Nebius region</dt><dd className="mt-0.5 font-medium">{REGION}</dd></div>
+                <div><dt className="text-[12px] text-ink2">Workload fingerprint</dt><dd className="mono hash-digest mt-0.5 break-all font-medium" title={primaryDigest}>{primaryDigest}</dd></div>
+              </dl>
+              {verificationUrl && (
+                <div className="w-fit rounded-control border border-line bg-white p-2.5">
+                  <QRCodeSVG value={verificationUrl} size={124} bgColor="#FFFFFF" fgColor="#131313" level="M" aria-label="Scan to open this certificate" />
+                  <p className="mt-1.5 text-center text-[11px] text-ink2">Scan to verify</p>
+                </div>
               )}
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Evidence scorecard */}
-      <div className="print-card panel mt-4 overflow-auto rounded-sm text-left">
-        <table className="w-full text-xs">
-          <caption className="p-4 text-left text-sm font-bold">Executive Evidence Scorecard — Current vs. Candidate (measured)</caption>
-          <thead><tr className="border-y border-ink bg-ink/[0.04] text-left text-muted">
-            <th className="p-3 font-bold">Gate</th><th className="p-3">Observed</th><th className="p-3">Requirement</th><th className="p-3 text-right">Result</th>
-          </tr></thead>
-          <tbody>{gates.map((g, i) => (
-            <tr key={g.gate} className={`border-b border-ink/10 last:border-b-0 ${i % 2 === 1 ? "bg-ink/[0.03]" : "bg-transparent"}`}>
-              <td className="p-3 font-bold">{g.gate}</td>
-              <td className="p-3 font-mono">{g.observed}</td>
-              <td className="p-3 font-mono">{g.req}</td>
-              <td className="p-3 text-right">
-                {g.pass === null ? (<span className="text-muted">—</span>)
-                  : g.pass ? (<span className="inline-block rounded-sm border border-ship/30 bg-ship px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Passed</span>)
-                  : (<span className="inline-block rounded-sm border border-block/30 bg-block px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Failed</span>)}
-              </td>
-            </tr>))}</tbody>
-        </table>
-        {d.spend_usd !== undefined && (<p className="border-t border-ink/10 p-3 text-[11px] text-muted">Budget spent: ${Number(d.spend_usd).toFixed(2)} (cap $10/cert, $20 total)</p>)}
-      </div>
-
-      {/* Production Deployment Blueprint — turnkey DevOps/ML blueprint (star outcome) */}
-      <section aria-label="Production deployment blueprint (Nebius Cloud)" className="print-card panel print-break mt-4 rounded-sm p-4 text-left md:p-5">
-        <div className="flex items-center gap-2">
-          <span aria-hidden="true">🚀</span>
-          <h2 className="text-sm font-bold uppercase tracking-widest">PRODUCTION DEPLOYMENT BLUEPRINT (NEBIUS CLOUD)</h2>
-        </div>
-        <p className="mt-1 text-[12px] text-muted">
-          Turnkey infrastructure blueprint — certified hardware, ready-to-run serving command, operational limits, and economics.
-          {sim ? " Simulation values shown; re-run live for production-grade numbers." : ""}
-        </p>
-        <dl className="mt-3 grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
-          <div className="rounded-sm border border-ink/20 bg-canvas p-3">
-            <dt className="text-[10px] uppercase tracking-widest text-muted">Certified Hardware</dt>
-            <dd className="mt-0.5 text-[13px] font-bold">{certifiedHardware}</dd>
-            <dd className="mt-1 font-mono text-[11px] text-muted">
-              {candidateModel} · {planPrecision} · {(lastExp?.plan?.engine || d.deployment?.engine || "vLLM")}
-            </dd>
-          </div>
-          <div className="rounded-sm border border-ink/20 bg-canvas p-3">
-            <dt className="text-[10px] uppercase tracking-widest text-muted">Economics</dt>
-            <dd className="mt-0.5 font-mono text-[13px] font-bold">${costPer1k.toFixed(4)} / 1k queries</dd>
-            <dd className="mt-1 text-[11px] text-muted">
-              ${monthly1m.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / month at 1M queries · {economicsBasis}
-            </dd>
-          </div>
-        </dl>
-        <div className="mt-3">
-          <p className="text-[10px] uppercase tracking-widest text-muted">Ready-to-Run Serving Command</p>
-          <pre className="hash-digest mt-1 overflow-auto rounded-sm border border-ink bg-ink p-3 font-mono text-[11px] leading-relaxed text-canvas">{servingCommand}</pre>
-          <div className="no-print mt-2">
-            <button
-              type="button"
-              onClick={() => copyText(servingCommand, setCopiedCmd)}
-              className="cursor-pointer rounded-sm border border-ink px-3 py-2 text-[12px] font-bold transition-colors hover:bg-ink hover:text-white"
-              aria-live="polite"
-            >
-              {copiedCmd ? "✓ Copied!" : "Copy Command"}
-            </button>
-          </div>
-        </div>
-        <ul className="mt-3 space-y-2 text-[12px] leading-relaxed">
-          <li className="rounded-sm border border-ink/15 p-3">
-            <span className="font-bold">Max safe concurrency: {maxConcurrency} streams. </span>
-            <span className="text-ink/80">{concurrencyNote}</span>
-          </li>
-          <li className="rounded-sm border border-ink/15 p-3">
-            <span className="font-bold">Max context length: {maxContext.toLocaleString()} tokens. </span>
-            <span className="text-ink/80">{contextNote}</span>
-          </li>
-        </ul>
-      </section>
-
-      {/* Official cryptographic footer / document seal */}
-      <div className="print-card panel mt-4 rounded-sm p-4 text-left">
-        <div className="flex items-center gap-2">
-          <span aria-hidden="true">🔒</span>
-          <p className="text-xs font-bold uppercase tracking-widest">Official Seal · Cryptographic Verification</p>
-        </div>
-        <div className="mt-3 grid gap-6 md:grid-cols-[1fr_136px]">
-          <dl className="grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-2">
-          <div>
-            <dt className="text-[10px] uppercase tracking-widest text-muted">Issued by</dt>
-            <dd className="mt-0.5 font-bold">SandboxProof Policy Engine v1.0</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-widest text-muted">Engine</dt>
-            <dd className="mt-0.5 font-bold">vLLM PagedAttention</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-widest text-muted">Nebius Region</dt>
-            <dd className="mt-0.5 font-bold">{REGION}</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase tracking-widest text-muted">Workload Fingerprint</dt>
-            <dd className="hash-digest mt-0.5 break-all font-mono text-[12px] font-bold" title={primaryDigest}>{primaryDigest}</dd>
-          </div>
-          </dl>
-          {verificationUrl && (
-            <div className="w-fit border border-rule bg-white p-2">
-              <QRCodeSVG value={verificationUrl} size={120} bgColor="#FFFFFF" fgColor="#111111" level="M" aria-label="Scan to open this certificate" />
-              <p className="mt-1 text-center font-mono text-[9px] uppercase tracking-[0.08em]">Verify online</p>
+          {/* Model passport */}
+          <section className="no-print mt-12" aria-label="Model passport">
+            <h2 className="d-md">Proof, ready to share.</h2>
+            <p className="mt-2 max-w-xl text-[14px] text-ink2">Export a 1200 × 630 receipt graphic with the recorded verdict and metrics.</p>
+            <div className="mt-6"><ModelPassport data={passport} /></div>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button type="button" onClick={() => void downloadPassportPng(passport)} className="btn btn-primary btn-round h-11 px-5 text-sm">Export proof card</button>
+              <button type="button" onClick={() => window.open(passportShareUrl(passport, window.location.href), "_blank", "noopener,noreferrer")} className="btn btn-ghost btn-round h-11 px-5 text-sm">Share on X</button>
             </div>
-          )}
-        </div>
-        <div className="no-print mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => copyText(primaryDigest, setCopiedHash)}
-            className="cursor-pointer rounded-sm border border-ink px-3 py-2 text-[12px] font-bold transition-colors hover:bg-ink hover:text-white"
-          >
-            {copiedHash ? "✓ Copied!" : "Copy Verification Hash"}
-          </button>
-          <span className="hash-digest font-mono text-[11px] text-muted">{primaryDigest}</span>
-        </div>
-        <p className="hash-digest mt-2 hidden break-all font-mono text-[11px] text-muted print:block">{primaryDigest}</p>
-      </div>
+          </section>
 
-      <section className="no-print mt-8 border-t border-rule pt-8" aria-label="Model passport">
-        <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-orange">05 / MODEL PASSPORT</p>
-        <h2 className="mt-3 text-[32px] font-medium tracking-[-0.055em] md:text-5xl">Proof, ready to share.</h2>
-        <p className="mb-6 mt-3 text-sm text-muted">Export a 1200 × 630 px receipt graphic with the recorded verdict and metrics.</p>
-        <ModelPassport data={passport} />
-        <div className="mt-5 flex flex-wrap gap-3">
-          <button type="button" onClick={() => void downloadPassportPng(passport)} className="min-h-[44px] bg-orange px-5 font-mono text-[11px] uppercase tracking-[0.08em] text-white hover:bg-orangeDeep">Export Proof Card</button>
-          <button type="button" onClick={() => window.open(passportShareUrl(passport, window.location.href), "_blank", "noopener,noreferrer")} className="min-h-[44px] border border-ink px-5 font-mono text-[11px] uppercase tracking-[0.08em] hover:bg-ink hover:text-white">Share Proof Card on X →</button>
+          {/* Verification line */}
+          <p className="mono mt-10 break-all border-t border-line pt-5 text-[12px] text-ink2">
+            Verification URL /certificate/{params.id} — verify the fingerprint against the workload and operation receipts.
+          </p>
+
+          {/* Engineering drawer */}
+          <details className="no-print mt-4 rounded-card border border-line bg-surface p-4 text-[13px]">
+            <summary className="cursor-pointer font-medium">Technical evidence and per-experiment ledger (JSON)</summary>
+            <pre className="term mt-3 max-h-80 overflow-auto p-3.5">{JSON.stringify(d.experiments ?? d.evidence ?? d, null, 2).slice(0, 6000)}</pre>
+          </details>
+
+          <div className="no-print mt-6 flex flex-wrap gap-3">
+            <button onClick={() => window.print()} className="btn btn-primary btn-round h-11 px-5 text-sm">Print / save certificate (PDF)</button>
+            <Link href="/dashboard" className="btn btn-ghost btn-round h-11 px-5 text-sm">All runs</Link>
+            <Link href="/#launch" className="btn btn-ghost btn-round h-11 px-5 text-sm">Run another crash test</Link>
+          </div>
         </div>
-      </section>
-      <div className="mt-6 border-y border-rule py-4 font-mono text-[11px] text-muted">
-        VERIFICATION URL / <span className="break-all text-ink">/certificate/{params.id}</span>
-        <span className="ml-3">Verify the fingerprint against the underlying workload and operation receipts.</span>
       </div>
-
-      {/* Engineering drawer */}
-      <details className="no-print panel mt-4 rounded-sm p-4 text-left text-xs">
-        <summary className="cursor-pointer font-bold">▶ Technical Evidence &amp; Per-Experiment Ledger (JSON)</summary>
-        <pre className="mt-2 max-h-80 overflow-auto border border-ink/20 bg-canvas p-3 text-[11px] leading-relaxed">{JSON.stringify(d.experiments ?? d.evidence ?? d, null, 2).slice(0, 6000)}</pre>
-      </details>
-
-      {/* Action bar */}
-      <div className="no-print mt-6 flex flex-wrap gap-3">
-        <button onClick={() => window.print()} className="btn-dark min-h-[44px] cursor-pointer rounded-sm px-5 py-3 text-sm font-bold transition-colors">Print / Save Certificate (PDF)</button>
-        <Link href="/dashboard" className="chip inline-block min-h-[44px] cursor-pointer px-5 py-3 text-sm">Back to Dashboard</Link>
-        <Link href="/new" className="chip inline-block min-h-[44px] cursor-pointer px-5 py-3 text-sm">Run New Audit</Link>
-      </div>
-    </div>
-  </main>);
+    </AppShell>
+  );
 }

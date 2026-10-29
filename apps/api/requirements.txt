@@ -4,3 +4,4 @@ pydantic>=2
 pytest
 httpx
 python-dotenv
+contree-sdk>=0.3.6

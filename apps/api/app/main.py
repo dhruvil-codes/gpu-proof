@@ -41,24 +41,21 @@ from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from fastapi.responses import StreamingResponse  # type: ignore
 from pydantic import BaseModel, Field  # type: ignore
 
-from services import cost_engine as ce
 from services import advisor as advisor_svc
-from services import experiment_policy as pol
 from services import sla_evaluator as sla
 from services import store
 from services import workload_twin as wt
 from services.certificate_engine import build_certificate
 from services.certification_loop import LoopHooks
-from services.nebius_runner import get_runner, get_runner_for_byok
+from services.sandbox_runner import get_sandbox_runner
 
 app = FastAPI(title="SandboxProof API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 TOTAL_CAP = float(os.environ.get("MAX_BUDGET_USD", "20"))
 CERTS: dict = {}
 TOTAL = {"spend": 0.0}
-BENCH_IMAGE = "ghcr.io/sandboxproof/benchmark:cpu-sim"
 BUS: dict[str, "queue.Queue[str]"] = {}
-_SIM_RUNNER = None  # one simulator per process so sim job IDs stay unique
+_SIM_RUNNER = None
 
 
 def emit(cid: str, event: dict) -> None:
@@ -70,7 +67,15 @@ def emit(cid: str, event: dict) -> None:
             pass
 
 
-HOOKS = LoopHooks(CERTS, emit, BENCH_IMAGE, TOTAL, TOTAL_CAP)
+HOOKS = LoopHooks(CERTS, emit, TOTAL, TOTAL_CAP)
+
+
+def _val(h):
+    if h is None:
+        return None
+    if hasattr(h, "default"):
+        return h.default
+    return h
 
 
 def _sanitize_byok(api_key: str | None, project_id: str | None,
@@ -93,14 +98,12 @@ def _get_runner(byok: dict | None = None):
 
     BYOK dict (if any) supplies per-run credentials; simulator mode ignores
     the key for execution but still bypasses the shared budget cap in the
-    loop. Real mode builds a runner bound to the caller's key.
+    loop. Real mode builds a sandbox runner bound to the caller's key.
     """
-    global _SIM_RUNNER
-    if os.environ.get("USE_SIMULATOR", "true").lower() == "true":
-        if _SIM_RUNNER is None:
-            _SIM_RUNNER = get_runner()
-        return _SIM_RUNNER
-    return get_runner_for_byok(byok)
+    byok = byok or {}
+    api_key = byok.get("api_key") or None
+    project_id = byok.get("project_id") or None
+    return get_sandbox_runner(api_key=api_key, project_id=project_id)
 
 
 def _runner_factory_for(cid: str):
@@ -158,7 +161,7 @@ if os.environ.get("USE_SIMULATOR", "true").lower() != "true":
 
 
 class NewCert(BaseModel):
-    candidate_model: str = Field(default="Nemotron-3-Nano-30B", max_length=250)
+    candidate_model: str = Field(default="nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B", max_length=250)
     current_model: str = Field(default="Qwen3-8B", max_length=250)
     gpu_type: str = "H100"
     precision: str = "FP8"
@@ -553,7 +556,9 @@ def chat_stream(payload: dict):
 @app.get("/certifications")
 def list_all():
     mem = [{"id": cid, "status": c["status"], "spend": c["spend"],
-            "simulated": c["simulated"], "byok_used": _byok_flag(c)}
+            "simulated": c["simulated"],
+            "candidate_model": (c.get("config") or {}).get("candidate_model"),
+            "byok_used": _byok_flag(c)}
            for cid, c in CERTS.items()]
     return {"memory": mem, "stored": store.list_certs(), "total_spend": TOTAL["spend"], "cap": TOTAL_CAP}
 
@@ -575,13 +580,17 @@ def create_cert(
         if c.sample_size <= 0 or c.sample_size > 10000:
             raise HTTPException(status_code=422, detail="sample_size must be > 0 and <= 10000")
         c.requests = c.sample_size
-    # Headers take precedence over payload fields (client localStorage -> headers).
+    x_key = _val(x_nebius_api_key)
+    x_proj = _val(x_nebius_project_id)
+    x_sub = _val(x_nebius_subnet_id)
+    x_sb_mode = _val(x_sandboxproof_mode)
+    x_ex_mode = _val(x_execution_mode)
     byok = _sanitize_byok(
-        x_nebius_api_key if x_nebius_api_key is not None else c.nebius_api_key,
-        x_nebius_project_id if x_nebius_project_id is not None else c.nebius_project_id,
-        x_nebius_subnet_id if x_nebius_subnet_id is not None else c.nebius_subnet_id,
+        x_key if x_key is not None else c.nebius_api_key,
+        x_proj if x_proj is not None else c.nebius_project_id,
+        x_sub if x_sub is not None else c.nebius_subnet_id,
     )
-    mode = _normalize_mode(c.mode, x_sandboxproof_mode, x_execution_mode)
+    mode = _normalize_mode(c.mode, x_sb_mode, x_ex_mode)
     cid = f"cert-{uuid.uuid4().hex[:8]}"
     twin = wt.build_twin(42, c.requests, tuple(c.workload_tasks))
     full_config = c.model_dump()
@@ -626,6 +635,7 @@ def get_cert(cid: str):
     c = _load(cid)
     return {"id": cid, "status": c["status"], "spend": c["spend"],
             "experiments": len(c["experiments"]), "simulated": c["simulated"],
+            "candidate_model": (c.get("config") or {}).get("candidate_model"),
             "byok_used": _byok_flag(c)}
 
 
@@ -664,12 +674,15 @@ def start_cert(
     c = _load(cid)
     # Allow the client to (re)send BYOK headers on start; header values win.
     # Still in-memory only — update_cert never receives secrets.
-    if x_nebius_api_key is not None or x_nebius_project_id is not None or x_nebius_subnet_id is not None:
+    x_key = _val(x_nebius_api_key)
+    x_proj = _val(x_nebius_project_id)
+    x_sub = _val(x_nebius_subnet_id)
+    if x_key is not None or x_proj is not None or x_sub is not None:
         prev = c.get("byok") or {}
         c["byok"] = _sanitize_byok(
-            x_nebius_api_key if x_nebius_api_key is not None else prev.get("api_key"),
-            x_nebius_project_id if x_nebius_project_id is not None else prev.get("project_id"),
-            x_nebius_subnet_id if x_nebius_subnet_id is not None else prev.get("subnet_id"),
+            x_key if x_key is not None else prev.get("api_key"),
+            x_proj if x_proj is not None else prev.get("project_id"),
+            x_sub if x_sub is not None else prev.get("subnet_id"),
         )
     if c["status"] == "RUNNING":
         return {"certification": cid, "status": "RUNNING", "detail": "already running",

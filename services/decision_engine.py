@@ -102,8 +102,8 @@ def propose_experiment(context: dict, api_key: str | None = None) -> dict:
         "The harness replays a sealed workload twin against a hosted "
         "OpenAI-compatible endpoint inside an isolated sandbox. Start with the "
         "cheapest profile that could plausibly pass: low concurrency and a lean "
-        "output budget (e.g. max_tokens=64). If the previous experiment failed QUALITY, raise "
-        "max_tokens to 512 (truncated structured output is the usual cause). If it "
+        "output budget (e.g. max_tokens=64). If the previous experiment failed TRUNCATION "
+        "or QUALITY (cut off before completing JSON), raise max_tokens to 512. If it "
         "failed LATENCY, reduce concurrency. If it failed RELIABILITY or "
         "INFRASTRUCTURE, reduce concurrency and context. Never change the model."
     )
@@ -136,7 +136,7 @@ def propose_experiment(context: dict, api_key: str | None = None) -> dict:
 
 
 def fast_classify(summary: str, api_key: str | None = None) -> dict:
-    sys = ('Return ONLY JSON {"failure": "LATENCY|QUALITY|RELIABILITY|INFRASTRUCTURE|UNKNOWN", '
+    sys = ('Return ONLY JSON {"failure": "TRUNCATION|LATENCY|QUALITY|RELIABILITY|INFRASTRUCTURE|UNKNOWN", '
            '"action": "CONTINUE|STOP_SUCCESS|STOP_BUDGET|ESCALATE", "reason": "..."}')
     try:
         raw = _call(CLASSIFIER_MODEL, [{"role": "system", "content": sys},

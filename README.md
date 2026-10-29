@@ -1,9 +1,11 @@
 # SandboxProof — crash-tests for open-weight models — SHIP or BLOCK with receipts.
 
+> **Project Lineage:** This repository is hosted as `gpu-proof` (original scaffold explored GPU VRAM fitting). During development for the Nebius x NVIDIA Hackathon, live testing revealed that open-weight reasoning models primarily fail from **structured output truncation** under tight token budgets and **endpoint saturation** rather than raw VRAM OOMs. We evolved the architecture into **SandboxProof**: replaying traffic inside disposable Nebius Contree CPU microVMs against Token Factory endpoints. (See `DISCLOSURE.md`).
+
 SandboxProof certifies candidate models against your production requirements inside
 isolated Nebius Token Factory Sandboxes. Give it a candidate model and production SLA requirements.
 It runs real experiments in fresh microVMs (capturing operation UUID and billed microVM cost per run),
-learns from failures via NVIDIA Nemotron models, and issues a **SHIP / BLOCK** certificate backed by
+learns from failures via NVIDIA Nemotron models, and issues a cryptographically signed **SHIP / BLOCK** certificate backed by
 measured evidence — never vibes.
 
 > AI proposes. Policy approves. Nebius executes. Metrics decide.
@@ -14,23 +16,55 @@ Track per submission paperwork: **Coding and Agentic Engineering**.
 
 ## Quick start
 
-Prereqs: Python 3.11+, Node 18+, Docker (optional, for compose).
+Prereqs: Python 3.11+, Node 18+, Docker (optional).
 
-```powershell
-# 1. env (backend auto-loads .env via python-dotenv)
-Copy-Item .env.example .env   # then fill keys (names only — never commit values)
+### Option A: Linux / macOS (bash / zsh)
 
-# 2. backend :8000
+```bash
+# 1. Environment configuration
+cp .env.example .env   # fill your NEBIUS_API_KEY and NEBIUS_PROJECT_ID
+
+# 2. Backend (:8000)
 pip install -r apps/api/requirements.txt
-# Set to "false" for real Nebius Sandbox execution (requires NEBIUS_API_KEY + NEBIUS_PROJECT_ID)
-$env:USE_SIMULATOR = "false"
+export USE_SIMULATOR=false   # set to true for offline simulation
 python -m uvicorn main:app --app-dir apps/api/app --host 127.0.0.1 --port 8000
 
-# 3. web :3000 (new terminal)
+# 3. Web Frontend (:3000 in new terminal)
+npm --prefix apps/web install
+export BACKEND_API_URL="http://127.0.0.1:8000"
+export NEXT_PUBLIC_API="http://127.0.0.1:8000"
+npm --prefix apps/web run dev   # open http://localhost:3000
+```
+
+### Option B: Windows (PowerShell)
+
+```powershell
+# 1. env
+Copy-Item .env.example .env
+# 2. backend
+pip install -r apps/api/requirements.txt
+$env:USE_SIMULATOR = "false"
+python -m uvicorn main:app --app-dir apps/api/app --host 127.0.0.1 --port 8000
+# 3. web (new terminal)
 npm --prefix apps/web install
 $env:BACKEND_API_URL = "http://127.0.0.1:8000"
 $env:NEXT_PUBLIC_API = "http://127.0.0.1:8000"
-npm --prefix apps/web run dev   # http://localhost:3000
+npm --prefix apps/web run dev
+```
+
+### Option C: Docker Compose
+
+```bash
+docker compose up --build
+```
+
+### Verify an Ed25519 Certificate CLI
+
+Every certificate is signed with Ed25519. Anyone can verify tamper-evidence without running the backend:
+
+```bash
+python -m services.signer verify docs/runs/real-001.json
+# Outputs: VERIFIED: Certificate 'cert-a1a3fa0d' signature is VALID. (exit code 0)
 ```
 
 Run a certification (verified in `apps/api/app/main.py`):

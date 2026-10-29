@@ -3,6 +3,8 @@
 .env.local
 .env.*.local
 *.env
+*_private_key.pem
+!services/cert_public_key.pem
 
 # Python
 __pycache__/

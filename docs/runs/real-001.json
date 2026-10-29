@@ -57,7 +57,10 @@
         "fetched_at": null,
         "basis": "$0.0069 measured sandbox and token spend over ~4 replayed requests"
       }
-    }
+    },
+    "signature_algorithm": "Ed25519",
+    "public_key_b64": "lz6Jfdkx/RMhtw96R8JlR+kMgl7GLVHwJFKr17FvVpM=",
+    "signature": "KpNc9x7b0o9ClewzcbUu0Sh/3XxppBED9rABWRcTfB1q4H8qJ371vPn6NcF0CJo1XhDHfhMNq9f3lhbdhPF6DA=="
   },
   "experiments": [
     {

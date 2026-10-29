@@ -8,8 +8,8 @@
 | 2026-10-12 | live (cert-c756f124) | exp1 OOM | L40S | ~1 | 0.00 | 0.00 | 0.00 | sim-job-0001 | SIMULATED, refactored loop, unique job ids |
 | 2026-10-12 | live (cert-c756f124) | exp2 quality BLOCK | H100 | ~1 | 0.00 | 0.00 | 0.00 | sim-job-0002 | SIMULATED: INT4 quality 0.62 |
 | 2026-10-12 | live (cert-c756f124) | exp3 SHIP | H100 | ~1 | 0.00 | 0.00 | 0.00 | sim-job-0003 | SIMULATED: FP8 quality 0.93 |
-| 2026-10-29 | real-001 (cert-a1a3fa0d) | exp0 QUALITY BLOCK | Nebius Contree / Token Factory | ~4.5 | 0.01 | 0.0031 | 0.0031 | 01a1885f-2d09-73d2-9983-925aba588977 | REAL SANDBOX: lean max_tokens=64 truncates output; quality 0.0; Nemotron Ultra diagnoses QUALITY |
-| 2026-10-29 | real-001 (cert-a1a3fa0d) | exp1 QUALITY SHIP | Nebius Contree / Token Factory | ~8.5 | 0.01 | 0.0038 | 0.0069 | 01a1885f-6159-7708-86a6-9a0ca82cb13c | REAL SANDBOX: max_tokens=512; quality 1.0 (tool 100%, JSON 100%); all SLA gates pass; SHIP |
+| 2026-10-29 | real-001 (cert-a1a3fa0d) | exp0 TRUNCATION BLOCK | Nebius Contree / Token Factory | ~4.5 | 0.01 | 0.0031 | 0.0031 | 01a1885f-2d09-73d2-9983-925aba588977 | REAL SANDBOX: lean max_tokens=64 truncates structured output; quality 0.0; Nemotron Ultra diagnoses TRUNCATION failure; BLOCK |
+| 2026-10-29 | real-001 (cert-a1a3fa0d) | exp1 ADAPTED SHIP | Nebius Contree / Token Factory | ~8.5 | 0.01 | 0.0038 | 0.0069 | 01a1885f-6159-7708-86a6-9a0ca82cb13c | REAL SANDBOX: Nemotron Ultra adapted max_tokens=512; quality 1.0 (tool 100%, JSON 100%), error_rate 0.0, latency_p95_ms 3388ms (passes configured hosted reasoning SLA gate <= 5000ms); SHIP |
 
 Policy: refuse any launch that would breach $20 total or $10 per-cert. Simulator runs cost $0 and are marked SIMULATED.
 

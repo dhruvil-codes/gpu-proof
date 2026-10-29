@@ -198,9 +198,36 @@ def build_certificate(*, certification_id: str, gate_results: list, metrics: dic
     deployment = build_deployment_prescription(
         plan=effective_plan, metrics=metrics,
         candidate_model=effective_model, spend_usd=spend_usd)
-    return {
+
+    evaluated_gates = [
+        {
+            "metric": g.metric,
+            "operator": getattr(g, "op", "<="),
+            "threshold": g.threshold,
+            "observed": g.observed,
+            "passed": g.passed,
+            "detail": getattr(g, "detail", ""),
+        }
+        for g in gate_results
+    ]
+
+    certificate_scope = {
+        "statement": (
+            "This certificate guarantees structural and operational compliance against the "
+            "replayed workload twin under the measured capacity envelope (schema validity, tool "
+            "adherence, latency SLA, error rate, and cost). It certifies behavioral execution "
+            "within these parameters, NOT subjective or unconstrained free-text semantic quality."
+        ),
+        "candidate_model": effective_model,
+        "twin_digest": twin_digest,
+        "twin_count": twin_count,
+        "capacity_envelope": deployment.get("capacity_envelope", {}),
+    }
+
+    cert = {
         "certification_id": certification_id,
         "verdict": verdict,
+        "evaluated_gates": evaluated_gates,
         "failing_gates": [{"metric": g.metric, "observed": g.observed,
                            "threshold": g.threshold, "detail": g.detail} for g in fails],
         "evidence": {"metrics": metrics, "baseline": baseline or {}},
@@ -210,4 +237,11 @@ def build_certificate(*, certification_id: str, gate_results: list, metrics: dic
         "twin_count": twin_count,
         "workload_digest_explanation": WORKLOAD_DIGEST_EXPLANATION,
         "deployment": deployment,
+        "certificate_scope": certificate_scope,
     }
+
+    try:
+        from services.signer import sign_certificate
+        return sign_certificate(cert)
+    except Exception:
+        return cert

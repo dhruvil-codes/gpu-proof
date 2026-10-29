@@ -301,7 +301,9 @@ def advisor(
                           {"role": "user", "content": user}],
                          json_mode=False, timeout=30, api_key=byok_key).strip()
         if llm_text:
-            return {**det, "answer": f"{llm_text}\n\n---\n**Deterministic sizing (ground truth):**\n{det['answer']}",
+            # Scrub sensitive key names from advisor responses to prevent injection reflection
+            safe_text = llm_text.replace("NEBIUS_API_KEY", "[REDACTED_ENV_KEY]")
+            return {**det, "answer": f"{safe_text}\n\n---\n**Deterministic sizing (ground truth):**\n{det['answer']}",
                     "source": "nemotron-ultra"}
     except Exception:
         pass

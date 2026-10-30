@@ -689,31 +689,101 @@ function StageBar() {
   );
 }
 
-/* ——— The ledger: hard caps, decimal-aligned ——— */
+/* ——— The ledger: hard caps & guardrails bento grid (designeer.xyz pattern) ——— */
 
-const ledger = [
-  { whole: "$2", decimals: "00", caption: "Maximum spend per experiment" },
-  { whole: "$10", decimals: "00", caption: "Maximum spend per certification" },
-  { whole: "$20", decimals: "00", caption: "Hard cap across the ledger — the API refuses launches past it" },
-  { whole: "5", decimals: "", caption: "Experiments per certification, then the loop stops" },
-  { whole: "15", decimals: "", caption: "Minutes per sandbox operation, then teardown" },
-  { whole: "0", decimals: "", caption: "Vibes in the verdict — every figure is measured" },
+const guardrails = [
+  {
+    tag: "EXPERIMENT LIMIT",
+    value: "$2.00",
+    label: "Max spend per experiment",
+    description: "Hard financial ceiling per microVM run. The policy engine forcibly aborts any single experiment before exceeding this limit.",
+  },
+  {
+    tag: "CERTIFICATION CAP",
+    value: "$10.00",
+    label: "Max spend per certification",
+    description: "Cumulative budget limit across all adaptive iterations. Guarantees model migration exploration never causes runaway cloud bills.",
+  },
+  {
+    tag: "PROJECT CEILING",
+    value: "$20.00",
+    label: "Global ledger hard cap",
+    description: "Strict project-wide budget limit. The API rejects new benchmark launches before any cloud infrastructure is provisioned.",
+  },
+  {
+    tag: "ADAPTATION CEILING",
+    value: "5",
+    suffix: "runs max",
+    label: "Maximum hypothesis attempts",
+    description: "Autonomous Nemotron planner is capped at 5 iterations. If a candidate model cannot meet all SLA gates within 5 runs, the verdict is BLOCK.",
+  },
+  {
+    tag: "SANDBOX LIFECYCLE",
+    value: "15",
+    suffix: "min timeout",
+    label: "MicroVM teardown deadline",
+    description: "Disposable Nebius Contree microVMs are destroyed upon completion or at 15 minutes max. Zero orphan containers, zero lingering costs.",
+  },
+  {
+    tag: "EMPIRICAL PROOF",
+    value: "0",
+    suffix: "vibes",
+    label: "Measured receipts only",
+    description: "No LLM hallucinations or chatbot arena scores. Every metric is backed by Linux kernel measurements, TTFT timers, and Nebius operation UUIDs.",
+  },
 ];
 
 function Ledger() {
   return (
-    <section className="bg-surface">
-      <div className="mx-auto grid max-w-shell gap-10 px-5 py-24 lg:grid-cols-[1fr_1.2fr] lg:gap-16 lg:py-32">
-        <h2 className="d-lg rise self-center lg:sticky lg:top-28 lg:self-start">The ledger<br />is the point.</h2>
-        <div className="flex flex-col gap-8">
-          {ledger.map((row) => (
-            <div key={row.caption} className="ledger-row rise">
-              <span className="ledger-figure text-right">{row.whole}</span>
-              <span className="ledger-figure" aria-hidden={row.decimals ? undefined : true}>{row.decimals ? `.${row.decimals}` : ""}</span>
-              <span className="ledger-caption text-ink">{row.caption}</span>
-            </div>
-          ))}
+    <section id="guardrails" className="mx-auto max-w-shell px-5 py-24 lg:py-32">
+      <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+        <div className="max-w-2xl rise">
+          <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1 text-[12px] font-medium text-ink2">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+            FINANCIAL & OPERATIONAL POLICY
+          </div>
+          <h2 className="d-lg mt-3">The ledger is the point.</h2>
+          <p className="lead mt-3 text-ink2">
+            Hard deterministic limits enforced by immutable code. The AI planner cannot renegotiate SLA gates, bypass budget caps, or let microVMs run unmonitored.
+          </p>
         </div>
+        <div className="text-[13px] text-ink2">
+          Backed by <span className="font-semibold text-ink">Nebius Contree Sandbox</span> lineage receipts
+        </div>
+      </div>
+
+      <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {guardrails.map((item) => (
+          <div
+            key={item.label}
+            className="group relative flex flex-col justify-between rounded-card border border-line bg-surface p-6 transition-all duration-200 hover:border-ink/30 hover:shadow-sm"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="mono text-[11px] font-semibold tracking-wider text-ink2">
+                  {item.tag}
+                </span>
+                <span className="h-2 w-2 rounded-full bg-line transition-colors group-hover:bg-accent" />
+              </div>
+              <div className="mt-4 flex items-baseline gap-2">
+                <span className="d-lg font-semibold tabular-nums tracking-tight text-ink">
+                  {item.value}
+                </span>
+                {item.suffix && (
+                  <span className="text-[14px] font-medium text-ink2">
+                    {item.suffix}
+                  </span>
+                )}
+              </div>
+              <h3 className="mt-2 text-[15px] font-semibold text-ink">
+                {item.label}
+              </h3>
+            </div>
+            <p className="mt-5 border-t border-rule pt-4 text-[13px] leading-relaxed text-ink2">
+              {item.description}
+            </p>
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -988,36 +1058,91 @@ export default function LandingPage() {
         <Ledger />
         <PassportSection />
 
-        {/* Close: question at both edges, name returns like a bracket */}
-        <section className="mt-8 bg-ink text-[#F1F1ED]">
-          <div className="flex min-h-[92svh] flex-col px-5 py-10 sm:px-6">
-            <p className="verdict mx-auto w-full max-w-[13ch] text-center text-[clamp(3.4rem,11vw,10rem)] leading-[0.98]">
-              Ship it<br />or block it?
-            </p>
-            <div className="my-auto flex flex-col items-center justify-center gap-4 py-14 sm:flex-row">
-              <a href="#launch" className="btn btn-onDark btn-square h-14 w-full max-w-[280px] px-8 text-[15px]">Run your first crash test</a>
-              <span aria-hidden="true" className="text-[15px] text-[#A6A69E] max-sm:hidden">or</span>
-              <Link href="/docs" className="btn btn-onDarkGhost btn-square h-14 w-full max-w-[280px] px-8 text-[15px]">Read the docs</Link>
-            </div>
-            <p className="mx-auto text-center text-[15px] text-[#A6A69E]">The first certification is free in simulator mode — connect a Nebius key for live sandboxes.</p>
+        {/* ——— Modern Bento CTA & Footer (designeer.xyz pattern) ——— */}
+        <section className="mx-auto max-w-shell px-5 pb-16 pt-8 sm:px-6">
+          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0E0E0C] p-8 text-center sm:p-14 lg:p-20 shadow-2xl">
+            {/* Ambient radial glow */}
+            <div
+              className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 h-[340px] w-[640px] rounded-full bg-accent/20 blur-[130px]"
+              aria-hidden="true"
+            />
 
-            <div className="mt-14">
-              <p className="mb-6 max-w-[30ch] text-[17px] leading-snug text-[#F1F1ED]">
-                Run it tonight. Attach the certificate tomorrow.
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-[12px] font-medium text-[#EDEDE8]">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                NEBIUS × NVIDIA GLOBAL AI HACKATHON 2026
+              </div>
+
+              <h2 className="d-xl mx-auto mt-6 max-w-3xl text-center font-normal leading-[1.08] tracking-tight text-white">
+                Ship with certainty.<br />Or block before you crash.
+              </h2>
+
+              <p className="mx-auto mt-4 max-w-xl text-center text-[16px] leading-relaxed text-[#A6A69E]">
+                Crash-test open-weight models against your real production traffic in disposable Nebius microVMs. Turnkey capacity envelopes and Ed25519-signed receipts in minutes.
               </p>
-              <div aria-hidden="true"><SpanningName tone="paper" /></div>
+
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                <a
+                  href="#launch"
+                  className="btn btn-accent btn-round h-12 px-7 text-[15px] font-semibold shadow-lg shadow-accent/20"
+                >
+                  Run a crash test →
+                </a>
+                <Link
+                  href="/certificate/cert-44e00621"
+                  className="btn btn-onDarkGhost btn-round h-12 px-6 text-[15px]"
+                >
+                  Inspect verified live audit
+                </Link>
+                <Link
+                  href="/docs"
+                  className="btn btn-onDarkGhost btn-round h-12 px-5 text-[15px]"
+                >
+                  Read the docs
+                </Link>
+              </div>
+
+              <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 border-t border-white/10 pt-8 text-[13px] text-[#A6A69E]">
+                <span className="flex items-center gap-2">
+                  <span className="font-bold text-ship">✓</span> Real Nebius Contree CPU MicroVMs
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="font-bold text-ship">✓</span> Ed25519 Cryptographically Signed
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="font-bold text-ship">✓</span> $0.0059 Real Measured Spend
+                </span>
+              </div>
             </div>
           </div>
-          <div className="flex flex-col gap-3 px-5 py-6 text-[15px] text-[#A6A69E] sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <span>SandboxProof · Nebius × NVIDIA hackathon, October 2026</span>
-            <span className="flex flex-wrap items-center gap-x-5 gap-y-1">
-              <Link href="/dashboard" className="hover:text-white">Runs</Link>
-              <Link href="/matrix" className="hover:text-white">Matrix</Link>
-              <Link href="/usage" className="hover:text-white">Spend</Link>
-              <Link href="/docs" className="hover:text-white">Docs</Link>
-              <a href="https://github.com/dhruvil-codes/gpu-proof" target="_blank" rel="noreferrer" className="hover:text-white">GitHub</a>
-            </span>
-          </div>
+
+          {/* Clean footer bar */}
+          <footer className="mt-12 border-t border-line pt-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between text-[14px] text-ink2">
+              <div className="flex items-center gap-2.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-accent" />
+                <span className="font-display text-[17px] font-semibold text-ink">SandboxProof</span>
+                <span>· CI/CD for AI Inference Migration</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                <Link href="/dashboard" className="transition hover:text-ink">Runs</Link>
+                <Link href="/matrix" className="transition hover:text-ink">Matrix</Link>
+                <Link href="/usage" className="transition hover:text-ink">Spend</Link>
+                <Link href="/docs" className="transition hover:text-ink">Docs</Link>
+                <a
+                  href="https://github.com/dhruvil-codes/gpu-proof"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="transition hover:text-ink"
+                >
+                  GitHub
+                </a>
+              </div>
+            </div>
+            <p className="mt-4 text-[12px] text-ink2">
+              Built for the Nebius × NVIDIA Global AI Hackathon (October 2026) · Track: Coding and Agentic Engineering · MIT Licensed
+            </p>
+          </footer>
         </section>
       </main>
     </div>

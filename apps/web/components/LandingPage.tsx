@@ -453,7 +453,7 @@ function CrashTestLab() {
         </button>
         <div className="mt-3 max-w-[72ch] space-y-1 text-[14px] leading-relaxed text-ink2">
           <p>Hard gates and budget policy live in <Link href="/docs" className="underline decoration-line underline-offset-4 hover:text-ink">the docs</Link>.</p>
-          <p>Free in simulator mode · live runs bill your key</p>
+          <p>100% real execution on Nebius Contree CPU microVMs · Real tokens &amp; measured compute</p>
         </div>
       </div>
     </form>
@@ -1027,7 +1027,7 @@ export default function LandingPage() {
                   Inspect verified run (cert-a1a3fa0d)
                 </Link>
               </div>
-              <p className="mt-6 max-w-[44ch] text-[14px] leading-relaxed text-ink2">Free in simulator mode · live runs bill your own Nebius key.</p>
+              <p className="mt-6 max-w-[44ch] text-[14px] leading-relaxed text-ink2">100% real execution on Nebius Contree CPU microVMs · Zero simulation by default.</p>
             </div>
             <div className="rise min-w-0">
               <HeroScene />
